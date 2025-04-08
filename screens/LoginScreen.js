@@ -27,7 +27,7 @@ export default function LoginScreen({ navigation }) {
         passWord: form.passWord.trim()
       });
       console.log(response);
-      navigation.navigate('Home', { user: response.data.user });
+      navigation.navigate('Home', { user: response.data });
     } catch (err) {
       setError({
         visible: true,

@@ -7,11 +7,11 @@ import ProfileModal from '../components/ProfileModal';
 
 const HomeScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { user } = route.params || {};
-  
+  const { user } = route.params?.user || {};
+  const token = route.params?.token;
   const [visibleMenu, setVisibleMenu] = useState(false);
   const [visibleProfile, setVisibleProfile] = useState(false);
-  const [activeChat, setActiveChat] = useState(null); 
+  const [activeChat, setActiveChat] = useState(null);
 
   const [chats, setChats] = useState([
     { id: '1', name: 'Nhóm lớp học', lastMessage: 'Hôm nay có bài tập mới', time: '10:30', unread: 2, avatar: 'https://i.pravatar.cc/150?img=1' },
@@ -27,14 +27,14 @@ const HomeScreen = ({ navigation, route }) => {
           visible={visibleMenu}
           onDismiss={() => setVisibleMenu(false)}
           anchor={
-            <Appbar.Action 
+            <Appbar.Action
               icon={() => (
-                <Avatar.Image 
-                  size={40} 
-                  source={{ uri: user?.avatar || 'https://i.pravatar.cc/150' }} 
+                <Avatar.Image
+                  size={40}
+                  source={{ uri: user?.avatar || 'https://i.pravatar.cc/150' }}
                 />
-              )} 
-              onPress={() => setVisibleMenu(true)} 
+              )}
+              onPress={() => setVisibleMenu(true)}
               color={colors.white}
             />
           }
@@ -45,16 +45,14 @@ const HomeScreen = ({ navigation, route }) => {
         </Menu>
       </Appbar.Header>
 
-      {/* Nội dung chính */}
       <View style={styles.mainContent}>
-        {/* Luôn hiển thị danh sách chat chiếm toàn bộ màn hình khi chưa chọn chat */}
         {!activeChat ? (
-          <ChatList 
+          <ChatList
             chats={chats}
             onChatSelect={setActiveChat}
           />
         ) : (
-          <ChatArea 
+          <ChatArea
             chat={activeChat}
             onBack={() => setActiveChat(null)}
             user={user}
@@ -62,11 +60,17 @@ const HomeScreen = ({ navigation, route }) => {
         )}
       </View>
 
+
       <ProfileModal
         visible={visibleProfile}
         user={user}
-        onDismiss={() => setVisibleProfile(false)}
+        token={token}
+        onDismiss={() => setProfileVisible(false)}
+        onUpdateSuccess={(updatedUser) => {
+          setCurrentUser(updatedUser);
+        }}
       />
+
     </View>
   );
 };

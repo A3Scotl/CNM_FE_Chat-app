@@ -11,10 +11,10 @@ const Stack = createNativeStackNavigator();
 export default function AppRouter() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: true }}>
-        <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Đăng nhập' }} />
-        <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Đăng ký' }} />
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Trang chủ' }} />
+      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Login" component={LoginScreen}  />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
