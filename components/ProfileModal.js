@@ -4,11 +4,63 @@ import { Modal, Portal, Card, Avatar, Text, Divider, Chip, Button, useTheme } fr
 
 const ProfileModal = ({ visible, user, onDismiss }) => {
   const { colors } = useTheme();
-
+  const styles = StyleSheet.create({
+    card: {
+      margin: 20,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    header: {
+      alignItems: 'center',
+      padding: 20,
+      paddingBottom: 30,
+    },
+    avatar: {
+      borderWidth: 3,
+      borderColor: 'white',
+      marginBottom: 10,
+    },
+    name: {
+      fontSize: 20,
+      fontWeight:'bold'
+    },
+    section: {
+      padding: 16,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      marginBottom: 12,
+    },
+    infoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    label: {
+      fontSize: 15,
+    },
+    value: {
+      fontSize: 15,
+      fontWeight: '500',
+    },
+    divider: {
+      marginVertical: 4,
+    },
+    footer: {
+      justifyContent: 'center',
+      padding: 16,
+    },
+    button: {
+      flex: 1,
+      borderRadius: 6,
+    },
+  });
   return (
     <Portal>
       <Modal visible={visible} onDismiss={onDismiss}>
-        <Card style={[styles.card, { backgroundColor: colors.white }]}>
+        <Card style={[styles.card, { backgroundColor: 'white' }]}>
           {/* Header */}
           <View style={[styles.header, { backgroundColor: colors.primary }]}>
             <Avatar.Image 
@@ -52,8 +104,8 @@ const ProfileModal = ({ visible, user, onDismiss }) => {
             <View style={styles.infoRow}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Xác thực 2 lớp:</Text>
               <Chip 
-                style={{ backgroundColor: user?.is_twofa_enabled ? colors.success : colors.error }}
-                textStyle={{ color: colors.white }}
+                style={{ backgroundColor: user?.is_twofa_enabled ? colors.success : colors.error ,  }}
+                textStyle={{ color: 'white' }}
               >
                 {user?.is_twofa_enabled ? 'Đã bật' : 'Đã tắt'}
               </Chip>
@@ -75,60 +127,9 @@ const ProfileModal = ({ visible, user, onDismiss }) => {
       </Modal>
     </Portal>
   );
+  
 };
 
-const styles = StyleSheet.create({
-  card: {
-    margin: 20,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  header: {
-    alignItems: 'center',
-    padding: 20,
-    paddingBottom: 30,
-  },
-  avatar: {
-    borderWidth: 3,
-    borderColor: 'white',
-    marginBottom: 10,
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  section: {
-    padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  label: {
-    fontSize: 15,
-  },
-  value: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  divider: {
-    marginVertical: 4,
-  },
-  footer: {
-    justifyContent: 'center',
-    padding: 16,
-  },
-  button: {
-    flex: 1,
-    borderRadius: 6,
-  },
-});
+
 
 export default ProfileModal;
