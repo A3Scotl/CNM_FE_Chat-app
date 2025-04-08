@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Button, Text, useTheme, RadioButton } from 'react-native-paper';
 import { register } from '../apis/auth.api';
-import { handleApiError } from '../utils/handleApiError';
 
 export default function RegisterScreen({ navigation }) {
   const [form, setForm] = useState({

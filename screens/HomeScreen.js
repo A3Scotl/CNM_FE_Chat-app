@@ -1,34 +1,83 @@
-import React from 'react';
-import { View, Text, Button, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Appbar, Avatar, Menu, Divider, useTheme, Text } from 'react-native-paper';
+import ChatList from '../components/ChatList';
+import ChatArea from '../components/ChatArea';
+import ProfileModal from '../components/ProfileModal';
 
-export default function HomeScreen({ navigation, route }) {
+const HomeScreen = ({ navigation, route }) => {
+  const { colors } = useTheme();
+  const { user } = route.params || {};
+  
+  const [visibleMenu, setVisibleMenu] = useState(false);
+  const [visibleProfile, setVisibleProfile] = useState(false);
+  const [activeChat, setActiveChat] = useState(null); 
+
+  const [chats, setChats] = useState([
+    { id: '1', name: 'Nhóm lớp học', lastMessage: 'Hôm nay có bài tập mới', time: '10:30', unread: 2, avatar: 'https://i.pravatar.cc/150?img=1' },
+    { id: '2', name: 'Mẹ', lastMessage: 'Tối nay về ăn cơm không con?', time: '09:15', unread: 0, avatar: 'https://i.pravatar.cc/150?img=2' },
+  ]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Chào mừng, {user.fullName}</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <Appbar.Header style={{ backgroundColor: colors.primary }}>
+        <Appbar.Content title="Zalo" titleStyle={{ color: colors.white }} />
+        <Menu
+          visible={visibleMenu}
+          onDismiss={() => setVisibleMenu(false)}
+          anchor={
+            <Appbar.Action 
+              icon={() => (
+                <Avatar.Image 
+                  size={40} 
+                  source={{ uri: user?.avatar || 'https://i.pravatar.cc/150' }} 
+                />
+              )} 
+              onPress={() => setVisibleMenu(true)} 
+              color={colors.white}
+            />
+          }
+        >
+          <Menu.Item onPress={() => { setVisibleMenu(false); setVisibleProfile(true); }} title="Hồ sơ" />
+          <Divider />
+          <Menu.Item onPress={() => navigation.replace('Login')} title="Đăng xuất" />
+        </Menu>
+      </Appbar.Header>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>👤 Username: {user.userName}</Text>
-        <Text style={styles.label}>📞 Số điện thoại: {user.phoneNumber}</Text>
-        <Text style={styles.label}>📧 Email: {user.email}</Text>
-        <Text style={styles.label}>🚻 Giới tính: {user.gender === 'male' ? 'Nam' : 'Nữ'}</Text>
-        <Text style={styles.label}>🟢 Trạng thái: {user.status}</Text>
+      {/* Nội dung chính */}
+      <View style={styles.mainContent}>
+        {/* Luôn hiển thị danh sách chat chiếm toàn bộ màn hình khi chưa chọn chat */}
+        {!activeChat ? (
+          <ChatList 
+            chats={chats}
+            onChatSelect={setActiveChat}
+          />
+        ) : (
+          <ChatArea 
+            chat={activeChat}
+            onBack={() => setActiveChat(null)}
+            user={user}
+          />
+        )}
       </View>
 
-      <Button title="Đăng xuất" onPress={() => navigation.replace('Login')} />
+      <ProfileModal
+        visible={visibleProfile}
+        user={user}
+        onDismiss={() => setVisibleProfile(false)}
+      />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  infoBox: {
-    marginBottom: 20,
-    width: '100%',
-    padding: 16,
-    backgroundColor: '#f0f8ff',
-    borderRadius: 10,
+  container: {
+    flex: 1,
   },
-  label: { fontSize: 16, marginBottom: 8 },
+  mainContent: {
+    flex: 1,
+  },
 });
+
+export default HomeScreen;
