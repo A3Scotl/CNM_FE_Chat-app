@@ -1,21 +1,24 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as React from 'react';
+import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+import AppRouter from './routes/AppRouter';
 
-import LoginScreen from './screens/LoginScreen';
-import RegisterScreen from './screens/RegisterScreen';
-import HomeScreen from './screens/HomeScreen';
-
-const Stack = createNativeStackNavigator();
+const chatTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: '#0084ff',       
+    accent: '#ffffff',        
+    background: '#ffffff',   
+    surface: '#ffffff',
+    text: '#000000',
+    placeholder: '#999999',
+  },
+};
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login">
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <PaperProvider theme={chatTheme}>
+      <AppRouter />
+    </PaperProvider>
   );
 }
