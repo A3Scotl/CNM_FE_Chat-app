@@ -37,7 +37,7 @@ export const register = async (form) => {
 
 export const logout = async () => {
   try {
-    await axios.get(`${API_URL}/auth/log-out`, {
+    await axios.post(`${API_URL}/auth/logout`, {
       withCredentials: true,
     });
   } catch (error) {

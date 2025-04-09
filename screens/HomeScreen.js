@@ -39,12 +39,9 @@ const HomeScreen = ({ navigation, route }) => {
     try {
       setShowDropdown(false);
       await logout();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-    }catch(error){
-      console.log(error.message);
+      navigation.navigate('Login');
+    } catch (error) {
+      console.log(error);
     }
   };
 

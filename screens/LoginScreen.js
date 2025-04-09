@@ -29,8 +29,15 @@ export default function LoginScreen({ navigation }) {
         phoneNumber: form.phoneNumber.trim(),
         passWord: form.passWord.trim(),
       });
-
-      navigation.navigate('Home', { user: response.data });
+      if(response?.isSuccess){
+        navigation.navigate('Home', { user: response.data });
+      }
+      else{
+        setError({
+          visible: true,
+          message: 'Số điện thoại hoặc mật khẩu không đúng !',
+        });
+      }
     } catch (err) {
       setError({
         visible: true,

@@ -5,7 +5,7 @@ export default function ErrorDialog({ visible, message, onDismiss }) {
   return (
     <Portal>
       <Dialog visible={visible} onDismiss={onDismiss}>
-        <Dialog.Title>Lỗi</Dialog.Title>
+        <Dialog.Title>❌ Không thành công</Dialog.Title>
         <Dialog.Content>
           <Paragraph>{message}</Paragraph>
         </Dialog.Content>
