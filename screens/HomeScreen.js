@@ -5,6 +5,7 @@ import ProfileModal from '../components/ProfileModal';
 import ChatList from '../components/ChatList';
 import ChatArea from '../components/ChatArea';
 import SettingsModal from '../components/SettingsModal';
+import { logout } from '../apis/auth.api';
 
 const HomeScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
@@ -34,12 +35,17 @@ const HomeScreen = ({ navigation, route }) => {
     },
   ];
 
-  const handleLogout = () => {
-    setShowDropdown(false);
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+  const handleLogout = async () => {
+    try {
+      setShowDropdown(false);
+      await logout();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }catch(error){
+      console.log(error.message);
+    }
   };
 
   return (
@@ -97,7 +103,7 @@ const HomeScreen = ({ navigation, route }) => {
                     style={styles.menuItem}
                     onPress={handleLogout}
                   >
-                    <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
+                    <Text style={[styles.menuText, { color: colors.error }]} onPress={handleLogout}>Đăng xuất</Text>
                   </TouchableOpacity>
                 </View>
               )}
