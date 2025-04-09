@@ -1,39 +1,51 @@
 import axios from 'axios';
+import * as FileSystem from 'expo-file-system';
 
-const API_BASE_URL = 'http://localhost:5000/api/user';
-
-const uploadAvatar = async (avatarUri, authToken) => {
-    const formData = new FormData();
-    const fileType = avatarUri.split('.').pop();
-    
-    formData.append('avatar', {
-        uri: avatarUri,
-        name: `avatar.${fileType}`,
-        type: `image/${fileType}`,
+const API_BASE_URL = 'http://192.168.110.60:5000/api';
+export const getMyProfile = async (id, token) => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/user/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return res.data.data;
+    } catch (err) {
+      console.error('Lỗi khi gọi getMyProfile:', err.message, err.config?.url);
+      throw err;
+    }
+  };
+  
+export const uploadAvatar = async (avatarUri, token, userId) => {
+  try {
+    // Đọc file và encode sang base64
+    const base64 = await FileSystem.readAsStringAsync(avatarUri, {
+      encoding: FileSystem.EncodingType.Base64,
     });
 
-    try {
-        const response = await axios.patch(
-            `http://localhost:5000/api/user/me`,
-            formData,
-            {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    'Authorization': `Bearer ${authToken}`,
-                },
-                timeout: 10000,
-            }
-        );
-        return response.data;
-    } catch (error) {
-        console.error('Upload avatar error:', {
-            status: error.response?.status,
-            data: error.response?.data,
-        });
-        throw error;
-    }
-};
+    const fileType = avatarUri.split('.').pop();
+    const data = {
+      avatar: `data:image/${fileType};base64,${base64}`
+    };
 
-export const userApi = {
-    uploadAvatar,
+    const response = await axios.patch(
+      `${API_BASE_URL}/user/${userId}`,
+      data,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        timeout: 10000,
+      }
+    );
+
+    return response.data.user;
+  } catch (error) {
+    console.error('Upload error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+    throw error;
+  }
 };
