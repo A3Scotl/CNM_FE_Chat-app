@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { TextInput, Button, Text, Dialog, Portal, Paragraph } from 'react-native-paper';
+import { TextInput, Button, Text } from 'react-native-paper';
 import { login } from '../apis/auth.api';
+import ErrorDialog from '../components/ErrorDialog';
 
 export default function LoginScreen({ navigation }) {
   const [form, setForm] = useState({
     phoneNumber: '',
-    passWord: ''
+    passWord: '',
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState({ visible: false, message: '' });
 
   const handleChange = (name, value) => {
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleLogin = async () => {
@@ -20,18 +22,19 @@ export default function LoginScreen({ navigation }) {
       setError({ visible: true, message: 'Vui lòng nhập số điện thoại và mật khẩu' });
       return;
     }
+
     setLoading(true);
     try {
       const response = await login({
         phoneNumber: form.phoneNumber.trim(),
-        passWord: form.passWord.trim()
+        passWord: form.passWord.trim(),
       });
-      // console.log(response.data);
+
       navigation.navigate('Home', { user: response.data });
     } catch (err) {
       setError({
         visible: true,
-        message: err.message || 'Đăng nhập thất bại. Vui lòng thử lại'
+        message: err.message || 'Đăng nhập thất bại. Vui lòng thử lại',
       });
     } finally {
       setLoading(false);
@@ -49,6 +52,7 @@ export default function LoginScreen({ navigation }) {
         keyboardType="phone-pad"
         style={styles.input}
         autoCapitalize="none"
+        mode="outlined"
       />
 
       <TextInput
@@ -58,7 +62,12 @@ export default function LoginScreen({ navigation }) {
         secureTextEntry
         style={styles.input}
         autoCapitalize="none"
+        mode="outlined"
       />
+
+      <Text style={styles.forgotPasswordText} onPress={() => navigation.navigate('ForgotPassword')}>
+        Quên mật khẩu?
+      </Text>
 
       <Button
         mode="contained"
@@ -81,56 +90,48 @@ export default function LoginScreen({ navigation }) {
       <ErrorDialog
         visible={error.visible}
         message={error.message}
-        onDismiss={() => setError(prev => ({ ...prev, visible: false }))}
+        onDismiss={() => setError((prev) => ({ ...prev, visible: false }))}
       />
     </View>
   );
 }
-
-const ErrorDialog = ({ visible, message, onDismiss }) => (
-  <Portal>
-    <Dialog visible={visible} onDismiss={onDismiss}>
-      <Dialog.Title>Lỗi</Dialog.Title>
-      <Dialog.Content>
-        <Paragraph>{message}</Paragraph>
-      </Dialog.Content>
-      <Dialog.Actions>
-        <Button onPress={onDismiss}>Đóng</Button>
-      </Dialog.Actions>
-    </Dialog>
-  </Portal>
-);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
     justifyContent: 'center',
-    backgroundColor: '#fff'
+    backgroundColor: '#fff',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 30,
-    color: '#333'
+    color: '#333',
   },
   input: {
+    marginBottom: 12,
+    backgroundColor: '#fff',
+  },
+  forgotPasswordText: {
+    textAlign: 'right',
+    color: '#1976D2',
     marginBottom: 16,
-    backgroundColor: '#fff'
+    fontSize: 14,
   },
   button: {
     marginTop: 8,
     borderRadius: 4,
-    paddingVertical: 8
+    paddingVertical: 8,
   },
   buttonLabel: {
-    fontSize: 16
+    fontSize: 16,
   },
   registerText: {
     marginTop: 20,
     textAlign: 'center',
     color: '#1976D2',
-    fontSize: 16
-  }
+    fontSize: 16,
+  },
 });

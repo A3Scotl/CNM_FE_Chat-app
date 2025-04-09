@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as FileSystem from 'expo-file-system';
 
-const API_BASE_URL = 'http://192.168.110.60:5000/api';
+const API_BASE_URL = 'http://192.168.1.189:5000/api';
 export const getMyProfile = async (id, token) => {
     try {
       const res = await axios.get(`${API_BASE_URL}/user/${id}`, {

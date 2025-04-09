@@ -1,7 +1,7 @@
 import axios from "axios";
 import { handleApiError } from "../utils/handleApiError";
 
-const API_BASE_URL = "http://192.168.110.60:5000/api";
+const API_BASE_URL = "http://192.168.1.189:5000/api";
 
 export const login = async ({ phoneNumber, passWord }) => {
   try {
