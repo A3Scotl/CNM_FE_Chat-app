@@ -45,59 +45,67 @@ const HomeScreen = ({ navigation, route }) => {
   return (
     <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Appbar.Header style={{ backgroundColor: colors.primary,zIndex:1000 }}>
-          {selectedChat && (
-            <Appbar.BackAction onPress={() => setSelectedChat(null)} color="white" />
-          )}
-          <Appbar.Content title="Trang chủ" titleStyle={{ color: 'white' }} />
-          <View style={styles.avatarContainer}>
-            <Appbar.Action
-              icon={() => (
-                <Avatar.Image
-                  size={40}
-                  source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
-                />
-              )}
-              onPress={(e) => {
-                e.stopPropagation();
-                setShowDropdown(!showDropdown);
+        {!selectedChat && (
+          <Appbar.Header style={{ backgroundColor: colors.primary, zIndex: 1000 }}>
+            <Appbar.Content
+              title="ChatApp"
+              titleStyle={{
+                color: 'white',
+                fontWeight: 'bold',
+                textAlign: 'left',
+                marginLeft: -8,
               }}
-              color="white"
             />
-            
-            {/* Dropdown Menu integrated directly */}
-            {showDropdown && (
-              <View style={[styles.dropdownMenu, { backgroundColor: colors.surface }]}>
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setVisibleProfile(true);
-                    setShowDropdown(false);
-                  }}
-                >
-                  <Text style={[styles.menuText, { color: colors.text }]}>Hồ sơ</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setVisibleSettings(true);
-                    setShowDropdown(false);
-                  }}
-                >
-                  <Text style={[styles.menuText, { color: colors.text }]}>Cài đặt</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={handleLogout}
-                >
-                  <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </Appbar.Header>
+            <View style={styles.avatarContainer}>
+              <Appbar.Action
+                icon={() => (
+                  <Avatar.Image
+                    size={40}
+                    source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
+                  />
+                )}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setShowDropdown(!showDropdown);
+                }}
+                color="white"
+              />
+
+              {showDropdown && (
+                <View style={[styles.dropdownMenu, { backgroundColor: colors.surface }]}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setVisibleProfile(true);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.menuText, { color: colors.text }]}>Hồ sơ</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setVisibleSettings(true);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.menuText, { color: colors.text }]}>Cài đặt</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={handleLogout}
+                  >
+                    <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </Appbar.Header>
+        )}
+
+
 
         {selectedChat ? (
           <ChatArea
