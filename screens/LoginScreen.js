@@ -6,8 +6,8 @@ import ErrorDialog from '../components/ErrorDialog';
 
 export default function LoginScreen({ navigation }) {
   const [form, setForm] = useState({
-    phoneNumber: '',
-    passWord: '',
+    phoneNumber: '0123456789',
+    passWord: '123456',
   });
 
   const [loading, setLoading] = useState(false);
@@ -59,6 +59,7 @@ export default function LoginScreen({ navigation }) {
         label="Mật khẩu"
         value={form.passWord}
         onChangeText={(text) => handleChange('passWord', text)}
+        
         secureTextEntry
         style={styles.input}
         autoCapitalize="none"

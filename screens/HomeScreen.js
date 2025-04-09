@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableWithoutFeedback, TouchableOpacity, Text } from 'react-native';
 import { Appbar, Avatar, useTheme } from 'react-native-paper';
 import ProfileModal from '../components/ProfileModal';
 import ChatList from '../components/ChatList';
 import ChatArea from '../components/ChatArea';
+import SettingsModal from '../components/SettingsModal';
 
 const HomeScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const [currentUser, setCurrentUser] = useState(route.params?.user.user || {});
   const [visibleProfile, setVisibleProfile] = useState(false);
+  const [visibleSettings, setVisibleSettings] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(false);
   const token = route.params?.user.token;
 
-  // Danh sách demo
   const mockChats = [
     {
       id: '1',
@@ -32,50 +34,126 @@ const HomeScreen = ({ navigation, route }) => {
     },
   ];
 
+  const handleLogout = () => {
+    setShowDropdown(false);
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Appbar.Header style={{ backgroundColor: colors.primary }}>
-        {selectedChat && (
-          <Appbar.BackAction onPress={() => setSelectedChat(null)} color="white" />
-        )}
-        <Appbar.Content title="Trang chủ" titleStyle={{ color: 'white' }} />
-        <Appbar.Action
-          icon={() => (
-            <Avatar.Image
-              size={40}
-              source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
-            />
+    <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Appbar.Header style={{ backgroundColor: colors.primary,zIndex:1000 }}>
+          {selectedChat && (
+            <Appbar.BackAction onPress={() => setSelectedChat(null)} color="white" />
           )}
-          onPress={() => setVisibleProfile(true)}
-          color="white"
-        />
-      </Appbar.Header>
+          <Appbar.Content title="Trang chủ" titleStyle={{ color: 'white' }} />
+          <View style={styles.avatarContainer}>
+            <Appbar.Action
+              icon={() => (
+                <Avatar.Image
+                  size={40}
+                  source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
+                />
+              )}
+              onPress={(e) => {
+                e.stopPropagation();
+                setShowDropdown(!showDropdown);
+              }}
+              color="white"
+            />
+            
+            {/* Dropdown Menu integrated directly */}
+            {showDropdown && (
+              <View style={[styles.dropdownMenu, { backgroundColor: colors.surface }]}>
+                <TouchableOpacity 
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setVisibleProfile(true);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.menuText, { color: colors.text }]}>Hồ sơ</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setVisibleSettings(true);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.menuText, { color: colors.text }]}>Cài đặt</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.menuItem}
+                  onPress={handleLogout}
+                >
+                  <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </Appbar.Header>
 
-      {selectedChat ? (
-        <ChatArea
-          chat={selectedChat}
-          onBack={() => setSelectedChat(null)}
+        {selectedChat ? (
+          <ChatArea
+            chat={selectedChat}
+            onBack={() => setSelectedChat(null)}
+            user={currentUser}
+          />
+        ) : (
+          <ChatList chats={mockChats} onChatSelect={setSelectedChat} />
+        )}
+
+        <ProfileModal
+          visible={visibleProfile}
           user={currentUser}
+          token={token}
+          onDismiss={() => setVisibleProfile(false)}
+          onUpdateSuccess={(updatedUser) => setCurrentUser(updatedUser)}
         />
-      ) : (
-        <ChatList chats={mockChats} onChatSelect={setSelectedChat} />
-      )}
 
-      <ProfileModal
-        visible={visibleProfile}
-        user={currentUser}
-        token={token}
-        onDismiss={() => setVisibleProfile(false)}
-        onUpdateSuccess={(updatedUser) => setCurrentUser(updatedUser)}
-      
-      />
-    </View>
+        <SettingsModal
+          visible={visibleSettings}
+          user={currentUser}
+          onDismiss={() => setVisibleSettings(false)}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  avatarContainer: {
+    position: 'relative',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    right: 10,
+    top: 50,
+    width: 150,
+    borderRadius: 8,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 100,
+    paddingVertical: 8,
+  },
+  menuItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  menuText: {
+    fontSize: 16,
   },
 });
 

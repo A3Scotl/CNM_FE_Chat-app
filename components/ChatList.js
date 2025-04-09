@@ -22,6 +22,7 @@ const ChatList = ({ chats, onChatSelect }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    zIndex:1
   },
 });
 

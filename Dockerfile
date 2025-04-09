@@ -1,3 +1,4 @@
+# Dockerfile (frontend)
 FROM node:18
 
 WORKDIR /app
@@ -7,9 +8,8 @@ RUN npm install
 
 COPY . .
 
-# Cài expo-cli nếu cần
-RUN npm install -g expo-cli
+# Copy .env
+COPY .env .env
 
-EXPOSE 19000 19001 19002
-
-CMD ["npx", "expo", "start", "--tunnel"]
+EXPOSE 8081
+CMD ["npm", "start", "--tunnel", "--non-interactive"]

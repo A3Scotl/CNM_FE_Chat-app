@@ -1,11 +1,10 @@
 import axios from "axios";
 import { handleApiError } from "../utils/handleApiError";
-
-const API_BASE_URL = "http://192.168.1.189:5000/api";
-
+// import { API_URL } from '@env';
+const API_URL = 'http://192.168.1.189:5000/api'
 export const login = async ({ phoneNumber, passWord }) => {
   try {
-    const { data } = await axios.post(`${API_BASE_URL}/auth/log-in`, {
+    const { data } = await axios.post(`${API_URL}/auth/log-in`, {
       phoneNumber,
       passWord,
     }, {
@@ -25,7 +24,7 @@ export const login = async ({ phoneNumber, passWord }) => {
 
 export const register = async (form) => {
   try {
-    const res = await axios.post(`${API_BASE_URL}/auth/sign-up`, form, {
+    const res = await axios.post(`${API_URL}/auth/sign-up`, form, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -38,7 +37,7 @@ export const register = async (form) => {
 
 export const logout = async () => {
   try {
-    await axios.get(`${API_BASE_URL}/auth/log-out`, {
+    await axios.get(`${API_URL}/auth/log-out`, {
       withCredentials: true,
     });
   } catch (error) {
