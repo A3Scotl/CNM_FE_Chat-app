@@ -1,4 +1,4 @@
-const handleApiError = (error) => {
+export const handleApiError = (error) => {
     if (error.response) {
       return error.response.data?.message || 'Đã xảy ra lỗi từ server';
     } else if (error.request) {
@@ -8,5 +8,4 @@ const handleApiError = (error) => {
     }
   };
   
-  export default handleApiError;
   

@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { TextInput, Button, Text, useTheme, RadioButton, HelperText } from 'react-native-paper';
 import { register } from '../apis/auth.api';
-import { handleApiError } from '../utils/handleApiError';
-
-export default function RegisterScreen({ navigation }) {
+import { useNavigation } from '@react-navigation/native';
+export default function RegisterScreen() {
+  const   navigation = useNavigation();
   const theme = useTheme();
   const [form, setForm] = useState({
     fullName: '',
@@ -15,50 +15,79 @@ export default function RegisterScreen({ navigation }) {
     confirmPassword: '',
     gender: 'male',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({
+    fullName: '',
+    userName: '',
+    phoneNumber: '',
+    email: '',
+    passWord: '',
+    confirmPassword: '',
+  });
+  const [touched, setTouched] = useState({
+    fullName: false,
+    userName: false,
+    phoneNumber: false,
+    email: false,
+    passWord: false,
+    confirmPassword: false,
+  });
   const [loading, setLoading] = useState(false);
+
+  const patterns = {
+    fullName: /^[a-zA-ZÀ-ỹ\s]{6,}$/,
+    userName: /^[a-zA-Z0-9_]{4,}$/,
+    phoneNumber: /^(0|\+84)(3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-9])\d{7}$/,
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    passWord: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/,
+  };
 
   const validateField = (name, value) => {
     let error = '';
-    
+
     switch (name) {
       case 'fullName':
         if (!value.trim()) error = 'Họ và tên là bắt buộc';
-        else if (value.length < 6) error = 'Họ và tên phải có ít nhất 6 ký tự';
+        else if (!patterns.fullName.test(value)) error = 'Họ và tên phải có ít nhất 6 ký tự và chỉ chứa chữ cái';
         break;
       case 'userName':
         if (!value.trim()) error = 'Tên người dùng là bắt buộc';
-        else if (value.length < 4) error = 'Tên người dùng phải có ít nhất 4 ký tự';
-        else if (!/^[a-zA-Z0-9_]+$/.test(value)) error = 'Tên người dùng chỉ được chứa chữ cái, số và dấu gạch dưới';
+        else if (!patterns.userName.test(value)) error = 'Tên người dùng phải có ít nhất 4 ký tự và chỉ chứa chữ cái, số và dấu gạch dưới';
         break;
       case 'phoneNumber':
         if (!value.trim()) error = 'Số điện thoại là bắt buộc';
-        else if (!/^(0|\+84)[0-9]{9,10}$/.test(value)) error = 'Số điện thoại không hợp lệ';
+        else if (!patterns.phoneNumber.test(value)) error = 'Số điện thoại không hợp lệ (VD: 0987654321 hoặc +84987654321)';
         break;
       case 'email':
         if (!value.trim()) error = 'Email là bắt buộc';
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) error = 'Email không hợp lệ';
+        else if (!patterns.email.test(value)) error = 'Email không hợp lệ (VD: example@gmail.com)';
         break;
       case 'passWord':
         if (!value.trim()) error = 'Mật khẩu là bắt buộc';
-        else if (value.length < 6) error = 'Mật khẩu phải có ít nhất 6 ký tự';
+        else if (!patterns.passWord.test(value)) error = 'Mật khẩu phải có ít nhất 6 ký tự, bao gồm cả chữ và số';
         break;
       case 'confirmPassword':
-        if (value !== form.passWord) error = 'Mật khẩu không khớp';
+        if (!value.trim()) error = 'Xác nhận mật khẩu là bắt buộc';
+        else if (value !== form.passWord) error = 'Mật khẩu không khớp';
         break;
       default:
         break;
     }
-    
+
     return error;
+  };
+
+  const handleBlur = (name) => {
+    setTouched({ ...touched, [name]: true });
+    const error = validateField(name, form[name]);
+    setErrors({ ...errors, [name]: error });
   };
 
   const handleChange = (name, value) => {
     setForm({ ...form, [name]: value });
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors({ ...errors, [name]: '' });
+
+    if (touched[name]) {
+      const error = validateField(name, value);
+      setErrors({ ...errors, [name]: error });
     }
   };
 
@@ -67,7 +96,7 @@ export default function RegisterScreen({ navigation }) {
     let isValid = true;
 
     Object.keys(form).forEach(key => {
-      if (key !== 'gender') { // Skip gender validation
+      if (key !== 'gender') {
         const error = validateField(key, form[key]);
         if (error) {
           newErrors[key] = error;
@@ -75,6 +104,12 @@ export default function RegisterScreen({ navigation }) {
         }
       }
     });
+
+    const allTouched = {};
+    Object.keys(touched).forEach(key => {
+      allTouched[key] = true;
+    });
+    setTouched(allTouched);
 
     setErrors(newErrors);
     return isValid;
@@ -85,97 +120,135 @@ export default function RegisterScreen({ navigation }) {
 
     setLoading(true);
     try {
-      await register(form);
-      alert('Đăng ký thành công! Vui lòng đăng nhập.');
-      navigation.replace('Login');
+      const response = await register(form);
+
+      if (response?.success) {
+        alert('Đăng ký thành công! Vui lòng đăng nhập.');
+
+        setForm({
+          fullName: '',
+          userName: '',
+          phoneNumber: '',
+          email: '',
+          passWord: '',
+          confirmPassword: '',
+          gender: 'male',
+        });
+
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      } else {
+        alert(response?.message || 'Đăng ký không thành công');
+      }
     } catch (error) {
-      const message = handleApiError(error);
-      alert(message);
+      if (error.response?.data?.conflicts) {
+        const { conflicts } = error.response.data;
+        const newErrors = {};
+
+        if (conflicts.userName) newErrors.userName = 'Tên người dùng đã tồn tại';
+        if (conflicts.email) newErrors.email = 'Email đã được sử dụng';
+        if (conflicts.phoneNumber) newErrors.phoneNumber = 'Số điện thoại đã được đăng ký';
+
+        setErrors(prev => ({ ...prev, ...newErrors }));
+        alert(Object.values(newErrors).join('\n'));
+      } else {
+        alert(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký');
+      }
     } finally {
       setLoading(false);
     }
   };
-
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContainer}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.container}>
         <Text variant="headlineLarge" style={styles.title}>Đăng ký</Text>
 
         <TextInput
-          label="Họ và tên"
+          label="Họ và tên *"
           mode="outlined"
           value={form.fullName}
           onChangeText={(text) => handleChange('fullName', text)}
+          onBlur={() => handleBlur('fullName')}
           style={styles.input}
-          error={!!errors.fullName}
+          error={!!errors.fullName && touched.fullName}
         />
-        <HelperText type="error" visible={!!errors.fullName}>
+        <HelperText type="error" visible={!!errors.fullName && touched.fullName}>
           {errors.fullName}
         </HelperText>
 
         <TextInput
-          label="Tên người dùng"
+          label="Tên người dùng *"
           mode="outlined"
           value={form.userName}
           onChangeText={(text) => handleChange('userName', text)}
+          onBlur={() => handleBlur('userName')}
           style={styles.input}
-          error={!!errors.userName}
+          error={!!errors.userName && touched.userName}
           autoCapitalize="none"
         />
-        <HelperText type="error" visible={!!errors.userName}>
+        <HelperText type="error" visible={!!errors.userName && touched.userName}>
           {errors.userName}
         </HelperText>
 
         <TextInput
-          label="Số điện thoại"
+          label="Số điện thoại *"
           mode="outlined"
           value={form.phoneNumber}
           onChangeText={(text) => handleChange('phoneNumber', text)}
+          onBlur={() => handleBlur('phoneNumber')}
           keyboardType="phone-pad"
           style={styles.input}
-          error={!!errors.phoneNumber}
+          error={!!errors.phoneNumber && touched.phoneNumber}
         />
-        <HelperText type="error" visible={!!errors.phoneNumber}>
+        <HelperText type="error" visible={!!errors.phoneNumber && touched.phoneNumber}>
           {errors.phoneNumber}
         </HelperText>
 
         <TextInput
-          label="Email"
+          label="Email *"
           mode="outlined"
           value={form.email}
           onChangeText={(text) => handleChange('email', text)}
+          onBlur={() => handleBlur('email')}
           keyboardType="email-address"
           style={styles.input}
-          error={!!errors.email}
+          error={!!errors.email && touched.email}
           autoCapitalize="none"
         />
-        <HelperText type="error" visible={!!errors.email}>
+        <HelperText type="error" visible={!!errors.email && touched.email}>
           {errors.email}
         </HelperText>
 
         <TextInput
-          label="Mật khẩu"
+          label="Mật khẩu *"
           mode="outlined"
           value={form.passWord}
           onChangeText={(text) => handleChange('passWord', text)}
+          onBlur={() => handleBlur('passWord')}
           secureTextEntry
           style={styles.input}
-          error={!!errors.passWord}
+          error={!!errors.passWord && touched.passWord}
         />
-        <HelperText type="error" visible={!!errors.passWord}>
+        <HelperText type="error" visible={!!errors.passWord && touched.passWord}>
           {errors.passWord}
         </HelperText>
 
         <TextInput
-          label="Xác nhận mật khẩu"
+          label="Xác nhận mật khẩu *"
           mode="outlined"
           value={form.confirmPassword}
           onChangeText={(text) => handleChange('confirmPassword', text)}
+          onBlur={() => handleBlur('confirmPassword')}
           secureTextEntry
           style={styles.input}
-          error={!!errors.confirmPassword}
+          error={!!errors.confirmPassword && touched.confirmPassword}
         />
-        <HelperText type="error" visible={!!errors.confirmPassword}>
+        <HelperText type="error" visible={!!errors.confirmPassword && touched.confirmPassword}>
           {errors.confirmPassword}
         </HelperText>
 
@@ -203,7 +276,7 @@ export default function RegisterScreen({ navigation }) {
 
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>Đã có tài khoản? </Text>
-          <Text 
+          <Text
             style={[styles.loginLink, { color: theme.colors.primary }]}
             onPress={() => navigation.navigate('Login')}
           >
