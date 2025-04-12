@@ -1,34 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, TextInput, Button, useTheme } from 'react-native-paper';
-import { verifyOtpSignup } from '../apis/auth.api';
+import { verifyOtpSignup, verifyOtpForgotPassword, requestOtpForgotPassword } from '../apis/auth.api';
 import ErrorDialog from '../components/ErrorDialog';
 
 const OTPScreen = ({ route, navigation }) => {
   const theme = useTheme();
-  const { phoneNumber } = route.params;
+  const { phoneNumber, isSignup, isForgotPassword } = route.params;
 
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dialogVisible, setDialogVisible] = useState(false);
-  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialog, setDialog] = useState({ visible: false, message: '' });
+  const [timer, setTimer] = useState(60);
+  const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    if (timer > 0) {
+      const countdown = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(countdown);
+    }
+  }, [timer]);
 
   const handleVerifyOtp = async () => {
     if (otp.length !== 6) {
-      setDialogMessage('Mã OTP phải đủ 6 chữ số');
-      setDialogVisible(true);
+      setDialog({ visible: true, message: 'Mã OTP phải đủ 6 chữ số' });
       return;
     }
 
     try {
       setLoading(true);
-      await verifyOtpSignup({ phoneNumber, otp });
-      navigation.navigate('Login');
+      let result;
+
+      if (isSignup) {
+        result = await verifyOtpSignup({ phoneNumber, otp });
+        navigation.navigate('Login');
+      } else if (isForgotPassword) {
+        result = await verifyOtpForgotPassword({ phoneNumber, otp });
+        // result.data.user, result.data.access_token
+        setDialog({
+          visible: true,
+          message: `Mật khẩu mới của bạn là: ${result.data.newPassword || 'đã gửi SMS'}`
+        });
+      }
+
     } catch (error) {
-      setDialogMessage(error.message || 'Xác thực OTP thất bại');
-      setDialogVisible(true);
+      setDialog({ visible: true, message: error.message || 'Xác thực OTP thất bại' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    try {
+      setResending(true);
+      if (isForgotPassword) {
+        await requestOtpForgotPassword(phoneNumber);
+      }
+      setTimer(60);
+      setDialog({ visible: true, message: 'OTP mới đã được gửi!' });
+    } catch (error) {
+      setDialog({ visible: true, message: error.message || 'Gửi lại OTP thất bại' });
+    } finally {
+      setResending(false);
     }
   };
 
@@ -58,10 +93,22 @@ const OTPScreen = ({ route, navigation }) => {
         Xác nhận
       </Button>
 
+      {timer > 0 ? (
+        <Text style={styles.timerText}>Bạn có thể gửi lại mã sau {timer}s</Text>
+      ) : (
+        <Button
+          onPress={handleResendOtp}
+          loading={resending}
+          style={styles.resendButton}
+        >
+          Gửi lại mã OTP
+        </Button>
+      )}
+
       <ErrorDialog
-        visible={dialogVisible}
-        message={dialogMessage}
-        onDismiss={() => setDialogVisible(false)}
+        visible={dialog.visible}
+        message={dialog.message}
+        onDismiss={() => setDialog({ ...dialog, visible: false })}
       />
     </View>
   );
@@ -93,6 +140,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderRadius: 8,
     padding: 8,
+  },
+  timerText: {
+    textAlign: 'center',
+    marginTop: 16,
+    color: 'gray',
+  },
+  resendButton: {
+    marginTop: 16,
   },
 });
 

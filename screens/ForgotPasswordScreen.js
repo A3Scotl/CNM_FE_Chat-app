@@ -1,39 +1,64 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, Button, RadioButton, TextInput } from 'react-native-paper';
+import { Text, Button, TextInput } from 'react-native-paper';
+import { requestOtpForgotPassword } from '../apis/auth.api';
+import ErrorDialog from '../components/ErrorDialog';
 
 export default function ForgotPasswordScreen({ navigation }) {
-  const [method, setMethod] = useState('email');
-  const [value, setValue] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [dialog, setDialog] = useState({ visible: false, message: '' });
 
-  const handleSendCode = () => {
-    // Gửi mã xác minh về email hoặc số điện thoại tương ứng
-    if (!value.trim()) return;
-    // TODO: Gửi mã qua API tương ứng với method
-    console.log(`Gửi mã qua ${method}: ${value}`);
+  const handleSendCode = async () => {
+    if (!phoneNumber.trim()) {
+      setDialog({ visible: true, message: 'Vui lòng nhập số điện thoại' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await requestOtpForgotPassword(phoneNumber.trim());
+
+      navigation.navigate('OTPScreen', {
+        phoneNumber,
+        isForgotPassword: true
+      });
+
+    } catch (err) {
+      setDialog({ visible: true, message: err.message || 'Gửi mã thất bại' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Quên mật khẩu</Text>
 
-      <RadioButton.Group onValueChange={setMethod} value={method}>
-        <RadioButton.Item label="Gửi mã qua Email" value="email" />
-        <RadioButton.Item label="Gửi mã qua Số điện thoại" value="phone" />
-      </RadioButton.Group>
-
       <TextInput
-        label={method === 'email' ? 'Email' : 'Số điện thoại'}
-        value={value}
-        onChangeText={setValue}
+        label="Số điện thoại"
+        value={phoneNumber}
+        onChangeText={setPhoneNumber}
         mode="outlined"
-        keyboardType={method === 'phone' ? 'phone-pad' : 'email-address'}
+        keyboardType="phone-pad"
         style={{ marginTop: 10 }}
       />
 
-      <Button mode="contained" style={styles.button} onPress={handleSendCode}>
+      <Button
+        mode="contained"
+        style={styles.button}
+        onPress={handleSendCode}
+        loading={loading}
+        disabled={loading}
+      >
         Gửi mã xác minh
       </Button>
+
+      <ErrorDialog
+        visible={dialog.visible}
+        message={dialog.message}
+        onDismiss={() => setDialog({ ...dialog, visible: false })}
+      />
     </View>
   );
 }

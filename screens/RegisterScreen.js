@@ -5,12 +5,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import FormInput from '../components/FormInput';
 import GenderRadioGroup from '../components/GenderRadioGroup';
 import ErrorDialog from '../components/ErrorDialog';
-import { register } from '../apis/auth.api';
+import { requestOtpSignup } from '../apis/auth.api';
 import { validateField } from '../utils/validation';
 
 const RegisterScreen = ({ navigation }) => {
@@ -30,10 +31,14 @@ const RegisterScreen = ({ navigation }) => {
   const [touched, setTouched] = useState({});
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogMessage, setDialogMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: validateField(name, value, { ...form, [name]: value }) }));
+    setErrors((prev) => ({
+      ...prev,
+      [name]: validateField(name, value, { ...form, [name]: value }),
+    }));
   };
 
   const handleBlur = (name) => {
@@ -51,28 +56,30 @@ const RegisterScreen = ({ navigation }) => {
     setTouched(
       Object.keys(form).reduce((acc, key) => ({ ...acc, [key]: true }), {})
     );
-  
+
     const hasError = Object.values(newErrors).some((error) => error);
     if (hasError) return;
-  
+
     try {
+      setLoading(true);
       const { confirmPassword, ...formData } = form;
-      await register(formData);
-  
+      await requestOtpSignup(formData);
+
       navigation.navigate('OTPScreen', {
-        phoneNumber: form.phoneNumber
+        phoneNumber: form.phoneNumber,
+        isSignup: true,
       });
-  
     } catch (err) {
       setDialogMessage(err.message || 'Đã xảy ra lỗi');
       setDialogVisible(true);
+    } finally {
+      setLoading(false);
     }
   };
-  
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1,backgroundColor: 'white' }}
+      style={{ flex: 1, backgroundColor: 'white' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container}>
@@ -144,10 +151,11 @@ const RegisterScreen = ({ navigation }) => {
         <Button
           mode="contained"
           onPress={handleRegister}
-          style={{ marginTop: 8, borderRadius: 8 }}
+          style={styles.button}
           buttonColor={theme.colors.primary}
+          disabled={loading}
         >
-          Đăng ký
+          {loading ? <ActivityIndicator color="white" /> : 'Đăng ký'}
         </Button>
 
         <Button
@@ -176,7 +184,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 16,
     alignSelf: 'center',
-    fontWeight:'Bold'
+    fontWeight: 'bold',
+  },
+  button: {
+    marginTop: 12,
+    borderRadius: 8,
   },
 });
 

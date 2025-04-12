@@ -18,8 +18,15 @@ export default function LoginScreen({ navigation }) {
   };
 
   const handleLogin = async () => {
-    if (!form.phoneNumber.trim() || !form.passWord.trim()) {
+    if (!form.phoneNumber.trim() && !form.passWord.trim()) {
       setError({ visible: true, message: 'Vui lòng nhập số điện thoại và mật khẩu' });
+      return;
+    }
+    if (!form.phoneNumber.trim()) {
+      setError({ visible: true, message: 'Vui lòng nhập số điện thoại' });
+      return;
+    } if (!form.phoneNumber.trim()) {
+      setError({ visible: true, message: 'Vui lòng nhập mật khẩu' });
       return;
     }
 
@@ -31,8 +38,8 @@ export default function LoginScreen({ navigation }) {
         passWord: form.passWord.trim(),
       });
 
-      if (response?.isSuccess) {
-        navigation.navigate('Home', { user: response.data });
+      if (response?.data?.access_token) {
+        navigation.navigate('Home', { user: response.data.user });
       } else {
         setError({
           visible: true,
@@ -42,12 +49,13 @@ export default function LoginScreen({ navigation }) {
     } catch (err) {
       setError({
         visible: true,
-        message: err.message || 'Đăng nhập thất bại. Vui lòng thử lại',
+        message: 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin',
       });
     } finally {
       setLoading(false);
     }
   };
+
 
 
   return (
