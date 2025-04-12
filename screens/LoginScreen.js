@@ -37,7 +37,7 @@ export default function LoginScreen({ navigation }) {
         phoneNumber: form.phoneNumber.trim(),
         passWord: form.passWord.trim(),
       });
-
+      console.log(response.data);
       if (response?.data?.access_token) {
         navigation.navigate('Home', { user: response.data.user });
       } else {

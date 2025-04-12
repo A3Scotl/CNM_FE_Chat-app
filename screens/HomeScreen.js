@@ -31,7 +31,7 @@ const HomeScreen = ({ navigation, route }) => {
     accent: '#0098f9',
   };
 
-  const [currentUser, setCurrentUser] = useState(route.params?.user.user || {});
+  const [currentUser, setCurrentUser] = useState(route.params?.user || {});
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
