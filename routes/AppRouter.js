@@ -15,7 +15,7 @@ export default function AppRouter() {
       <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false ,animation: 'slide_from_right'}}>
         <Stack.Screen name="Login" component={LoginScreen}  options={{ gestureEnabled: false }}  />
         <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} options={{ gestureEnabled: false }}/>
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="OTPScreen" component={OTPScreen} />
 

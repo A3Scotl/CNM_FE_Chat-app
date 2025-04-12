@@ -10,7 +10,7 @@ import {
 import { Button, Text, useTheme } from 'react-native-paper';
 import FormInput from '../components/FormInput';
 import GenderRadioGroup from '../components/GenderRadioGroup';
-import ErrorDialog from '../components/ErrorDialog';
+import ErrorDialog from '../components/Error/ErrorDialog';
 import { requestOtpSignup } from '../apis/auth.api';
 import { validateField } from '../utils/validation';
 
@@ -178,7 +178,7 @@ const RegisterScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    paddingBottom: 32,
+    paddingVertical:45
   },
   title: {
     fontSize: 24,

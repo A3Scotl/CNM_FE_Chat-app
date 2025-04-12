@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Button, TextInput } from 'react-native-paper';
 import { requestOtpForgotPassword } from '../apis/auth.api';
-import ErrorDialog from '../components/ErrorDialog';
+import ErrorDialog from '../components/Error/ErrorDialog';
 
 export default function ForgotPasswordScreen({ navigation }) {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -67,7 +67,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#fff'
+    backgroundColor: '#fff',
+    display:'flex',
+    justifyContent:'center'
   },
   title: {
     fontSize: 22,

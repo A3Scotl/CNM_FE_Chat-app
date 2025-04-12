@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, TextInput, Button, useTheme } from 'react-native-paper';
 import { verifyOtpSignup, verifyOtpForgotPassword, requestOtpForgotPassword } from '../apis/auth.api';
-import ErrorDialog from '../components/ErrorDialog';
+import ErrorDialog from '../components/Error/ErrorDialog';
 
 const OTPScreen = ({ route, navigation }) => {
   const theme = useTheme();

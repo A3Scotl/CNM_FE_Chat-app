@@ -5,7 +5,7 @@ import {
   useTheme, ActivityIndicator, List
 } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadAvatar,getMyProfile } from '../apis/user.api';
+import { uploadAvatar,getMyProfile } from '../../apis/user.api';
 
 const ProfileModal = ({
   visible,

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { login } from '../apis/auth.api';
-import ErrorDialog from '../components/ErrorDialog';
+import ErrorDialog from '../components/Error/ErrorDialog';
 
 export default function LoginScreen({ navigation }) {
   const [form, setForm] = useState({

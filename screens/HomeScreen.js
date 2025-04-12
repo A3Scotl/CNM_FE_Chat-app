@@ -3,10 +3,9 @@ import {
   View,
   StyleSheet,
   TouchableWithoutFeedback,
-  TouchableOpacity,
-  Text,
-  TextInput,
   Keyboard,
+  TouchableOpacity
+
 } from 'react-native';
 import {
   Appbar,
@@ -14,24 +13,23 @@ import {
   useTheme,
   BottomNavigation,
 } from 'react-native-paper';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import ProfileModal from '../components/ProfileModal';
-import ChatList from '../components/ChatList';
-import ChatArea from '../components/ChatArea';
-import SettingsModal from '../components/SettingsModal';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import ChatList from '../components/Chat/ChatList';
+import ChatArea from '../components/Chat/ChatArea';
+import ProfileModal from '../components/Modal/ProfileModal';
+import SettingsModal from '../components/Modal/SettingsModal';
 import { logout } from '../apis/auth.api';
 import ContactsScreen from './ContactsScreen';
+import DropdownMenu from '../components/DropdownMenu';
+import SearchBar from '../components/SearchBar';
 
 const HomeScreen = ({ navigation, route }) => {
-  const theme = {
-    ...useTheme(),
-    colors: {
-      ...useTheme().colors,
-      primary: '#0098f9',
-      accent: '#0098f9',
-    },
+  const theme = useTheme();
+  const colors = {
+    ...theme.colors,
+    primary: '#0098f9',
+    accent: '#0098f9',
   };
-  const { colors } = theme;
 
   const [currentUser, setCurrentUser] = useState(route.params?.user.user || {});
   const [visibleProfile, setVisibleProfile] = useState(false);
@@ -54,43 +52,66 @@ const HomeScreen = ({ navigation, route }) => {
   const mockChats = [
     {
       id: '1',
-      name: 'Nghĩa',
+      name: 'Alice',
       avatar: 'https://i.pravatar.cc/150?img=1',
-      lastMessage: '[Danh thiếp] Nghĩa',
-      time: '1 giờ',
-      unread: 0,
+      lastMessage: {
+        content: 'Chào bạn! Bạn khỏe không?',
+        timestamp: '10:01 AM',
+      },
     },
     {
       id: '2',
-      name: 'Nơi Thắng',
+      name: 'Bob',
       avatar: 'https://i.pravatar.cc/150?img=2',
-      lastMessage: 'hay tui làm phần add friend cho',
-      time: '7 phút',
-      unread: 0,
+      lastMessage: {
+        content: 'Mình đã gửi tài liệu cho bạn.',
+        timestamp: '9:45 AM',
+      },
     },
     {
       id: '3',
-      name: 'CNM_NHOM_03',
+      name: 'Charlie',
       avatar: 'https://i.pravatar.cc/150?img=3',
-      lastMessage: 'oke',
-      time: '9 phút',
-      unread: 0,
+      lastMessage: {
+        content: 'Hẹn gặp lại vào cuối tuần này!',
+        timestamp: '8:30 AM',
+      },
     },
     {
       id: '4',
-      name: 'Nhóm-NMDLL',
+      name: 'David',
       avatar: 'https://i.pravatar.cc/150?img=4',
-      lastMessage: 'Hồ Văn Sang tham gia cuộc bình...',
-      time: '2 giờ',
-      unread: 0,
+      lastMessage: {
+        content: 'Bạn có thể giúp mình với dự án này không?',
+        timestamp: 'Yesterday',
+      },
     },
     {
       id: '5',
-      name: 'Kiến trúc',
+      name: 'Eva',
       avatar: 'https://i.pravatar.cc/150?img=5',
-      lastMessage: '@Nguyen Kha push cái lúc nãy...',
-      time: '6 giờ',
-      unread: 0,
+      lastMessage: {
+        content: 'Cảm ơn bạn đã giúp đỡ!',
+        timestamp: 'Yesterday',
+      },
+    },
+    {
+      id: '6',
+      name: 'Frank',
+      avatar: 'https://i.pravatar.cc/150?img=6',
+      lastMessage: {
+        content: 'Chúng ta nên đi ăn trưa!',
+        timestamp: '2 days ago',
+      },
+    },
+    {
+      id: '7',
+      name: 'Frank',
+      avatar: 'https://i.pravatar.cc/150?img=6',
+      lastMessage: {
+        content: 'Chúng ta nên đi ăn trưa!',
+        timestamp: '2 days ago',
+      },
     },
   ];
 
@@ -100,7 +121,7 @@ const HomeScreen = ({ navigation, route }) => {
       await logout();
       navigation.navigate('Login');
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
   };
 
@@ -132,141 +153,59 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   return (
-    <TouchableWithoutFeedback
-      onPress={() => {
-        setShowDropdown(false);
-        Keyboard.dismiss();
-      }}
-    >
+    <TouchableWithoutFeedback onPress={() => {
+      setShowDropdown(false);
+      Keyboard.dismiss();
+    }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Appbar */}
         {showAppbar && (
-          <Appbar.Header
-            style={{
-              backgroundColor: '#0098f9',
-              elevation: 0,
-              shadowOpacity: 0,
-              zIndex: 1000,
-              paddingHorizontal: 10,
-            }}
-          >
-            <View
-              style={[
-                styles.searchContainer,
-                {
-                  backgroundColor: isSearchFocused ? 'white' : '#f5f5f5',
-                  borderColor: isSearchFocused ? colors.primary : '#f5f5f5',
-                },
-              ]}
-            >
-              <MaterialIcons
-                name="search"
-                size={24}
-                color={isSearchFocused ? colors.primary : '#888'}
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={[styles.searchInput, { color: colors.text }]}
-                placeholder="Tìm kiếm"
-                placeholderTextColor="#888"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <MaterialIcons
-                    name="close"
-                    size={20}
-                    color="#888"
-                    style={styles.clearIcon}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
+          <Appbar.Header style={styles.appBar}>
+            {/* SearchBar Component */}
+            <SearchBar
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              isSearchFocused={isSearchFocused}
+              setIsSearchFocused={setIsSearchFocused}
+              colors={colors}
+            />
 
+            {/* Avatar and Dropdown Menu */}
             <View style={styles.avatarContainer}>
-              <TouchableOpacity
-                onPress={(e) => {
-                  e.stopPropagation();
-                  setShowDropdown(!showDropdown);
-                }}
-              >
+              <TouchableOpacity onPress={(e) => {
+                e.stopPropagation();
+                setShowDropdown(!showDropdown);
+              }}>
                 <Avatar.Image
                   size={36}
-                  source={{
-                    uri: currentUser?.avatar || 'https://i.pravatar.cc/150',
-                  }}
+                  source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
                   style={styles.avatar}
                 />
               </TouchableOpacity>
 
-              {showDropdown && (
-                <View
-                  style={[
-                    styles.dropdownMenu,
-                    {
-                      backgroundColor: colors.surface,
-                      shadowColor: colors.shadow,
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setVisibleProfile(true);
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.menuText, { color: colors.text }]}>
-                      Hồ sơ
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setVisibleSettings(true);
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.menuText, { color: colors.text }]}>
-                      Cài đặt
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={handleLogout}
-                  >
-                    <Text style={[styles.menuText, { color: colors.error }]}>
-                      Đăng xuất
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              <DropdownMenu
+                showDropdown={showDropdown}
+                setShowDropdown={setShowDropdown}
+                currentUser={currentUser}
+                setVisibleProfile={setVisibleProfile}
+                setVisibleSettings={setVisibleSettings}
+                handleLogout={handleLogout}
+                colors={colors}
+              />
             </View>
           </Appbar.Header>
         )}
 
-        {/* Nội dung chính */}
+        {/* Main Content */}
         <View style={{ flex: 1 }}>{renderScene()}</View>
 
-        {/* BottomNavigation */}
+        {/* Bottom Navigation */}
         {showBottomNav && (
           <BottomNavigation
             navigationState={{ index, routes }}
             onIndexChange={setIndex}
-            renderScene={() => null} // không dùng SceneMap nữa
-            barStyle={{
-              backgroundColor: 'white',
-              elevation: 8,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: -2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-            }}
+            renderScene={() => null} 
+            barStyle={styles.bottomNavBar}
             activeColor={colors.primary}
             inactiveColor="#888"
             labeled={false}
@@ -280,17 +219,8 @@ const HomeScreen = ({ navigation, route }) => {
                 iconName = focused ? 'account-group' : 'account-group-outline';
               }
               return (
-                <View
-                  style={[
-                    styles.iconContainer,
-                    focused && styles.activeIconContainer,
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={iconName}
-                    size={28}
-                    color={color}
-                  />
+                <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
+                  <MaterialCommunityIcons name={iconName} size={28} color={color} />
                 </View>
               );
             }}
@@ -298,14 +228,14 @@ const HomeScreen = ({ navigation, route }) => {
           />
         )}
 
+        {/* Profile and Settings Modals */}
         <ProfileModal
           visible={visibleProfile}
           user={currentUser}
           token={token}
           onDismiss={() => setVisibleProfile(false)}
-          onUpdateSuccess={(updatedUser) => setCurrentUser(updatedUser)}
+          onUpdateSuccess={setCurrentUser}
         />
-
         <SettingsModal
           visible={visibleSettings}
           user={currentUser}
@@ -320,59 +250,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  appBar: {
+    backgroundColor: '#0098f9',
+    elevation: 0,
+    shadowOpacity: 0,
+    zIndex: 1000,
+    paddingHorizontal: 10,
+  },
   avatarContainer: {
     position: 'relative',
     marginLeft: 10,
   },
-  dropdownMenu: {
-    position: 'absolute',
-    right: 0,
-    top: 45,
-    width: 150,
-    borderRadius: 8,
-    elevation: 5,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    zIndex: 100,
-    paddingVertical: 8,
-  },
-  menuItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  menuText: {
-    fontSize: 16,
-  },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    height: 40,
-    borderWidth: 1,
-  },
-  searchInput: {
-    flex: 1,
-    height: 40,
-    paddingHorizontal: 10,
-    fontSize: 16,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  clearIcon: {
-    marginLeft: 8,
-  },
-  avatar: {
-    marginLeft: 10,
-  },
-  bottomNav: {
+  bottomNavBar: {
     borderTopWidth: 0.5,
     borderTopColor: '#e0e0e0',
     elevation: 8,
     shadowColor: '#000',
+    backgroundColor:'white'
+  },
+  iconContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIconContainer: {
+    backgroundColor: 'rgba(0, 152, 249, 0.1)',
+    borderRadius: 20,
+  },
+  avatar: {
+    marginLeft: 10,
   },
 });
 

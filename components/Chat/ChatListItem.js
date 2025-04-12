@@ -8,9 +8,9 @@ const ChatListItem = ({ chat, onPress }) => {
   return (
     <List.Item
       title={<Text style={{ color: colors.text }}>{chat.name}</Text>}
-      description={<Text style={{ color: colors.textSecondary }}>{chat.lastMessage}</Text>}
+      description={<Text style={{ color: colors.textSecondary }}>{chat.lastMessage.content}</Text>}
       left={() => <ChatAvatar chat={chat} colors={colors} />}
-      right={() => <ChatTime time={chat.time} colors={colors} />}
+      right={() => <ChatTime time={chat.lastMessage.timestamp} colors={colors} />} 
       onPress={onPress}
       style={styles.chatItem}
     />
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   },
   chatItem: {
     paddingVertical: 12,
-    paddingHorizontal:20,
+    paddingHorizontal: 20,
     backgroundColor: 'white',
     elevation: 1,
     shadowColor: 'grey',

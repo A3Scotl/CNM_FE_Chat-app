@@ -97,11 +97,42 @@ const ChatArea = ({ chat, onBack, user }) => {
       content: 'Hi, mình là Alice.',
       timestamp: '10:01 AM',
     },
+    
     {
       id: '2',
       senderId: 'other',
       content: 'Mình ổn, cảm ơn! Còn bạn?',
       timestamp: '10:03 AM',
+    },
+    {
+      id: '990',
+      senderId: 'me',
+      content: 'Chào bạn!',
+      timestamp: '10:00 AM',
+    },
+    {
+      id: '123',
+      senderId: 'me',
+      content: 'Chào bạn!',
+      timestamp: '10:00 AM',
+    },
+    {
+      id: '12',
+      senderId: 'me',
+      content: 'Chào bạn!',
+      timestamp: '10:00 AM',
+    },
+    {
+      id: '10',
+      senderId: 'me',
+      content: 'Chào bạn!',
+      timestamp: '10:00 AM',
+    },
+    {
+      id: '11',
+      senderId: 'me',
+      content: 'Chào bạn!',
+      timestamp: '10:00 AM',
     },
     {
       id: '3',
@@ -115,6 +146,7 @@ const ChatArea = ({ chat, onBack, user }) => {
       content: 'Bạn khỏe không?',
       timestamp: '10:02 AM',
     },
+
   ];
 
   const handleSend = () => {
