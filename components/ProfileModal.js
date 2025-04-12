@@ -48,17 +48,17 @@ const ProfileModal = ({
   };
 
   const handleAvatarUpdate = async () => {
-    if (!tempAvatar || !token || !user?._id) return;
+    if (!tempAvatar || !user?._id) return;
+    
     setIsLoading(true);
     try {
-      await uploadAvatar(tempAvatar, token, user._id);
-      const refreshedUser = await getMyProfile(user._id, token);
-      Alert.alert('Thành công', 'Cập nhập ảnh đại diện thành công');
-      onUpdateSuccess(refreshedUser);
+      const updatedUser = await uploadAvatar(tempAvatar, user._id);
+      Alert.alert('Thành công', 'Cập nhật ảnh đại diện thành công');
+      onUpdateSuccess(updatedUser); 
       onDismiss();
     } catch (error) {
       console.error('Lỗi cập nhật:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Lỗi cập nhật');
+      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi cập nhật ảnh đại diện');
     } finally {
       setIsLoading(false);
     }

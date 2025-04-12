@@ -1,58 +1,81 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableWithoutFeedback, TouchableOpacity, Text } from 'react-native';
-import { Appbar, Avatar, useTheme, Searchbar } from 'react-native-paper';
+import { View, StyleSheet, TouchableWithoutFeedback, TouchableOpacity, Text, TextInput, Keyboard } from 'react-native';
+import { Appbar, Avatar, useTheme, BottomNavigation } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
 import ProfileModal from '../components/ProfileModal';
 import ChatList from '../components/ChatList';
 import ChatArea from '../components/ChatArea';
 import SettingsModal from '../components/SettingsModal';
-import { logout, searchUserByPhone } from '../apis/auth.api';
+import { logout } from '../apis/auth.api';
+import ContactsScreen from './ContactsScreen';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const HomeScreen = ({ navigation, route }) => {
-  const { colors } = useTheme();
+  const theme = {
+    ...useTheme(),
+    colors: {
+      ...useTheme().colors,
+      primary: '#0098f9',
+      accent: '#0098f9',
+    },
+  };
+  const { colors } = theme;
   const [currentUser, setCurrentUser] = useState(route.params?.user.user || {});
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [index, setIndex] = useState(0);
+  const [routes] = useState([
+    { key: 'messages', title: 'Tin nhắn', icon: 'message-text' },
+    { key: 'contacts', title: 'Danh bạ', icon: 'account-group' },
+  ]);
   const token = route.params?.user.token;
 
   const mockChats = [
     {
       id: '1',
-      name: 'Alice',
+      name: 'Nghĩa',
       avatar: 'https://i.pravatar.cc/150?img=1',
-      lastMessage: 'Hey there!',
-      time: '10:30 AM',
-      unread: 2,
+      lastMessage: '[Danh thiếp] Nghĩa',
+      time: '1 giờ',
+      unread: 0,
     },
     {
       id: '2',
-      name: 'Bob',
+      name: 'Nơi Thắng',
       avatar: 'https://i.pravatar.cc/150?img=2',
-      lastMessage: 'What\'s up?',
-      time: '9:15 AM',
+      lastMessage: 'hay tui làm phần add friend cho',
+      time: '7 phút',
+      unread: 0,
+    },
+    {
+      id: '3',
+      name: 'CNM_NHOM_03',
+      avatar: 'https://i.pravatar.cc/150?img=3',
+      lastMessage: 'oke',
+      time: '9 phút',
+      unread: 0,
+    },
+    {
+      id: '4',
+      name: 'Nhóm-NMDLL',
+      avatar: 'https://i.pravatar.cc/150?img=4',
+      lastMessage: 'Hồ Văn Sang tham gia cuộc bình...',
+      time: '2 giờ',
+      unread: 0,
+    },
+    {
+      id: '5',
+      name: 'Kiến trúc',
+      avatar: 'https://i.pravatar.cc/150?img=5',
+      lastMessage: '@Nguyen Kha push cái lúc nãy...',
+      time: '6 giờ',
       unread: 0,
     },
   ];
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    
-    setIsSearching(true);
-    try {
-      const results = await searchUserByPhone(searchQuery, token);
-      setSearchResults(results);
-    } catch (error) {
-      console.error('Search error:', error);
-      Alert.alert('Lỗi', 'Không thể tìm kiếm người dùng');
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -64,92 +87,154 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
 
+  const renderScene = BottomNavigation.SceneMap({
+    messages: () => (
+      selectedChat ? (
+        <ChatArea
+          chat={selectedChat}
+          onBack={() => setSelectedChat(null)}
+          user={currentUser}
+        />
+      ) : (
+        <ChatList chats={mockChats} onChatSelect={setSelectedChat} />
+      )
+    ),
+    contacts: () => <ContactsScreen />,
+  });
+
   return (
-    <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
+    <TouchableWithoutFeedback onPress={() => {
+      setShowDropdown(false);
+      Keyboard.dismiss();
+    }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {!selectedChat && (
-          <Appbar.Header style={{ backgroundColor: colors.primary, zIndex: 1000 }}>
-            <Appbar.Content
-              title="ChatApp"
-              titleStyle={{
-                color: 'white',
-                fontWeight: 'bold',
-                textAlign: 'left',
-                marginLeft: -8,
-              }}
+        <Appbar.Header style={{
+          backgroundColor: '#0098f9',
+          elevation: 0,
+          shadowOpacity: 0,
+          zIndex: 1000,
+          paddingHorizontal: 10,
+        }}>
+          <View style={[styles.searchContainer, {
+            backgroundColor: isSearchFocused ? 'white' : '#f5f5f5',
+            borderColor: isSearchFocused ? colors.primary : '#f5f5f5',
+          }]}>
+            <MaterialIcons
+              name="search"
+              size={24}
+              color={isSearchFocused ? colors.primary : '#888'}
+              style={styles.searchIcon}
             />
-            <View style={styles.avatarContainer}>
-              <Appbar.Action
-                icon={() => (
-                  <Avatar.Image
-                    size={40}
-                    source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
-                  />
-                )}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  setShowDropdown(!showDropdown);
-                }}
-                color="white"
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Tìm kiếm"
+              placeholderTextColor="#888"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <MaterialIcons
+                  name="close"
+                  size={20}
+                  color="#888"
+                  style={styles.clearIcon}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.avatarContainer}>
+            <TouchableOpacity onPress={(e) => {
+              e.stopPropagation();
+              setShowDropdown(!showDropdown);
+            }}>
+              <Avatar.Image
+                size={36}
+                source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
+                style={styles.avatar}
               />
+            </TouchableOpacity>
 
-              {showDropdown && (
-                <View style={[styles.dropdownMenu, { backgroundColor: colors.surface }]}>
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setVisibleProfile(true);
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.menuText, { color: colors.text }]}>Hồ sơ</Text>
-                  </TouchableOpacity>
+            {showDropdown && (
+              <View style={[styles.dropdownMenu, {
+                backgroundColor: colors.surface,
+                shadowColor: colors.shadow,
+              }]}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setVisibleProfile(true);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.menuText, { color: colors.text }]}>Hồ sơ</Text>
+                </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => {
-                      setVisibleSettings(true);
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.menuText, { color: colors.text }]}>Cài đặt</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setVisibleSettings(true);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.menuText, { color: colors.text }]}>Cài đặt</Text>
+                </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={handleLogout}
-                  >
-                    <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </Appbar.Header>
-        )}
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleLogout}
+                >
+                  <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </Appbar.Header>
 
-        {!selectedChat && (
-          <Searchbar
-            placeholder="Tìm kiếm bằng số điện thoại"
-            onChangeText={setSearchQuery}
-            value={searchQuery}
-            style={styles.searchBar}
-            onSubmitEditing={handleSearch}
-            loading={isSearching}
-          />
-        )}
-
-        {selectedChat ? (
-          <ChatArea
-            chat={selectedChat}
-            onBack={() => setSelectedChat(null)}
-            user={currentUser}
-          />
-        ) : (
-          <ChatList 
-            chats={searchResults.length > 0 ? searchResults : mockChats} 
-            onChatSelect={setSelectedChat} 
-          />
-        )}
+        <BottomNavigation
+          navigationState={{ index, routes }}
+          onIndexChange={setIndex}
+          renderScene={renderScene}
+          barStyle={{
+            backgroundColor: 'white', 
+            elevation: 8,
+            shadowColor: '#000',
+            shadowOffset: {
+              width: 0,
+              height: -2,
+            },
+            shadowOpacity: 0.1,
+            shadowRadius: 4
+          }}
+          activeColor={colors.primary}
+          inactiveColor="#888"
+          labeled={false}
+          sceneAnimationEnabled={true}
+          sceneAnimationType="shifting"
+          renderIcon={({ route, focused, color }) => {
+            let iconName;
+            if (route.key === 'messages') {
+              iconName = focused ? 'message-text' : 'message-text-outline';
+            } else if (route.key === 'contacts') {
+              iconName = focused ? 'account-group' : 'account-group-outline';
+            }
+            return (
+              <View style={[
+                styles.iconContainer,
+                focused && styles.activeIconContainer 
+              ]}>
+                <MaterialCommunityIcons
+                  name={iconName}
+                  size={28}
+                  color={color}
+                />
+              </View>
+            );
+          }}
+          style={styles.bottomNav}
+        />
 
         <ProfileModal
           visible={visibleProfile}
@@ -162,7 +247,6 @@ const HomeScreen = ({ navigation, route }) => {
         <SettingsModal
           visible={visibleSettings}
           user={currentUser}
-          token={token}
           onDismiss={() => setVisibleSettings(false)}
         />
       </View>
@@ -176,18 +260,18 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
+    marginLeft: 10,
   },
   dropdownMenu: {
     position: 'absolute',
-    right: 10,
-    top: 50,
+    right: 0,
+    top: 45,
     width: 150,
     borderRadius: 8,
     elevation: 5,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     zIndex: 100,
     paddingVertical: 8,
   },
@@ -198,9 +282,36 @@ const styles = StyleSheet.create({
   menuText: {
     fontSize: 16,
   },
-  searchBar: {
-    margin: 10,
-    borderRadius: 8,
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    height: 40,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: 10,
+    fontSize: 16,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  clearIcon: {
+    marginLeft: 8,
+  },
+  avatar: {
+    marginLeft: 10,
+  },
+  bottomNav: {
+    borderTopWidth: 0.5,
+    borderTopColor: '#e0e0e0',
+    elevation: 8,
+    shadowColor: '#000',
+    
   },
 });
 

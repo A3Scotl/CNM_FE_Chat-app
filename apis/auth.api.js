@@ -8,7 +8,7 @@ export const login = async ({ phoneNumber, passWord }) => {
 
     if (data?.data?.access_token) {
       await AsyncStorage.setItem('token', data.data.access_token);
-      console.log("Đăng nhập thành công:", data);
+      // console.log("Đăng nhập thành công:", data);
     }
     return data;
   } catch (error) {

@@ -12,7 +12,6 @@ const axiosInstance = axios.create({
   timeout: 10000,
 });
 
-// Gắn token vào request nếu có
 axiosInstance.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('token');

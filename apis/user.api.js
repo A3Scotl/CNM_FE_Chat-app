@@ -1,24 +1,19 @@
-import axios from 'axios';
+import axiosInstance from "./axiosInstance";
 import * as FileSystem from 'expo-file-system';
-// import { API_URL } from '@env';
-const API_URL = 'http://192.168.1.189:5000/api'
-export const getMyProfile = async (id, token) => {
-    try {
-      const res = await axios.get(`${API_URL}/user/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      return res.data.data;
-    } catch (err) {
-      console.error('Lỗi khi gọi getMyProfile:', err.message, err.config?.url);
-      throw err;
-    }
-  };
-  
-export const uploadAvatar = async (avatarUri, token, userId) => {
+import { handleApiError } from "../utils/handleApiError";
+
+export const getMyProfile = async (id) => {
   try {
-    // Đọc file và encode sang base64
+    const { data } = await axiosInstance.get(`/user/${id}`);
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const uploadAvatar = async (avatarUri, userId) => {
+  try {
     const base64 = await FileSystem.readAsStringAsync(avatarUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -28,24 +23,24 @@ export const uploadAvatar = async (avatarUri, token, userId) => {
       avatar: `data:image/${fileType};base64,${base64}`
     };
 
-    const response = await axios.patch(
-      `${API_URL}/user/${userId}`,
-      data,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        timeout: 10000,
-      }
+    const response = await axiosInstance.patch(
+      `/user/${userId}`,
+      data
     );
-
+    console.log('Upload response:', response.data);
     return response.data.user;
   } catch (error) {
-    console.error('Upload error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-    });
+    handleApiError(error);
+    throw error;
+  }
+};
+
+export const searchUserByPhone = async (phone) => {
+  try {
+    const { data } = await axiosInstance.get(`/users/search?phone=${phone}`);
+    return data;
+  } catch (error) {
+    handleApiError(error);
     throw error;
   }
 };
