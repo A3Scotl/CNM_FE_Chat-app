@@ -1,46 +1,47 @@
-import axios from "axios";
+import axiosInstance from "./axiosInstance";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleApiError } from "../utils/handleApiError";
-// import { API_URL } from '@env';
-const API_URL = 'http://192.168.1.189:5000/api'
+
 export const login = async ({ phoneNumber, passWord }) => {
   try {
-    const { data } = await axios.post(`${API_URL}/auth/log-in`, {
-      phoneNumber,
-      passWord,
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      withCredentials: true,
-      timeout: 10000,
-    });
+    const { data } = await axiosInstance.post("/auth/log-in", { phoneNumber, passWord });
 
+    if (data?.data?.access_token) {
+      await AsyncStorage.setItem('token', data.data.access_token);
+      console.log("Đăng nhập thành công:", data);
+    }
     return data;
   } catch (error) {
     handleApiError(error);
   }
 };
-
 export const register = async (form) => {
   try {
-    const res = await axios.post(`${API_URL}/auth/sign-up`, form, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    return res.data;
+    const { data } = await axiosInstance.post("/auth/sign-up", form);
+    console.log("Đăng ký thành công:", data);
+    return data;
   } catch (error) {
-    throw handleApiError(error);
+    handleApiError(error);
   }
 };
-
 export const logout = async () => {
   try {
-    await axios.post(`${API_URL}/auth/logout`, {
-      withCredentials: true,
-    });
+    await axiosInstance.post("/auth/logout");
+    await AsyncStorage.removeItem('token');
+    console.log("Đăng xuất thành công");
   } catch (error) {
-    throw handleApiError(error);
+    handleApiError(error);
+  }
+};
+export const verifyOtpSignup = async ({ phoneNumber, otp }) => {
+  try {
+    const { data } = await axiosInstance.post('/auth/verifyOtpSignup', {
+      phoneNumber,
+      otp,
+    });
+    console.log("Xác minh OTP thành công:", data);
+    return data;
+  } catch (error) {
+    handleApiError(error);
   }
 };

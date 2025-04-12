@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableWithoutFeedback, TouchableOpacity, Text } from 'react-native';
-import { Appbar, Avatar, useTheme } from 'react-native-paper';
+import { Appbar, Avatar, useTheme, Searchbar } from 'react-native-paper';
 import ProfileModal from '../components/ProfileModal';
 import ChatList from '../components/ChatList';
 import ChatArea from '../components/ChatArea';
 import SettingsModal from '../components/SettingsModal';
-import { logout } from '../apis/auth.api';
+import { logout, searchUserByPhone } from '../apis/auth.api';
 
 const HomeScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
@@ -14,6 +14,10 @@ const HomeScreen = ({ navigation, route }) => {
   const [visibleSettings, setVisibleSettings] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   const token = route.params?.user.token;
 
   const mockChats = [
@@ -34,6 +38,21 @@ const HomeScreen = ({ navigation, route }) => {
       unread: 0,
     },
   ];
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      const results = await searchUserByPhone(searchQuery, token);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search error:', error);
+      Alert.alert('Lỗi', 'Không thể tìm kiếm người dùng');
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -100,7 +119,7 @@ const HomeScreen = ({ navigation, route }) => {
                     style={styles.menuItem}
                     onPress={handleLogout}
                   >
-                    <Text style={[styles.menuText, { color: colors.error }]} onPress={handleLogout}>Đăng xuất</Text>
+                    <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -108,7 +127,16 @@ const HomeScreen = ({ navigation, route }) => {
           </Appbar.Header>
         )}
 
-
+        {!selectedChat && (
+          <Searchbar
+            placeholder="Tìm kiếm bằng số điện thoại"
+            onChangeText={setSearchQuery}
+            value={searchQuery}
+            style={styles.searchBar}
+            onSubmitEditing={handleSearch}
+            loading={isSearching}
+          />
+        )}
 
         {selectedChat ? (
           <ChatArea
@@ -117,7 +145,10 @@ const HomeScreen = ({ navigation, route }) => {
             user={currentUser}
           />
         ) : (
-          <ChatList chats={mockChats} onChatSelect={setSelectedChat} />
+          <ChatList 
+            chats={searchResults.length > 0 ? searchResults : mockChats} 
+            onChatSelect={setSelectedChat} 
+          />
         )}
 
         <ProfileModal
@@ -131,6 +162,7 @@ const HomeScreen = ({ navigation, route }) => {
         <SettingsModal
           visible={visibleSettings}
           user={currentUser}
+          token={token}
           onDismiss={() => setVisibleSettings(false)}
         />
       </View>
@@ -165,6 +197,10 @@ const styles = StyleSheet.create({
   },
   menuText: {
     fontSize: 16,
+  },
+  searchBar: {
+    margin: 10,
+    borderRadius: 8,
   },
 });
 

@@ -6,7 +6,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
-
+import OTPScreen from '../screens/OPTScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppRouter() {
@@ -17,6 +17,8 @@ export default function AppRouter() {
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="OTPScreen" component={OTPScreen} />
+
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -51,19 +51,24 @@ const RegisterScreen = ({ navigation }) => {
     setTouched(
       Object.keys(form).reduce((acc, key) => ({ ...acc, [key]: true }), {})
     );
-
+  
     const hasError = Object.values(newErrors).some((error) => error);
     if (hasError) return;
-
+  
     try {
       const { confirmPassword, ...formData } = form;
       await register(formData);
-      navigation.navigate('Login');
+  
+      navigation.navigate('OTPScreen', {
+        phoneNumber: form.phoneNumber
+      });
+  
     } catch (err) {
       setDialogMessage(err.message || 'Đã xảy ra lỗi');
       setDialogVisible(true);
     }
   };
+  
 
   return (
     <KeyboardAvoidingView

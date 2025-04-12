@@ -6,8 +6,8 @@ import ErrorDialog from '../components/ErrorDialog';
 
 export default function LoginScreen({ navigation }) {
   const [form, setForm] = useState({
-    phoneNumber: '0123456789',
-    passWord: '123456',
+    phoneNumber: '0815950975',
+    passWord: 'IfCmtMfB',
   });
 
   const [loading, setLoading] = useState(false);
@@ -24,18 +24,19 @@ export default function LoginScreen({ navigation }) {
     }
 
     setLoading(true);
+
     try {
       const response = await login({
         phoneNumber: form.phoneNumber.trim(),
         passWord: form.passWord.trim(),
       });
-      if(response?.isSuccess){
+
+      if (response?.isSuccess) {
         navigation.navigate('Home', { user: response.data });
-      }
-      else{
+      } else {
         setError({
           visible: true,
-          message: 'Số điện thoại hoặc mật khẩu không đúng !',
+          message: 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.',
         });
       }
     } catch (err) {
@@ -47,6 +48,7 @@ export default function LoginScreen({ navigation }) {
       setLoading(false);
     }
   };
+
 
   return (
     <View style={styles.container}>
@@ -66,7 +68,7 @@ export default function LoginScreen({ navigation }) {
         label="Mật khẩu"
         value={form.passWord}
         onChangeText={(text) => handleChange('passWord', text)}
-        
+
         secureTextEntry
         style={styles.input}
         autoCapitalize="none"
