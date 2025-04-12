@@ -1,14 +1,26 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableWithoutFeedback, TouchableOpacity, Text, TextInput, Keyboard } from 'react-native';
-import { Appbar, Avatar, useTheme, BottomNavigation } from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
+import {
+  View,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  TouchableOpacity,
+  Text,
+  TextInput,
+  Keyboard,
+} from 'react-native';
+import {
+  Appbar,
+  Avatar,
+  useTheme,
+  BottomNavigation,
+} from 'react-native-paper';
+import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import ProfileModal from '../components/ProfileModal';
 import ChatList from '../components/ChatList';
 import ChatArea from '../components/ChatArea';
 import SettingsModal from '../components/SettingsModal';
 import { logout } from '../apis/auth.api';
 import ContactsScreen from './ContactsScreen';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const HomeScreen = ({ navigation, route }) => {
   const theme = {
@@ -20,6 +32,7 @@ const HomeScreen = ({ navigation, route }) => {
     },
   };
   const { colors } = theme;
+
   const [currentUser, setCurrentUser] = useState(route.params?.user.user || {});
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
@@ -27,11 +40,15 @@ const HomeScreen = ({ navigation, route }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showAppbar, setShowAppbar] = useState(true);
+  const [showBottomNav, setShowBottomNav] = useState(true);
   const [index, setIndex] = useState(0);
+
   const [routes] = useState([
     { key: 'messages', title: 'Tin nhắn', icon: 'message-text' },
     { key: 'contacts', title: 'Danh bạ', icon: 'account-group' },
   ]);
+
   const token = route.params?.user.token;
 
   const mockChats = [
@@ -87,154 +104,199 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
 
-  const renderScene = BottomNavigation.SceneMap({
-    messages: () => (
-      selectedChat ? (
+  const renderScene = () => {
+    if (index === 0) {
+      return selectedChat ? (
         <ChatArea
           chat={selectedChat}
-          onBack={() => setSelectedChat(null)}
+          onBack={() => {
+            setSelectedChat(null);
+            setShowAppbar(true);
+            setShowBottomNav(true);
+          }}
           user={currentUser}
         />
       ) : (
-        <ChatList chats={mockChats} onChatSelect={setSelectedChat} />
-      )
-    ),
-    contacts: () => <ContactsScreen />,
-  });
+        <ChatList
+          chats={mockChats}
+          onChatSelect={(chat) => {
+            setSelectedChat(chat);
+            setShowAppbar(false);
+            setShowBottomNav(false);
+          }}
+        />
+      );
+    } else if (index === 1) {
+      return <ContactsScreen />;
+    }
+  };
 
   return (
-    <TouchableWithoutFeedback onPress={() => {
-      setShowDropdown(false);
-      Keyboard.dismiss();
-    }}>
+    <TouchableWithoutFeedback
+      onPress={() => {
+        setShowDropdown(false);
+        Keyboard.dismiss();
+      }}
+    >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Appbar.Header style={{
-          backgroundColor: '#0098f9',
-          elevation: 0,
-          shadowOpacity: 0,
-          zIndex: 1000,
-          paddingHorizontal: 10,
-        }}>
-          <View style={[styles.searchContainer, {
-            backgroundColor: isSearchFocused ? 'white' : '#f5f5f5',
-            borderColor: isSearchFocused ? colors.primary : '#f5f5f5',
-          }]}>
-            <MaterialIcons
-              name="search"
-              size={24}
-              color={isSearchFocused ? colors.primary : '#888'}
-              style={styles.searchIcon}
-            />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Tìm kiếm"
-              placeholderTextColor="#888"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <MaterialIcons
-                  name="close"
-                  size={20}
-                  color="#888"
-                  style={styles.clearIcon}
+        {/* Appbar */}
+        {showAppbar && (
+          <Appbar.Header
+            style={{
+              backgroundColor: '#0098f9',
+              elevation: 0,
+              shadowOpacity: 0,
+              zIndex: 1000,
+              paddingHorizontal: 10,
+            }}
+          >
+            <View
+              style={[
+                styles.searchContainer,
+                {
+                  backgroundColor: isSearchFocused ? 'white' : '#f5f5f5',
+                  borderColor: isSearchFocused ? colors.primary : '#f5f5f5',
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="search"
+                size={24}
+                color={isSearchFocused ? colors.primary : '#888'}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Tìm kiếm"
+                placeholderTextColor="#888"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <MaterialIcons
+                    name="close"
+                    size={20}
+                    color="#888"
+                    style={styles.clearIcon}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.avatarContainer}>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setShowDropdown(!showDropdown);
+                }}
+              >
+                <Avatar.Image
+                  size={36}
+                  source={{
+                    uri: currentUser?.avatar || 'https://i.pravatar.cc/150',
+                  }}
+                  style={styles.avatar}
                 />
               </TouchableOpacity>
-            )}
-          </View>
-          <View style={styles.avatarContainer}>
-            <TouchableOpacity onPress={(e) => {
-              e.stopPropagation();
-              setShowDropdown(!showDropdown);
-            }}>
-              <Avatar.Image
-                size={36}
-                source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }}
-                style={styles.avatar}
-              />
-            </TouchableOpacity>
 
-            {showDropdown && (
-              <View style={[styles.dropdownMenu, {
-                backgroundColor: colors.surface,
-                shadowColor: colors.shadow,
-              }]}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setVisibleProfile(true);
-                    setShowDropdown(false);
-                  }}
+              {showDropdown && (
+                <View
+                  style={[
+                    styles.dropdownMenu,
+                    {
+                      backgroundColor: colors.surface,
+                      shadowColor: colors.shadow,
+                    },
+                  ]}
                 >
-                  <Text style={[styles.menuText, { color: colors.text }]}>Hồ sơ</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setVisibleProfile(true);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.menuText, { color: colors.text }]}>
+                      Hồ sơ
+                    </Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setVisibleSettings(true);
-                    setShowDropdown(false);
-                  }}
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setVisibleSettings(true);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.menuText, { color: colors.text }]}>
+                      Cài đặt
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={handleLogout}
+                  >
+                    <Text style={[styles.menuText, { color: colors.error }]}>
+                      Đăng xuất
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </Appbar.Header>
+        )}
+
+        {/* Nội dung chính */}
+        <View style={{ flex: 1 }}>{renderScene()}</View>
+
+        {/* BottomNavigation */}
+        {showBottomNav && (
+          <BottomNavigation
+            navigationState={{ index, routes }}
+            onIndexChange={setIndex}
+            renderScene={() => null} // không dùng SceneMap nữa
+            barStyle={{
+              backgroundColor: 'white',
+              elevation: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+            }}
+            activeColor={colors.primary}
+            inactiveColor="#888"
+            labeled={false}
+            sceneAnimationEnabled={true}
+            sceneAnimationType="shifting"
+            renderIcon={({ route, focused, color }) => {
+              let iconName;
+              if (route.key === 'messages') {
+                iconName = focused ? 'message-text' : 'message-text-outline';
+              } else if (route.key === 'contacts') {
+                iconName = focused ? 'account-group' : 'account-group-outline';
+              }
+              return (
+                <View
+                  style={[
+                    styles.iconContainer,
+                    focused && styles.activeIconContainer,
+                  ]}
                 >
-                  <Text style={[styles.menuText, { color: colors.text }]}>Cài đặt</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={handleLogout}
-                >
-                  <Text style={[styles.menuText, { color: colors.error }]}>Đăng xuất</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </Appbar.Header>
-
-        <BottomNavigation
-          navigationState={{ index, routes }}
-          onIndexChange={setIndex}
-          renderScene={renderScene}
-          barStyle={{
-            backgroundColor: 'white', 
-            elevation: 8,
-            shadowColor: '#000',
-            shadowOffset: {
-              width: 0,
-              height: -2,
-            },
-            shadowOpacity: 0.1,
-            shadowRadius: 4
-          }}
-          activeColor={colors.primary}
-          inactiveColor="#888"
-          labeled={false}
-          sceneAnimationEnabled={true}
-          sceneAnimationType="shifting"
-          renderIcon={({ route, focused, color }) => {
-            let iconName;
-            if (route.key === 'messages') {
-              iconName = focused ? 'message-text' : 'message-text-outline';
-            } else if (route.key === 'contacts') {
-              iconName = focused ? 'account-group' : 'account-group-outline';
-            }
-            return (
-              <View style={[
-                styles.iconContainer,
-                focused && styles.activeIconContainer 
-              ]}>
-                <MaterialCommunityIcons
-                  name={iconName}
-                  size={28}
-                  color={color}
-                />
-              </View>
-            );
-          }}
-          style={styles.bottomNav}
-        />
+                  <MaterialCommunityIcons
+                    name={iconName}
+                    size={28}
+                    color={color}
+                  />
+                </View>
+              );
+            }}
+            style={styles.bottomNav}
+          />
+        )}
 
         <ProfileModal
           visible={visibleProfile}
@@ -311,7 +373,6 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
     elevation: 8,
     shadowColor: '#000',
-    
   },
 });
 

@@ -19,9 +19,9 @@ const ChatListItem = ({ chat, onPress }) => {
 
 const ChatAvatar = ({ chat, colors }) => (
   <View>
-    <Avatar.Image 
-      size={50} 
-      source={{ uri: chat.avatar }} 
+    <Avatar.Image
+      size={50}
+      source={{ uri: chat.avatar }}
       style={styles.avatar}
     />
     {chat.unread > 0 && (
@@ -31,9 +31,9 @@ const ChatAvatar = ({ chat, colors }) => (
 );
 
 const UnreadBadge = ({ count, colors }) => (
-  <Avatar.Text 
-    size={24} 
-    label={count.toString()} 
+  <Avatar.Text
+    size={24}
+    label={count.toString()}
     style={[styles.badge, { backgroundColor: colors.error }]}
   />
 );
@@ -58,6 +58,13 @@ const styles = StyleSheet.create({
   },
   chatItem: {
     paddingVertical: 12,
+    paddingHorizontal:20,
+    backgroundColor: 'white',
+    elevation: 1,
+    shadowColor: 'grey',
+    shadowOffset: { width: 0, height: -1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
 });
 
