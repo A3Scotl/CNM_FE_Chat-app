@@ -18,7 +18,7 @@ import ChatList from '../components/Chat/ChatList';
 import ChatArea from '../components/Chat/ChatArea';
 import ProfileModal from '../components/Modal/ProfileModal';
 import SettingsModal from '../components/Modal/SettingsModal';
-import { logout } from '../apis/auth.api';
+import { logout, getMyProfile } from '../apis/auth.api';
 import ContactsScreen from './ContactsScreen';
 import DropdownMenu from '../components/DropdownMenu';
 import SearchBar from '../components/SearchBar';
@@ -114,7 +114,9 @@ const HomeScreen = ({ navigation, route }) => {
       },
     },
   ];
-
+  const handleProfileUpdateSuccess = (updatedUser) => {
+    setCurrentUser(updatedUser); 
+  };
   const handleLogout = async () => {
     try {
       setShowDropdown(false);
@@ -204,7 +206,7 @@ const HomeScreen = ({ navigation, route }) => {
           <BottomNavigation
             navigationState={{ index, routes }}
             onIndexChange={setIndex}
-            renderScene={() => null} 
+            renderScene={() => null}
             barStyle={styles.bottomNavBar}
             activeColor={colors.primary}
             inactiveColor="#888"
@@ -231,10 +233,9 @@ const HomeScreen = ({ navigation, route }) => {
         {/* Profile and Settings Modals */}
         <ProfileModal
           visible={visibleProfile}
-          user={currentUser}
-          token={token}
+          user={currentUser} 
           onDismiss={() => setVisibleProfile(false)}
-          onUpdateSuccess={setCurrentUser}
+          onUpdateSuccess={handleProfileUpdateSuccess} 
         />
         <SettingsModal
           visible={visibleSettings}
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
     elevation: 8,
     shadowColor: '#000',
-    backgroundColor:'white'
+    backgroundColor: 'white'
   },
   iconContainer: {
     flexDirection: 'row',
