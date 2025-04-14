@@ -9,6 +9,10 @@ export const login = async ({ phoneNumber, passWord }) => {
     if (data?.data?.access_token) {
       await AsyncStorage.setItem('token', data.data.access_token);
     }
+    if (data?.data?.user?._id) {
+      await AsyncStorage.setItem('userId', data.data.user._id);
+  }
+  console.log('Login successfull :' + data.data.user._id)
     return data;
   } catch (error) {
     handleApiError(error);
@@ -28,6 +32,8 @@ export const logout = async () => {
   try {
     await axiosInstance.post("/auth/logout");
     await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('userId');
+
   } catch (error) {
     handleApiError(error);
   }
@@ -51,7 +57,7 @@ export const sendOtp = async (phoneNumber) => {
 };
 
 // Yêu cầu OTP cho quên mật khẩu
-export const requestOtpFotgotPassword = async (phoneNumber) => {
+export const requestOtpForgotPassword = async (phoneNumber) => {
   try {
     const { data } = await axiosInstance.post("/auth/forgot-password", { phoneNumber });
     return data;

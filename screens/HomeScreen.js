@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -31,7 +31,7 @@ import { useSocket } from "../hooks/useSocket";
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
-  const { sendRequest } = useFriendRequest();
+  const { sendRequest, sentRequests } = useFriendRequest();
 
   const [currentUser, setCurrentUser] = useState(route.params?.user || {});
   const [visibleProfile, setVisibleProfile] = useState(false);
@@ -45,6 +45,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [index, setIndex] = useState(0);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [message, setMessage] = useState("");
 
   useSocket(currentUser?._id);
 
@@ -53,17 +54,19 @@ const HomeScreen = ({ navigation, route }) => {
     { key: "contacts", title: "Contacts", icon: "account-group" },
   ];
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const profile = await getMyProfile();
-        setCurrentUser(profile);
-      } catch (error) {
-        console.error("Failed to fetch profile:", error);
-      }
-    };
-    fetchProfile();
+  const fetchProfile = useCallback(async () => {
+    try {
+      const profile = await getMyProfile();
+      setCurrentUser(profile);
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+      Alert.alert("Error", "Failed to load profile.");
+    }
   }, []);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
@@ -76,36 +79,63 @@ const HomeScreen = ({ navigation, route }) => {
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
+      Alert.alert("Error", "Failed to log out.");
     }
   };
 
-  const handleSearch = async (query) => {
-    const formattedQuery = query.replace(/[^0-9]/g, '');
-    if (!formattedQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    try {
-      setIsSearching(true);
-      const results = await findUserByPhone(formattedQuery);
-      console.log('API Results:', results);
-      const resultsArray = Array.isArray(results) ? results : [results];
-      setSearchResults(resultsArray);
-      console.log('SearchResults state after set:', searchResults);
-    } catch (error) {
-      Alert.alert("Search Error", "Unable to search users. Please try again.");
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
+  // Debounce search to prevent rapid API calls
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func(...args), delay);
+    };
   };
 
-  const handleSendFriendRequest = async (userId) => {
+  const handleSearch = useCallback(
+    debounce(async (query) => {
+      const formattedQuery = query.replace(/[^0-9]/g, "");
+      console.log("Searching:", formattedQuery);
+      if (!formattedQuery.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+      try {
+        setIsSearching(true);
+        const results = await findUserByPhone(formattedQuery);
+        const resultsArray = Array.isArray(results) ? results : [results];
+        setSearchResults(resultsArray);
+        console.log("Search results:", resultsArray);
+      } catch (error) {
+        console.error("Search error:", error);
+        setSearchResults([]);
+        Alert.alert("Search Error", "Unable to search users. Please try again.");
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500),
+    []
+  );
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query);
+    handleSearch(query);
+  };
+
+  const handleSendFriendRequest = async (receiverId) => {
     try {
-      await sendRequest(userId);
-      Alert.alert("Success", "Friend request sent!");
+      await sendRequest(receiverId);
+      setMessage("Friend request sent!");
+      setTimeout(() => setMessage(""), 3000);
     } catch (error) {
-      Alert.alert("Error", "Failed to send friend request.");
+      const errorMsg =
+        error.message === "Friend request already exists"
+          ? "Friend request already sent!"
+          : "Failed to send friend request.";
+      setMessage(errorMsg);
+      setTimeout(() => setMessage(""), 3000);
+      console.error("Error sending friend request:", error);
     }
   };
 
@@ -115,6 +145,11 @@ const HomeScreen = ({ navigation, route }) => {
         data={searchResults}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => {
+          const isCurrentUser = item._id === currentUser?._id;
+          const isFriendRequestSent = sentRequests.some(
+            (request) => request.to?._id === item._id || request.to === item._id
+          );
+
           return (
             <View style={styles.userItem}>
               <Avatar.Image
@@ -125,12 +160,19 @@ const HomeScreen = ({ navigation, route }) => {
                 <Text style={styles.userName}>{item.fullName || "Unknown User"}</Text>
                 <Text style={styles.userPhone}>{item.phoneNumber}</Text>
               </View>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => handleSendFriendRequest(item._id)}
-              >
-                <MaterialCommunityIcons name="account-plus" size={24} color="#0098f9" />
-              </TouchableOpacity>
+              {!isCurrentUser && (
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => handleSendFriendRequest(item._id)}
+                  disabled={isFriendRequestSent}
+                >
+                  <MaterialCommunityIcons
+                    name={isFriendRequestSent ? "clock-outline" : "account-plus"}
+                    size={24}
+                    color={isFriendRequestSent ? "#888" : colors.primary}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           );
         }}
@@ -157,14 +199,14 @@ const HomeScreen = ({ navigation, route }) => {
       }
       return (
         <View style={{ flex: 1 }}>
-          <ChatList
-            chats={[]}
-            onChatSelect={() => { }}
-          />
-          {(searchResults.length > 0 && searchQuery.trim() !== '') && renderSearchResults()}
-          {!isSearching && searchResults.length === 0 && searchQuery.trim() !== '' && (
+          <ChatList chats={[]} onChatSelect={() => {}} />
+          {searchResults.length > 0 && searchQuery.trim() !== "" && renderSearchResults()}
+          {!isSearching && searchResults.length === 0 && searchQuery.trim() !== "" && (
             <Text style={styles.noResults}>No users found.</Text>
           )}
+          {message ? (
+            <Text style={[styles.message, { color: colors.primary }]}>{message}</Text>
+          ) : null}
         </View>
       );
     }
@@ -180,14 +222,13 @@ const HomeScreen = ({ navigation, route }) => {
     >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {showAppbar && (
-          <View style={{ position: 'relative', zIndex: 3 }}>
+          <View style={{ position: "relative", zIndex: 3 }}>
             <Appbar.Header style={styles.appBar}>
               <SearchBar
                 searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
+                setSearchQuery={handleSearchChange}
                 isSearchFocused={isSearchFocused}
                 setIsSearchFocused={setIsSearchFocused}
-                onSearch={handleSearch}
                 colors={colors}
               />
               <View style={styles.avatarContainer}>
@@ -230,10 +271,10 @@ const HomeScreen = ({ navigation, route }) => {
             sceneAnimationType="shifting"
             renderIcon={({ route, focused, color }) => {
               let iconName;
-              if (route.key === 'messages') {
-                iconName = focused ? 'message-text' : 'message-text-outline';
-              } else if (route.key === 'contacts') {
-                iconName = focused ? 'account-group' : 'account-group-outline';
+              if (route.key === "messages") {
+                iconName = focused ? "message-text" : "message-text-outline";
+              } else if (route.key === "contacts") {
+                iconName = focused ? "account-group" : "account-group-outline";
               }
               return (
                 <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
@@ -319,6 +360,11 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     color: "#666",
     fontStyle: "italic",
+  },
+  message: {
+    textAlign: "center",
+    marginVertical: 10,
+    fontSize: 14,
   },
 });
 

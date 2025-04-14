@@ -1,59 +1,143 @@
-import { useState } from "react";
-import * as api from "../apis/friendRequest.api";
+import { useState, useEffect, useCallback } from "react";
+import {
+  sendRequest,
+  getPendingRequests,
+  acceptRequest,
+  rejectRequest,
+} from "../apis/friendRequest.api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const useFriendRequest = () => {
+  const [userId, setUserId] = useState(null);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
-  const [friends, setFriends] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const fetchRequests = async () => {
+  const getUserIdFromStorage = useCallback(async () => {
     try {
-      const data = await api.getPendingRequests();
-      setPendingRequests(data.pendingRequests || []);
-      setSentRequests(data.sentRequests || []);
-      setFriends(data.friends || []);
-    } catch (error) {
-      console.error("Failed to fetch friend requests:", error);
+      const storedUserId = await AsyncStorage.getItem("userId");
+      if (storedUserId) {
+        setUserId(storedUserId);
+      } else {
+        throw new Error("User ID not found in storage");
+      }
+    } catch (err) {
+      console.error("Error getting userId from AsyncStorage:", err);
+      setError(err);
+    }
+  }, []);
+
+  const fetchPendingRequests = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getPendingRequests();
+      // Backend returns { data: [], ... }, so use response.data directly
+      const pendingData = Array.isArray(response?.data)
+        ? response.data.filter(
+            (req) =>
+              (req.to?._id === userId || req.to === userId) &&
+              req.status === "pending"
+          )
+        : [];
+      const sentData = Array.isArray(response?.data)
+        ? response.data.filter(
+            (req) =>
+              (req.from?._id === userId || req.from === userId) &&
+              req.status === "pending"
+          )
+        : [];
+      setPendingRequests(pendingData);
+      setSentRequests(sentData);
+      console.log("Pending requests:", pendingData);
+      console.log("Sent requests:", sentData);
+    } catch (err) {
+      console.error("Failed to fetch pending friend requests:", err);
+      setError(err);
+      setPendingRequests([]);
+      setSentRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  const sendRequestAction = async (receiverId) => {
+    if (!userId) {
+      setError(new Error("User ID not found. Please log in again."));
+      return;
+    }
+    if (!receiverId) {
+      setError(new Error("Receiver ID is required."));
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const newRequest = await sendRequest(receiverId);
+      setSentRequests((prev) => [...prev, newRequest]);
+      await fetchPendingRequests(); // Refresh sent requests
+      console.log("Friend request sent to:", receiverId);
+      return newRequest;
+    } catch (err) {
+      console.error("Failed to send friend request:", err);
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const sendRequest = async (toUserId) => {
+  const acceptRequestAction = async (requestId) => {
+    setLoading(true);
+    setError(null);
     try {
-      await api.sendRequest(toUserId);
-      await fetchRequests();
-    } catch (error) {
-      console.error("Failed to send friend request:", error);
-      throw error;
+      const response = await acceptRequest(requestId);
+      setPendingRequests((prev) => prev.filter((req) => req._id !== requestId));
+      console.log("Accepted friend request:", requestId);
+      return response;
+    } catch (err) {
+      console.error("Failed to accept friend request:", err);
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const acceptRequest = async (requestId) => {
+  const rejectRequestAction = async (requestId) => {
+    setLoading(true);
+    setError(null);
     try {
-      await api.acceptRequest(requestId);
-      await fetchRequests();
-    } catch (error) {
-      console.error("Failed to accept friend request:", error);
-      throw error;
+      await rejectRequest(requestId);
+      setPendingRequests((prev) => prev.filter((req) => req._id !== requestId));
+      console.log("Rejected friend request:", requestId);
+    } catch (err) {
+      console.error("Failed to reject friend request:", err);
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const rejectRequest = async (requestId) => {
-    try {
-      await api.rejectRequest(requestId);
-      await fetchRequests();
-    } catch (error) {
-      console.error("Failed to reject friend request:", error);
-      throw error;
-    }
-  };
+  useEffect(() => {
+    getUserIdFromStorage();
+  }, [getUserIdFromStorage]);
+
+  useEffect(() => {
+    fetchPendingRequests();
+  }, [fetchPendingRequests, userId]);
 
   return {
+    loading,
+    error,
     pendingRequests,
     sentRequests,
-    friends,
-    fetchRequests,
-    sendRequest,
-    acceptRequest,
-    rejectRequest,
+    fetchPendingRequests,
+    sendRequest: sendRequestAction,
+    acceptRequest: acceptRequestAction,
+    rejectRequest: rejectRequestAction,
   };
 };
