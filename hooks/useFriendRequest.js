@@ -10,9 +10,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const useFriendRequest = () => {
   const [userId, setUserId] = useState(null);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [acceptedRequests, setAcceptedRequests] = useState([]); 
   const [sentRequests, setSentRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingAccepted, setLoadingAccepted] = useState(false); 
+  const [errorAccepted, setErrorAccepted] = useState(null); 
 
   const getUserIdFromStorage = useCallback(async () => {
     try {
@@ -62,6 +65,43 @@ export const useFriendRequest = () => {
     }
   }, [userId]);
 
+  const fetchAcceptedRequests = useCallback(async () => {
+    if (!userId) return;
+    setLoadingAccepted(true);
+    setErrorAccepted(null);
+    try {
+      const response = await getRequests(userId);
+      const acceptedData = Array.isArray(response?.data)
+        ? response.data.filter(
+            (req) =>
+              (req.from?._id === userId || req.to?._id === userId) &&
+              req.status === "accepted"
+          )
+        : [];
+
+      const friends = [];
+      acceptedData.forEach((req) => {
+        if (req.from?._id === userId && req.to) {
+          if (!friends.some((friend) => friend._id === req.to._id)) {
+            friends.push(req.to);
+          }
+        } else if (req.to?._id === userId && req.from) {
+          if (!friends.some((friend) => friend._id === req.from._id)) {
+            friends.push(req.from);
+          }
+        }
+      });
+      setAcceptedRequests(friends);
+      console.log("Accepted requests (friends):", friends);
+    } catch (err) {
+      console.error("Failed to fetch accepted friend requests:", err);
+      setErrorAccepted(err);
+      setAcceptedRequests([]);
+    } finally {
+      setLoadingAccepted(false);
+    }
+  }, [userId]);
+
   const sendRequestAction = async (receiverId) => {
     if (!userId) {
       setError(new Error("User ID not found. Please log in again."));
@@ -76,7 +116,7 @@ export const useFriendRequest = () => {
     try {
       const newRequest = await sendRequest(receiverId);
       setSentRequests((prev) => [...prev, newRequest]);
-      await fetchPendingRequests(); // Refresh sent requests
+      await fetchPendingRequests(); 
       console.log("Friend request sent to:", receiverId);
       return newRequest;
     } catch (err) {
@@ -94,6 +134,15 @@ export const useFriendRequest = () => {
     try {
       const response = await acceptRequest(requestId);
       setPendingRequests((prev) => prev.filter((req) => req._id !== requestId));
+      // Optimistically update accepted requests
+      // Find the accepted request in pending and add to accepted
+      const acceptedReq = pendingRequests.find(req => req._id === requestId);
+      if (acceptedReq) {
+        const friend = acceptedReq.from?._id === userId ? acceptedReq.to : acceptedReq.from;
+        if (friend) {
+          setAcceptedRequests(prev => [...prev, friend]);
+        }
+      }
       console.log("Accepted friend request:", requestId);
       return response;
     } catch (err) {
@@ -127,16 +176,21 @@ export const useFriendRequest = () => {
 
   useEffect(() => {
     fetchPendingRequests();
-  }, [fetchPendingRequests, userId]);
+    fetchAcceptedRequests(); // Call the new function here
+  }, [fetchPendingRequests, fetchAcceptedRequests, userId]);
 
   return {
     loading,
     error,
     pendingRequests,
+    acceptedRequests, // Expose the new state
     sentRequests,
     fetchPendingRequests,
+    fetchAcceptedRequests, // Expose the new fetch function
     sendRequest: sendRequestAction,
     acceptRequest: acceptRequestAction,
     rejectRequest: rejectRequestAction,
+    loadingAccepted, // Expose the new loading state
+    errorAccepted,   // Expose the new error state
   };
 };

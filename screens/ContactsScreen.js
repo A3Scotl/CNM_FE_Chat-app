@@ -2,11 +2,23 @@ import React from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
 import { useTheme, Avatar, Button } from "react-native-paper";
 import { useFriendRequest } from "../hooks/useFriendRequest";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback } from "react";
 
 const ContactsScreen = () => {
   const { colors } = useTheme();
-  const { pendingRequests, loading, error, acceptRequest, rejectRequest, fetchPendingRequests } =
-    useFriendRequest();
+  const {
+    pendingRequests,
+    loading: pendingLoading,
+    error: pendingError,
+    acceptRequest,
+    rejectRequest,
+    fetchPendingRequests,
+    acceptedRequests, // Get the acceptedRequests
+    loadingAccepted, // Get the loadingAccepted state
+    errorAccepted,   // Get the errorAccepted state
+    fetchAcceptedRequests, // Get the fetchAcceptedRequests function
+  } = useFriendRequest();
 
   const handleAccept = async (requestId) => {
     try {
@@ -24,39 +36,60 @@ const ContactsScreen = () => {
     }
   };
 
-  const renderRequestItem = ({ item }) =>{
+  const renderRequestItem = ({ item }) => {
     return (
-        <View style={styles.itemContainer}>
-          <View style={styles.rowTop}>
-            <Avatar.Image
-              size={48}
-              source={{ uri: item.from?.avatar || "https://i.pravatar.cc/150" }}
-            />
-            <View style={styles.infoContainer}>
-              <Text style={[styles.name, { color: colors.text }]}>
-                {item.from?.fullName || "Unknown User"}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.rowBottom}>
-            <Button
-              mode="contained"
-              onPress={() => handleAccept(item._id)}
-              style={[styles.button, { backgroundColor: colors.primary }]}
-            >
-              Chấp nhận
-            </Button>
-            <Button
-              mode="outlined"
-              onPress={() => handleReject(item._id)}
-              style={styles.button}
-            >
-              Từ chối
-            </Button>
+      <View style={styles.itemContainer}>
+        <View style={styles.rowTop}>
+          <Avatar.Image
+            size={48}
+            source={{ uri: item.from?.avatar || "https://i.pravatar.cc/150" }}
+          />
+          <View style={styles.infoContainer}>
+            <Text style={[styles.name, { color: colors.text }]}>
+              {item.from?.fullName || "Unknown User"}
+            </Text>
           </View>
         </View>
-    )
-  }
+        <View style={styles.rowBottom}>
+          <Button
+            mode="contained"
+            onPress={() => handleAccept(item._id)}
+            style={[styles.button, { backgroundColor: colors.primary }]}
+          >
+            Chấp nhận
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={() => handleReject(item._id)}
+            style={styles.button}
+          >
+            Từ chối
+          </Button>
+        </View>
+      </View>
+    );
+  };
+
+  const renderFriendItem = ({ item }) => {
+    return (
+      <View style={styles.friendItemContainer}>
+        <Avatar.Image
+          size={48}
+          source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+        />
+        <Text style={[styles.friendName, { color: colors.text }]}>
+          {item.fullName || "Unknown User"}
+        </Text>
+      </View>
+    );
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingRequests();
+      fetchAcceptedRequests(); // Call fetchAcceptedRequests on focus
+    }, [fetchPendingRequests, fetchAcceptedRequests])
+  );
 
   return (
     <View style={styles.container}>
@@ -64,15 +97,15 @@ const ContactsScreen = () => {
         <Text style={[styles.sectionTitle, { color: colors.primary }]}>
           Friend Requests
         </Text>
-        <TouchableOpacity onPress={fetchPendingRequests} disabled={loading}>
+        <TouchableOpacity onPress={fetchPendingRequests} disabled={pendingLoading}>
           <Text style={[styles.refreshText, { color: colors.primary }]}>Refresh</Text>
         </TouchableOpacity>
       </View>
-      {loading ? (
+      {pendingLoading ? (
         <Text style={[styles.emptyText, { color: colors.text }]}>Loading requests...</Text>
-      ) : error ? (
+      ) : pendingError ? (
         <Text style={[styles.errorText, { color: colors.error }]}>
-          Error loading requests: {error.message}
+          Error loading requests: {pendingError.message}
         </Text>
       ) : pendingRequests.length > 0 ? (
         <FlatList
@@ -84,6 +117,27 @@ const ContactsScreen = () => {
       ) : (
         <Text style={[styles.emptyText, { color: colors.text }]}>No pending requests.</Text>
       )}
+
+      <View style={styles.separator} />
+
+      <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+        Friends
+      </Text>
+      {loadingAccepted ? (
+        <Text style={[styles.emptyText, { color: colors.text }]}>Loading friends...</Text>
+      ) : errorAccepted ? (
+        <Text style={[styles.errorText, { color: colors.error }]}>
+          Error loading friends: {errorAccepted.message}
+        </Text>
+      ) : acceptedRequests.length > 0 ? (
+        <FlatList
+          data={acceptedRequests}
+          renderItem={renderFriendItem}
+          keyExtractor={(item) => item._id}
+        />
+      ) : (
+        <Text style={[styles.emptyText, { color: colors.text }]}>No friends yet.</Text>
+      )}
     </View>
   );
 };
@@ -93,7 +147,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 15,
     backgroundColor: "white",
-   
   },
   header: {
     flexDirection: "row",
@@ -146,6 +199,22 @@ const styles = StyleSheet.create({
     color: "red",
     textAlign: "center",
     marginVertical: 10,
+  },
+  separator: {
+    height: 10,
+  },
+  friendItemContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 16,
+  },
+  friendName: {
+    marginLeft: 16,
+    fontSize: 16,
+    fontWeight: "500",
   },
 });
 
