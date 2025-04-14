@@ -12,9 +12,9 @@ export const sendRequest = async (toUserId) => {
   }
 };
 
-export const getPendingRequests = async () => {
+export const getRequests = async (userId) => {
   try {
-    const response = await axiosInstance.get("/friend-request/pending");
+    const response = await axiosInstance.get(`/friend-request/pending?userId=${userId}`);
     console.log("Pending requests response:", response.data);
     return response.data;
   } catch (error) {

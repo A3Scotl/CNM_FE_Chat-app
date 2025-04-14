@@ -24,38 +24,39 @@ const ContactsScreen = () => {
     }
   };
 
-  const renderRequestItem = ({ item }) => (
-    <View style={styles.itemContainer}>
-      <Avatar.Image
-        size={48}
-        source={{ uri: item.from?.avatar || "https://i.pravatar.cc/150" }}
-      />
-      <View style={styles.infoContainer}>
-        <Text style={[styles.name, { color: colors.text }]}>
-          {item.from?.fullName || "Unknown User"}
-        </Text>
-        <Text style={[styles.subText, { color: colors.text }]}>
-          {item.from?.phoneNumber || "No phone number"}
-        </Text>
-      </View>
-      <View style={styles.actionsContainer}>
-        <Button
-          mode="contained"
-          onPress={() => handleAccept(item._id)}
-          style={[styles.button, { backgroundColor: colors.primary }]}
-        >
-          Accept
-        </Button>
-        <Button
-          mode="outlined"
-          onPress={() => handleReject(item._id)}
-          style={styles.button}
-        >
-          Reject
-        </Button>
-      </View>
-    </View>
-  );
+  const renderRequestItem = ({ item }) =>{
+    return (
+        <View style={styles.itemContainer}>
+          <View style={styles.rowTop}>
+            <Avatar.Image
+              size={48}
+              source={{ uri: item.from?.avatar || "https://i.pravatar.cc/150" }}
+            />
+            <View style={styles.infoContainer}>
+              <Text style={[styles.name, { color: colors.text }]}>
+                {item.from?.fullName || "Unknown User"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.rowBottom}>
+            <Button
+              mode="contained"
+              onPress={() => handleAccept(item._id)}
+              style={[styles.button, { backgroundColor: colors.primary }]}
+            >
+              Chấp nhận
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => handleReject(item._id)}
+              style={styles.button}
+            >
+              Từ chối
+            </Button>
+          </View>
+        </View>
+    )
+  }
 
   return (
     <View style={styles.container}>
@@ -109,32 +110,30 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   itemContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 10,
-    elevation: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e0e0e0',
+  },
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   infoContainer: {
+    marginLeft: 16,
     flex: 1,
-    marginLeft: 15,
   },
   name: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: '500',
   },
-  subText: {
-    fontSize: 14,
-    opacity: 0.6,
-  },
-  actionsContainer: {
-    flexDirection: "row",
-    gap: 5,
+  rowBottom: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
   },
   button: {
-    paddingHorizontal: 5,
+    marginLeft: 8,
   },
   emptyText: {
     fontSize: 14,

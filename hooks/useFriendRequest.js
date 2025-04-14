@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   sendRequest,
-  getPendingRequests,
+  getRequests,
   acceptRequest,
   rejectRequest,
 } from "../apis/friendRequest.api";
@@ -33,8 +33,7 @@ export const useFriendRequest = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getPendingRequests();
-      // Backend returns { data: [], ... }, so use response.data directly
+      const response = await getRequests(userId);
       const pendingData = Array.isArray(response?.data)
         ? response.data.filter(
             (req) =>
