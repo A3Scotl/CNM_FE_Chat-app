@@ -15,7 +15,6 @@ export const sendRequest = async (toUserId) => {
 export const getRequests = async (userId) => {
   try {
     const response = await axiosInstance.get(`/friend-request/pending?userId=${userId}`);
-    console.log("Pending requests response:", response.data);
     return response.data;
   } catch (error) {
     const errorMessage = handleApiError(error);
@@ -26,7 +25,6 @@ export const getRequests = async (userId) => {
 export const acceptRequest = async (requestId) => {
   try {
     const { data } = await axiosInstance.put(`/friend-request/accept/${requestId}`);
-    console.log("Accepted request:", requestId);
     return data;
   } catch (error) {
     const errorMessage = handleApiError(error);

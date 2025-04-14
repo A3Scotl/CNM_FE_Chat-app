@@ -210,7 +210,7 @@ const HomeScreen = ({ navigation, route }) => {
         </View>
       );
     }
-    return <ContactsScreen />;
+    return <ContactsScreen navigation={navigation} />;
   };
 
   return (

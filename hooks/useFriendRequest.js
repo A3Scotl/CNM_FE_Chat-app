@@ -10,12 +10,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const useFriendRequest = () => {
   const [userId, setUserId] = useState(null);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [acceptedRequests, setAcceptedRequests] = useState([]); 
+  const [acceptedRequests, setAcceptedRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [loadingAccepted, setLoadingAccepted] = useState(false); 
-  const [errorAccepted, setErrorAccepted] = useState(null); 
+  const [loadingAccepted, setLoadingAccepted] = useState(false);
+  const [errorAccepted, setErrorAccepted] = useState(null);
 
   const getUserIdFromStorage = useCallback(async () => {
     try {
@@ -37,17 +37,18 @@ export const useFriendRequest = () => {
     setError(null);
     try {
       const response = await getRequests(userId);
+      console.log("Pending requests response:", response.data);
       const pendingData = Array.isArray(response?.data)
         ? response.data.filter(
             (req) =>
-              (req.to?._id === userId || req.to === userId) &&
+              (req.to === userId || req.to?._id === userId) &&
               req.status === "pending"
           )
         : [];
       const sentData = Array.isArray(response?.data)
         ? response.data.filter(
             (req) =>
-              (req.from?._id === userId || req.from === userId) &&
+              (req.from === userId || req.from?._id === userId) &&
               req.status === "pending"
           )
         : [];
@@ -71,26 +72,41 @@ export const useFriendRequest = () => {
     setErrorAccepted(null);
     try {
       const response = await getRequests(userId);
+      console.log("Accepted requests raw response:", response.data);
+
       const acceptedData = Array.isArray(response?.data)
         ? response.data.filter(
             (req) =>
-              (req.from?._id === userId || req.to?._id === userId) &&
+              (req.from === userId || req.to === userId) &&
               req.status === "accepted"
           )
         : [];
+      console.log("Filtered accepted requests:", acceptedData);
 
+      // Assuming API returns full user objects in from/to or we need to fetch them
       const friends = [];
       acceptedData.forEach((req) => {
-        if (req.from?._id === userId && req.to) {
-          if (!friends.some((friend) => friend._id === req.to._id)) {
-            friends.push(req.to);
+        if (req.from === userId && req.to) {
+          // Add the 'to' user as a friend
+          if (!friends.some((friend) => friend._id === req.to._id || friend._id === req.to)) {
+            friends.push({
+              _id: typeof req.to === "string" ? req.to : req.to._id,
+              fullName: typeof req.to === "object" ? req.to.fullName : "Unknown",
+              avatar: typeof req.to === "object" ? req.to.avatar : "https://i.pravatar.cc/150",
+            });
           }
-        } else if (req.to?._id === userId && req.from) {
-          if (!friends.some((friend) => friend._id === req.from._id)) {
-            friends.push(req.from);
+        } else if (req.to === userId && req.from) {
+          // Add the 'from' user as a friend
+          if (!friends.some((friend) => friend._id === req.from._id || friend._id === req.from)) {
+            friends.push({
+              _id: typeof req.from === "string" ? req.from : req.from._id,
+              fullName: typeof req.from === "object" ? req.from.fullName : "Unknown",
+              avatar: typeof req.from === "object" ? req.from.avatar : "https://i.pravatar.cc/150",
+            });
           }
         }
       });
+
       setAcceptedRequests(friends);
       console.log("Accepted requests (friends):", friends);
     } catch (err) {
@@ -116,8 +132,7 @@ export const useFriendRequest = () => {
     try {
       const newRequest = await sendRequest(receiverId);
       setSentRequests((prev) => [...prev, newRequest]);
-      await fetchPendingRequests(); 
-      console.log("Friend request sent to:", receiverId);
+      await fetchPendingRequests();
       return newRequest;
     } catch (err) {
       console.error("Failed to send friend request:", err);
@@ -134,16 +149,7 @@ export const useFriendRequest = () => {
     try {
       const response = await acceptRequest(requestId);
       setPendingRequests((prev) => prev.filter((req) => req._id !== requestId));
-      // Optimistically update accepted requests
-      // Find the accepted request in pending and add to accepted
-      const acceptedReq = pendingRequests.find(req => req._id === requestId);
-      if (acceptedReq) {
-        const friend = acceptedReq.from?._id === userId ? acceptedReq.to : acceptedReq.from;
-        if (friend) {
-          setAcceptedRequests(prev => [...prev, friend]);
-        }
-      }
-      console.log("Accepted friend request:", requestId);
+      await fetchAcceptedRequests();
       return response;
     } catch (err) {
       console.error("Failed to accept friend request:", err);
@@ -160,7 +166,6 @@ export const useFriendRequest = () => {
     try {
       await rejectRequest(requestId);
       setPendingRequests((prev) => prev.filter((req) => req._id !== requestId));
-      console.log("Rejected friend request:", requestId);
     } catch (err) {
       console.error("Failed to reject friend request:", err);
       setError(err);
@@ -174,23 +179,18 @@ export const useFriendRequest = () => {
     getUserIdFromStorage();
   }, [getUserIdFromStorage]);
 
-  useEffect(() => {
-    fetchPendingRequests();
-    fetchAcceptedRequests(); // Call the new function here
-  }, [fetchPendingRequests, fetchAcceptedRequests, userId]);
-
   return {
     loading,
     error,
     pendingRequests,
-    acceptedRequests, // Expose the new state
+    acceptedRequests,
     sentRequests,
     fetchPendingRequests,
-    fetchAcceptedRequests, // Expose the new fetch function
+    fetchAcceptedRequests,
     sendRequest: sendRequestAction,
     acceptRequest: acceptRequestAction,
     rejectRequest: rejectRequestAction,
-    loadingAccepted, // Expose the new loading state
-    errorAccepted,   // Expose the new error state
+    loadingAccepted,
+    errorAccepted,
   };
 };
