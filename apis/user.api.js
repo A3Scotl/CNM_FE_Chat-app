@@ -1,4 +1,4 @@
-import axiosInstance from "./axiosInstance";
+import axiosInstance from "../utils/axiosInstance";
 import * as FileSystem from "expo-file-system";
 import { handleApiError } from "../utils/handleApiError";
 
@@ -17,24 +17,11 @@ export const uploadAvatar = async (avatarUri, userId) => {
     const base64 = await FileSystem.readAsStringAsync(avatarUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
-
     const fileType = avatarUri.split(".").pop();
-    const data = {
+    const payload = {
       avatar: `data:image/${fileType};base64,${base64}`,
     };
-
-    const response = await axiosInstance.patch(`/user/${userId}`, data);
-    console.log("Upload response:", response.data);
-    return response.data.data;
-  } catch (error) {
-    handleApiError(error);
-    throw error;
-  }
-};
-
-export const searchUserByPhone = async (phone) => {
-  try {
-    const { data } = await axiosInstance.get(`/users/search?phone=${phone}`);
+    const { data } = await axiosInstance.patch(`/user/${userId}`, payload);
     return data.data;
   } catch (error) {
     handleApiError(error);
@@ -49,5 +36,18 @@ export const updateProfile = async (profileData) => {
   } catch (error) {
     handleApiError(error);
     throw error;
+  }
+};
+
+export const findUserByPhone = async (phone) => {
+  try {
+    console.log(`Searching: ${phone}`)
+    const { data } = await axiosInstance.get("/user/search", { params: { phone } });
+
+    console.log(data.data);
+    return data.data || [];
+  } catch (error) {
+    handleApiError(error);
+    return [];
   }
 };

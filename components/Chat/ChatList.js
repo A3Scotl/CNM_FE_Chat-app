@@ -24,8 +24,8 @@ const ChatList = ({ chats, onChatSelect }) => {
 const styles = StyleSheet.create({
   container: {
     zIndex: 1,
-    flex:1,
-    minHeight:590
+    // flex:1,
+    // minHeight:590
   },
 });
 

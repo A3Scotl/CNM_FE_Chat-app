@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -6,8 +6,26 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { debounce } from 'lodash';
 
-const SearchBar = ({ searchQuery, setSearchQuery, isSearchFocused, setIsSearchFocused, colors }) => {
+const SearchBar = ({
+  searchQuery,
+  setSearchQuery,
+  isSearchFocused,
+  setIsSearchFocused,
+  onSearch,
+  colors,
+}) => {
+  const debouncedSearch = debounce((query) => {
+    onSearch(query);
+  }, 500);
+
+  useEffect(() => {
+    if (searchQuery) {
+      debouncedSearch(searchQuery);
+    }
+  }, [searchQuery]);
+
   return (
     <View
       style={[
@@ -26,12 +44,13 @@ const SearchBar = ({ searchQuery, setSearchQuery, isSearchFocused, setIsSearchFo
       />
       <TextInput
         style={[styles.searchInput, { color: colors.text }]}
-        placeholder="Tìm kiếm"
+        placeholder="Tìm kiếm theo số điện thoại"
         placeholderTextColor="#888"
         value={searchQuery}
         onChangeText={setSearchQuery}
         onFocus={() => setIsSearchFocused(true)}
         onBlur={() => setIsSearchFocused(false)}
+        keyboardType="phone-pad"
       />
       {searchQuery.length > 0 && (
         <TouchableOpacity onPress={() => setSearchQuery('')}>
@@ -56,6 +75,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     height: 40,
     borderWidth: 1,
+    marginVertical: 5, // Thêm margin dọc để tách biệt
   },
   searchInput: {
     flex: 1,

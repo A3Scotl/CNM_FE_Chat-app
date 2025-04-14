@@ -32,7 +32,6 @@ const ProfileModal = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showGenderMenu, setShowGenderMenu] = useState(false);
 
-  // Load initial form data when user changes
   useEffect(() => {
     if (user) {
       setEditFormData({
@@ -96,7 +95,6 @@ const ProfileModal = ({
     
     setIsLoading(true);
     try {
-      // Format date to ISO string to match API expectations
       const formattedData = {
         ...editFormData,
         dob: editFormData.dob.toISOString()
@@ -116,7 +114,6 @@ const ProfileModal = ({
 
   const toggleEditMode = () => {
     setIsEditingProfile(!isEditingProfile);
-    // Reset form data to current user values if canceling edit
     if (isEditingProfile) {
       setEditFormData({
         fullName: user.fullName || '',

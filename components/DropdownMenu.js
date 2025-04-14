@@ -52,6 +52,7 @@ const DropdownMenu = ({ showDropdown, setShowDropdown, currentUser, setVisiblePr
 
 const styles = StyleSheet.create({
   dropdownMenu: {
+    zIndex:10000,
     position: 'absolute',
     right: 0,
     top: 45,
@@ -61,7 +62,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    zIndex: 100,
     paddingVertical: 8,
   },
   menuItem: {
