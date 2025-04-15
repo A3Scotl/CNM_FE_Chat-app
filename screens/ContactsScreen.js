@@ -170,12 +170,13 @@ const ContactsScreen = () => {
           )}
 
           {/* Lời mời đã gửi */}
-          <View style={styles.sectionHeader}>
+           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Lời mời đã gửi ({requests.length})
+              Lời mời đã gửi 
+              {/* ({requests.length}) */}
             </Text>
           </View>
-
+        {/*
           {requests.length > 0 ? (
             <FlatList
               data={requests}
@@ -187,7 +188,8 @@ const ContactsScreen = () => {
             <Text style={[styles.emptyText, { color: colors.text }]}>
               Bạn chưa gửi lời mời kết bạn nào.
             </Text>
-          )}
+          )
+          } */}
         </ScrollView>
       )}
 
