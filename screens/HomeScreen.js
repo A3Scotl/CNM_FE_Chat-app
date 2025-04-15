@@ -239,7 +239,6 @@ const HomeScreen = ({ navigation, route }) => {
                 avatar: chat.user.avatar,
               },
               user: currentUser,
-              updateLastMessage: handleUpdateLastMessage,
             })
           }
         />

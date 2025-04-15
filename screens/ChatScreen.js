@@ -4,11 +4,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Keyboard,
+  TextInput,
 } from "react-native";
-import { Avatar, Text, useTheme, TextInput } from "react-native-paper";
+import { Avatar, Text, useTheme } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { createSocket } from "../utils/socket";
+import { createSocket } from "../utils/socket"; // Đảm bảo tạo socket từ hàm này
 import { sendMessage, getMessages } from "../apis/message.api";
 
 const ChatScreen = ({ navigation, route }) => {
@@ -16,6 +16,7 @@ const ChatScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
+  const [typing, setTyping] = useState(false); // Trạng thái typing
   const socketRef = useRef(null);
   const scrollRef = useRef(null);
   const updateLast = (content, createdAt) => {
@@ -24,6 +25,7 @@ const ChatScreen = ({ navigation, route }) => {
       createdAt,
     });
   };
+
   // Auto scroll to bottom when messages change
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -65,8 +67,16 @@ const ChatScreen = ({ navigation, route }) => {
       ]);
 
       setMessage("");
+      setTyping(false); // Khi gửi tin nhắn, dừng trạng thái typing
     } catch (err) {
       console.error("❌ Lỗi gửi tin nhắn:", err);
+    }
+  };
+
+  const handleTyping = () => {
+    if (!typing) {
+      setTyping(true);
+      socketRef.current?.emit("typing", chat._id, user._id); // Phát sự kiện typing
     }
   };
 
@@ -74,15 +84,21 @@ const ChatScreen = ({ navigation, route }) => {
     if (!user?.token || !user._id || !chat._id) return;
 
     const socket = createSocket(user.token);
+    console.log("socket: ", socket);
     socketRef.current = socket;
-
+    /// Debug log to check if socket connects
+    socket.on("connect", () => {
+      console.log("🔌 Socket connected");
+      socket.emit("join-room", chat._id); // Make sure to join the room
+      console.log("✅ Đã join room:", chat._id);
+    });
+    console.log("socket 222: ", socket);
     const handleReceiveMessage = (msg) => {
       const senderId =
         typeof msg.sender === "object" ? msg.sender._id : msg.sender;
-      updateLast(msg.content, msg.createdAt); // khi nhận
+      updateLast(msg.content, msg.createdAt); // khi nhận tin nhắn
       if (msg.conversationId === chat._id) {
         console.log("📩 Nhận tin nhắn:", msg);
-
         setMessages((prev) => [
           ...prev,
           {
@@ -96,27 +112,30 @@ const ChatScreen = ({ navigation, route }) => {
               : "",
           },
         ]);
-      } else {
-        console.log(
-          "📭 Tin nhắn không thuộc phòng hiện tại:",
-          msg.conversationId
-        );
       }
     };
 
-    socket.on("connect", () => {
-      console.log("🔌 Socket connected");
-      socket.emit("join-room", chat._id);
-      console.log("✅ Đã join room:", chat._id);
+    // Lắng nghe sự kiện typing từ người khác
+    socket.on("typing", (userId) => {
+      if (userId !== user._id) {
+        setTyping(true);
+      }
     });
 
+    socket.on("stop-typing", (userId) => {
+      if (userId !== user._id) {
+        setTyping(false);
+      }
+    });
+
+    // Lắng nghe tin nhắn mới
     socket.on("new-message", handleReceiveMessage);
 
     return () => {
       console.log("👋 Rời khỏi room:", chat._id);
-      socket.emit("leave-room", chat._id);
-      socket.off("new-message", handleReceiveMessage);
-      socket.disconnect();
+      socket.emit("leave-room", chat._id); // Rời khỏi phòng chat
+      socket.off("new-message", handleReceiveMessage); // Hủy sự kiện lắng nghe tin nhắn mới
+      socket.disconnect(); // Ngắt kết nối socket
       console.log("❌ Socket disconnected");
     };
   }, [chat._id]);
@@ -174,7 +193,7 @@ const ChatScreen = ({ navigation, route }) => {
       >
         {messages.map((msg, index) => (
           <View
-            key={msg._id || msg.id || `${msg.senderId}-${index}`}
+            key={`${msg._id || msg.id}-${index}`} // sửa tại đây
             style={[
               styles.messageBubble,
               msg.senderId === "me" ? styles.messageMe : styles.messageOther,
@@ -199,6 +218,15 @@ const ChatScreen = ({ navigation, route }) => {
         <TouchableOpacity>
           <MaterialIcons name="insert-emoticon" size={24} color="#666" />
         </TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton}>
+          <MaterialIcons name="attach-file" size={24} color="#666" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton}>
+          <MaterialIcons name="camera-alt" size={24} color="#666" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton}>
+          <MaterialIcons name="mic" size={24} color="#666" />
+        </TouchableOpacity>
         <TextInput
           style={styles.input}
           placeholder="Nhập tin nhắn..."
@@ -207,6 +235,7 @@ const ChatScreen = ({ navigation, route }) => {
           multiline
           underlineColor="transparent"
           activeUnderlineColor="transparent"
+          onFocus={handleTyping} // Khi người dùng bắt đầu gõ
         />
         <TouchableOpacity
           style={styles.sendButton}
@@ -216,6 +245,9 @@ const ChatScreen = ({ navigation, route }) => {
           <MaterialIcons name="send" size={20} color="white" />
         </TouchableOpacity>
       </View>
+
+      {/* Typing Indicator */}
+      {typing && <Text style={styles.typingText}>User is typing...</Text>}
     </View>
   );
 };
@@ -281,6 +313,12 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   statusText: { fontSize: 12, color: "#666" },
+  typingText: {
+    fontSize: 14,
+    color: "#888",
+    textAlign: "center",
+    marginTop: 8,
+  },
 });
 
 export default ChatScreen;
