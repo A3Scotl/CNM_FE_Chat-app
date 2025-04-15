@@ -17,6 +17,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [typing, setTyping] = useState(false); // Trạng thái typing
+  const [sending, setSending] = useState(false);
   const socketRef = useRef(null);
   const scrollRef = useRef(null);
   const updateLast = (content, createdAt) => {
@@ -36,7 +37,8 @@ const ChatScreen = ({ navigation, route }) => {
 
   // Gửi tin nhắn
   const handleSend = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || sending) return; // Nếu đang gửi, không gửi lại
+    setSending(true); // Đánh dấu đang gửi tin nhắn
     route.params?.updateLastMessage?.(chat._id, {
       content: message,
       createdAt: new Date().toISOString(),
@@ -48,7 +50,7 @@ const ChatScreen = ({ navigation, route }) => {
       content: message.trim(),
       type: "text",
     };
-
+    console.log("📩 Gửi tin nhắn:", newMsg.content);
     try {
       const res = await sendMessage(newMsg, user.token);
       const saved = res.data;
@@ -70,6 +72,8 @@ const ChatScreen = ({ navigation, route }) => {
       setTyping(false); // Khi gửi tin nhắn, dừng trạng thái typing
     } catch (err) {
       console.error("❌ Lỗi gửi tin nhắn:", err);
+    } finally {
+      setSending(false); // Kết thúc gửi
     }
   };
 
@@ -84,7 +88,6 @@ const ChatScreen = ({ navigation, route }) => {
     if (!user?.token || !user._id || !chat._id) return;
 
     const socket = createSocket(user.token);
-    console.log("socket: ", socket);
     socketRef.current = socket;
     /// Debug log to check if socket connects
     socket.on("connect", () => {
@@ -92,14 +95,22 @@ const ChatScreen = ({ navigation, route }) => {
       socket.emit("join-room", chat._id); // Make sure to join the room
       console.log("✅ Đã join room:", chat._id);
     });
-    console.log("socket 222: ", socket);
     const handleReceiveMessage = (msg) => {
       const senderId =
         typeof msg.sender === "object" ? msg.sender._id : msg.sender;
-      updateLast(msg.content, msg.createdAt); // khi nhận tin nhắn
-      if (msg.conversationId === chat._id) {
+
+      // Kiểm tra xem tin nhắn này có phải do người gửi gửi hay không
+      if (senderId === user._id) {
+        return; // Nếu là tin nhắn của người gửi, không thêm lại vào list
+      }
+
+      // Kiểm tra xem tin nhắn này đã có trong danh sách chưa
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === msg._id)) {
+          return prev; // Không thêm nếu tin nhắn đã có
+        }
         console.log("📩 Nhận tin nhắn:", msg);
-        setMessages((prev) => [
+        return [
           ...prev,
           {
             ...msg,
@@ -111,8 +122,8 @@ const ChatScreen = ({ navigation, route }) => {
                 })
               : "",
           },
-        ]);
-      }
+        ];
+      });
     };
 
     // Lắng nghe sự kiện typing từ người khác
