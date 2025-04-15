@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Button, Text } from 'react-native-paper';
-import { login } from '../apis/auth.api';
-import ErrorDialog from '../components/Error/ErrorDialog';
+import React, { useState } from "react";
+import { View, StyleSheet } from "react-native";
+import { TextInput, Button, Text } from "react-native-paper";
+import { login } from "../apis/auth.api";
+import ErrorDialog from "../components/Error/ErrorDialog";
 
 export default function LoginScreen({ navigation }) {
   const [form, setForm] = useState({
-    phoneNumber: '0989999922',
-    passWord: '123456a',
+    phoneNumber: "0912345678",
+    passWord: "abc123",
   });
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState({ visible: false, message: '' });
+  const [error, setError] = useState({ visible: false, message: "" });
 
   const handleChange = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -19,14 +19,18 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!form.phoneNumber.trim() && !form.passWord.trim()) {
-      setError({ visible: true, message: 'Vui lòng nhập số điện thoại và mật khẩu' });
+      setError({
+        visible: true,
+        message: "Vui lòng nhập số điện thoại và mật khẩu",
+      });
       return;
     }
     if (!form.phoneNumber.trim()) {
-      setError({ visible: true, message: 'Vui lòng nhập số điện thoại' });
+      setError({ visible: true, message: "Vui lòng nhập số điện thoại" });
       return;
-    } if (!form.phoneNumber.trim()) {
-      setError({ visible: true, message: 'Vui lòng nhập mật khẩu' });
+    }
+    if (!form.phoneNumber.trim()) {
+      setError({ visible: true, message: "Vui lòng nhập mật khẩu" });
       return;
     }
 
@@ -38,24 +42,28 @@ export default function LoginScreen({ navigation }) {
         passWord: form.passWord.trim(),
       });
       if (response?.data?.access_token) {
-        navigation.navigate('Home', { user: response.data.user });
+        console.log(response.data);
+        navigation.navigate("Home", {
+          user: {
+            ...response.data.user,
+            token: response.data.access_token,
+          },
+        });
       } else {
         setError({
           visible: true,
-          message: 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.',
+          message: "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.",
         });
       }
     } catch (err) {
       setError({
         visible: true,
-        message: 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin',
+        message: "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin",
       });
     } finally {
       setLoading(false);
     }
   };
-
-
 
   return (
     <View style={styles.container}>
@@ -64,7 +72,7 @@ export default function LoginScreen({ navigation }) {
       <TextInput
         label="Số điện thoại"
         value={form.phoneNumber}
-        onChangeText={(text) => handleChange('phoneNumber', text)}
+        onChangeText={(text) => handleChange("phoneNumber", text)}
         keyboardType="phone-pad"
         style={styles.input}
         autoCapitalize="none"
@@ -74,15 +82,17 @@ export default function LoginScreen({ navigation }) {
       <TextInput
         label="Mật khẩu"
         value={form.passWord}
-        onChangeText={(text) => handleChange('passWord', text)}
-
+        onChangeText={(text) => handleChange("passWord", text)}
         secureTextEntry
         style={styles.input}
         autoCapitalize="none"
         mode="outlined"
       />
 
-      <Text style={styles.forgotPasswordText} onPress={() => navigation.navigate('ForgotPassword')}>
+      <Text
+        style={styles.forgotPasswordText}
+        onPress={() => navigation.navigate("ForgotPassword")}
+      >
         Quên mật khẩu?
       </Text>
 
@@ -99,7 +109,7 @@ export default function LoginScreen({ navigation }) {
 
       <Text
         style={styles.registerText}
-        onPress={() => navigation.navigate('Register')}
+        onPress={() => navigation.navigate("Register")}
       >
         Chưa có tài khoản? Đăng ký ngay
       </Text>
@@ -117,23 +127,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    justifyContent: 'center',
-    backgroundColor: '#fff',
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 30,
-    color: '#333',
+    color: "#333",
   },
   input: {
     marginBottom: 12,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   forgotPasswordText: {
-    textAlign: 'right',
-    color: '#1976D2',
+    textAlign: "right",
+    color: "#1976D2",
     marginBottom: 16,
     fontSize: 14,
   },
@@ -147,8 +157,8 @@ const styles = StyleSheet.create({
   },
   registerText: {
     marginTop: 20,
-    textAlign: 'center',
-    color: '#1976D2',
+    textAlign: "center",
+    color: "#1976D2",
     fontSize: 16,
   },
 });

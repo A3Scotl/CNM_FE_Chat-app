@@ -1,70 +1,75 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { List, Avatar, Text, useTheme } from 'react-native-paper';
+import React, { useEffect } from "react";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
+import { Avatar, Text } from "react-native-paper";
 
-const ChatListItem = ({ chat, onPress }) => {
-  const { colors } = useTheme();
+const ChatListItem = ({ item, onPress, route }) => {
+  const { user, lastMessage } = item;
+
+  // Sử dụng useEffect để cập nhật lại lastMessage khi có sự thay đổi từ route.params
+  useEffect(() => {
+    if (
+      item._id === route?.params?.chat?._id &&
+      route?.params?.updateLastMessage
+    ) {
+      route.params.updateLastMessage(item._id, {
+        content: lastMessage?.content || "Bắt đầu trò chuyện",
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }, [lastMessage, route, item]); // Theo dõi sự thay đổi của lastMessage và route
 
   return (
-    <List.Item
-      title={<Text style={{ color: colors.text }}>{chat.name}</Text>}
-      description={<Text style={{ color: colors.textSecondary }}>{chat.lastMessage.content}</Text>}
-      left={() => <ChatAvatar chat={chat} colors={colors} />}
-      right={() => <ChatTime time={chat.lastMessage.timestamp} colors={colors} />} 
-      onPress={onPress}
-      style={styles.chatItem}
-    />
+    <TouchableOpacity style={styles.container} onPress={() => onPress(item)}>
+      <Avatar.Image
+        size={48}
+        source={{ uri: user.avatar || "https://i.pravatar.cc/150" }}
+      />
+      <View style={styles.info}>
+        <Text style={styles.name}>{user.fullName || "Không tên"}</Text>
+        <Text style={styles.message} numberOfLines={1}>
+          {lastMessage?.content || "Bắt đầu trò chuyện"}
+        </Text>
+      </View>
+      {lastMessage?.createdAt && (
+        <Text style={styles.time}>
+          {lastMessage?.createdAt
+            ? new Date(lastMessage.createdAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : ""}
+        </Text>
+      )}
+    </TouchableOpacity>
   );
 };
 
-const ChatAvatar = ({ chat, colors }) => (
-  <View>
-    <Avatar.Image
-      size={50}
-      source={{ uri: chat.avatar }}
-      style={styles.avatar}
-    />
-    {chat.unread > 0 && (
-      <UnreadBadge count={chat.unread} colors={colors} />
-    )}
-  </View>
-);
-
-const UnreadBadge = ({ count, colors }) => (
-  <Avatar.Text
-    size={24}
-    label={count.toString()}
-    style={[styles.badge, { backgroundColor: colors.error }]}
-  />
-);
-
-const ChatTime = ({ time, colors }) => (
-  <Text style={[styles.time, { color: colors.textSecondary }]}>
-    {time}
-  </Text>
-);
-
 const styles = StyleSheet.create({
-  avatar: {
-    marginRight: 8,
+  container: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e0e0e0",
+    alignItems: "center",
   },
-  badge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
+  info: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  message: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 2,
   },
   time: {
     fontSize: 12,
-  },
-  chatItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: 'white',
-    elevation: 1,
-    shadowColor: 'grey',
-    shadowOffset: { width: 0, height: -1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    color: "#999",
+    marginLeft: 8,
   },
 });
 

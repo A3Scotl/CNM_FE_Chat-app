@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import io from "socket.io-client";
 import { Alert } from "react-native";
 
-const SOCKET_URL = "https://be.haudev.io.vn/api"; // Adjust to your backend URL
+// const SOCKET_URL = "https://be.haudev.io.vn/api"; // Adjust to your backend URL
+const SOCKET_URL = "http://192.168.1.3:5000/api";
 
 export const useSocket = (userId) => {
   useEffect(() => {
