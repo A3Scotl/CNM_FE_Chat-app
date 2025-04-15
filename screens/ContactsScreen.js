@@ -6,69 +6,52 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from "react-native";
 import { useTheme, Avatar, Button } from "react-native-paper";
 import { useFriendRequest } from "../hooks/useFriendRequest";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
 
-// Mock data for suggested friends, groups, and community invites
-const mockSuggestedFriends = [
-  { _id: "s1", fullName: "John Doe", avatar: "https://i.pravatar.cc/150?img=1" },
-  { _id: "s2", fullName: "Jane Smith", avatar: "https://i.pravatar.cc/150?img=2" },
-];
 
-const mockGroups = [
-  { _id: "g1", name: "Work Team", members: 10, avatar: "https://i.pravatar.cc/150?img=3" },
-  { _id: "g2", name: "Family Chat", members: 5, avatar: "https://i.pravatar.cc/150?img=4" },
-];
-
-const mockGroupInvites = [
-  { _id: "gi1", name: "Gaming Community", inviter: "Alex", avatar: "https://i.pravatar.cc/150?img=5" },
-  { _id: "gi2", name: "Book Club", inviter: "Emma", avatar: "https://i.pravatar.cc/150?img=6" },
-];
-
-const ContactsScreen = ({ navigation }) => {
+const ContactsScreen = () => {
   const { colors } = useTheme();
   const {
-    pendingRequests,
-    loading: pendingLoading,
-    error: pendingError,
+    requests,
+    loading,
+    error,
     acceptRequest,
     rejectRequest,
-    fetchPendingRequests,
-    acceptedRequests,
-    loadingAccepted,
-    errorAccepted,
-    fetchAcceptedRequests,
+    fetchRequests,
   } = useFriendRequest();
   const [activeTab, setActiveTab] = useState("friends");
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchRequests();
+    }, [fetchRequests])
+  );
 
   const handleAccept = async (requestId) => {
     try {
       await acceptRequest(requestId);
-      fetchPendingRequests();
-      fetchAcceptedRequests();
     } catch (error) {
       console.error("Failed to accept request:", error);
+      Alert.alert("Lỗi", error.message || "Không thể chấp nhận lời mời");
     }
   };
 
   const handleReject = async (requestId) => {
     try {
       await rejectRequest(requestId);
-      fetchPendingRequests();
     } catch (error) {
       console.error("Failed to reject request:", error);
+      Alert.alert("Lỗi", error.message || "Không thể từ chối lời mời");
     }
   };
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchPendingRequests();
-      fetchAcceptedRequests();
-    }, [fetchPendingRequests, fetchAcceptedRequests])
-  );
 
   const renderRequestItem = ({ item }) => (
     <View style={styles.itemContainer}>
@@ -79,7 +62,10 @@ const ContactsScreen = ({ navigation }) => {
         />
         <View style={styles.infoContainer}>
           <Text style={[styles.name, { color: colors.text }]}>
-            {item.from?.fullName || "Unknown User"}
+            {item.from?.fullName || "Người dùng ẩn danh"}
+          </Text>
+          <Text style={[styles.subText, { color: colors.text }]}>
+            {dayjs(item.createdAt).fromNow()}
           </Text>
         </View>
       </View>
@@ -101,102 +87,28 @@ const ContactsScreen = ({ navigation }) => {
       </View>
     </View>
   );
-
-  const renderFriendItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.friendItemContainer}
-      onPress={() => navigation.navigate("Profile", { userId: item._id })}
-    >
-      <Avatar.Image
-        size={48}
-        source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-      />
-      <Text style={[styles.friendName, { color: colors.text }]}>
-        {item.fullName || "Unknown User"}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const renderSuggestedFriendItem = ({ item }) => (
+  const renderSentRequestItem = ({ item }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
         <Avatar.Image
           size={48}
-          source={{ uri: item.avatar }}
+          source={{ uri: item.to?.avatar || "https://i.pravatar.cc/150" }}
         />
         <View style={styles.infoContainer}>
           <Text style={[styles.name, { color: colors.text }]}>
-            {item.fullName}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.rowBottom}>
-        <Button
-          mode="contained"
-          onPress={() => console.log(`Add friend: ${item._id}`)}
-          style={[styles.button, { backgroundColor: colors.primary }]}
-        >
-          Thêm bạn
-        </Button>
-      </View>
-    </View>
-  );
-
-  const renderGroupItem = ({ item }) => (
-    <View style={styles.friendItemContainer}>
-      <Avatar.Image
-        size={48}
-        source={{ uri: item.avatar }}
-      />
-      <View style={styles.infoContainer}>
-        <Text style={[styles.friendName, { color: colors.text }]}>
-          {item.name}
-        </Text>
-        <Text style={[styles.subText, { color: colors.text }]}>
-          {item.members} thành viên
-        </Text>
-      </View>
-    </View>
-  );
-
-  const renderGroupInviteItem = ({ item }) => (
-    <View style={styles.itemContainer}>
-      <View style={styles.rowTop}>
-        <Avatar.Image
-          size={48}
-          source={{ uri: item.avatar }}
-        />
-        <View style={styles.infoContainer}>
-          <Text style={[styles.name, { color: colors.text }]}>
-            {item.name}
+            {item.to?.fullName || "Người dùng ẩn danh"}
           </Text>
           <Text style={[styles.subText, { color: colors.text }]}>
-            Mời bởi: {item.inviter}
+            Đã gửi {dayjs(item.createdAt).fromNow()}
           </Text>
         </View>
       </View>
-      <View style={styles.rowBottom}>
-        <Button
-          mode="contained"
-          onPress={() => console.log(`Accept group invite: ${item._id}`)}
-          style={[styles.button, { backgroundColor: colors.primary }]}
-        >
-          Chấp nhận
-        </Button>
-        <Button
-          mode="outlined"
-          onPress={() => console.log(`Reject group invite: ${item._id}`)}
-          style={styles.button}
-        >
-          Từ chối
-        </Button>
-      </View>
     </View>
   );
+
 
   return (
     <View style={styles.container}>
-      {/* Custom Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "friends" && styles.activeTab]}
@@ -226,18 +138,14 @@ const ContactsScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Friends Tab */}
       {activeTab === "friends" && (
         <ScrollView>
-          {/* Friend Requests Section */}
+          {/* Lời mời kết bạn */}
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Lời mời kết bạn ({pendingRequests.length})
+              Lời mời kết bạn ({requests.length})
             </Text>
-            <TouchableOpacity
-              onPress={fetchPendingRequests}
-              disabled={pendingLoading}
-            >
+            <TouchableOpacity onPress={fetchRequests} disabled={loading}>
               <MaterialCommunityIcons
                 name="refresh"
                 size={24}
@@ -245,97 +153,55 @@ const ContactsScreen = ({ navigation }) => {
               />
             </TouchableOpacity>
           </View>
-          {pendingLoading ? (
-            <Text style={[styles.emptyText, { color: colors.text }]}>
-              Đang tải...
-            </Text>
-          ) : pendingError ? (
-            <Text style={[styles.errorText, { color: colors.error }]}>
-              Lỗi khi tải lời mời: {pendingError.message}
-            </Text>
-          ) : pendingRequests.length > 0 ? (
+
+          {loading ? (
+            <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
+          ) : error ? (
+            <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {error}</Text>
+          ) : requests.length > 0 ? (
             <FlatList
-              data={pendingRequests}
+              data={requests}
               renderItem={renderRequestItem}
               keyExtractor={(item) => item._id}
               scrollEnabled={false}
             />
           ) : (
-            <Text style={[styles.emptyText, { color: colors.text }]}>
-              Không có lời mời kết bạn.
-            </Text>
+            <Text style={[styles.emptyText, { color: colors.text }]}>Không có lời mời kết bạn.</Text>
           )}
 
-          {/* Friends Section */}
+          {/* Lời mời đã gửi */}
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Danh sách bạn bè ({acceptedRequests.length})
+              Lời mời đã gửi ({requests.length})
             </Text>
           </View>
-          {loadingAccepted ? (
-            <Text style={[styles.emptyText, { color: colors.text }]}>
-              Đang tải danh sách bạn...
-            </Text>
-          ) : errorAccepted ? (
-            <Text style={[styles.errorText, { color: colors.error }]}>
-              Lỗi khi tải danh sách bạn: {errorAccepted.message}
-            </Text>
-          ) : acceptedRequests.length > 0 ? (
+
+          {requests.length > 0 ? (
             <FlatList
-              data={acceptedRequests}
-              renderItem={renderFriendItem}
+              data={requests}
+              renderItem={renderSentRequestItem}
               keyExtractor={(item) => item._id}
               scrollEnabled={false}
             />
           ) : (
             <Text style={[styles.emptyText, { color: colors.text }]}>
-              Chưa có bạn bè.
+              Bạn chưa gửi lời mời kết bạn nào.
             </Text>
           )}
-
-          {/* Suggested Friends Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Gợi ý kết bạn ({mockSuggestedFriends.length})
-            </Text>
-          </View>
-          <FlatList
-            data={mockSuggestedFriends}
-            renderItem={renderSuggestedFriendItem}
-            keyExtractor={(item) => item._id}
-            scrollEnabled={false}
-          />
         </ScrollView>
       )}
 
-      {/* Groups Tab */}
+
       {activeTab === "groups" && (
         <ScrollView>
-          {/* Group Invites Section */}
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Lời mời vào nhóm ({mockGroupInvites.length})
+              Danh sách nhóm
             </Text>
           </View>
-          <FlatList
-            data={mockGroupInvites}
-            renderItem={renderGroupInviteItem}
-            keyExtractor={(item) => item._id}
-            scrollEnabled={false}
-          />
-
-          {/* Groups Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Danh sách nhóm ({mockGroups.length})
-            </Text>
-          </View>
-          <FlatList
-            data={mockGroups}
-            renderItem={renderGroupItem}
-            keyExtractor={(item) => item._id}
-            scrollEnabled={false}
-          />
+          <Text style={[styles.emptyText, { color: colors.text }]}>
+            Chưa có dữ liệu nhóm.
+          </Text>
         </ScrollView>
       )}
     </View>
@@ -346,7 +212,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "white",
-    height:10000
   },
   tabContainer: {
     flexDirection: "row",
@@ -397,10 +262,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
   },
-  subText: {
-    fontSize: 14,
-    opacity: 0.6,
-  },
   rowBottom: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -416,22 +277,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: "red",
     textAlign: "center",
     marginVertical: 10,
-  },
-  friendItemContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e0e0e0",
-  },
-  friendName: {
-    marginLeft: 16,
-    fontSize: 16,
-    fontWeight: "500",
   },
 });
 

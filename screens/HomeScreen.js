@@ -2,19 +2,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
-  TouchableWithoutFeedback,
-  Keyboard,
+  Pressable,
   TouchableOpacity,
   Text,
   FlatList,
   Alert,
 } from "react-native";
-import {
-  Appbar,
-  Avatar,
-  useTheme,
-  BottomNavigation,
-} from "react-native-paper";
+import { Appbar, Avatar, useTheme, BottomNavigation } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import ChatList from "../components/Chat/ChatList";
 import ChatArea from "../components/Chat/ChatArea";
@@ -26,12 +20,10 @@ import ContactsScreen from "./ContactsScreen";
 import { getMyProfile, findUserByPhone } from "../apis/user.api";
 import { logout } from "../apis/auth.api";
 import { useFriendRequest } from "../hooks/useFriendRequest";
-import { useSocket } from "../hooks/useSocket";
 
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
-  const { sendRequest, sentRequests } = useFriendRequest();
 
   const [currentUser, setCurrentUser] = useState(route.params?.user || {});
   const [visibleProfile, setVisibleProfile] = useState(false);
@@ -47,7 +39,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [message, setMessage] = useState("");
 
-  useSocket(currentUser?._id);
+  const { sendRequest } = useFriendRequest();
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
@@ -83,7 +75,6 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
 
-  // Debounce search to prevent rapid API calls
   const debounce = (func, delay) => {
     let timeoutId;
     return (...args) => {
@@ -124,8 +115,11 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const handleSendFriendRequest = async (receiverId) => {
+    console.log("Sending friend request to:", receiverId);
     try {
       await sendRequest(receiverId);
+      console.log("Friend request sent successfully");
+      Alert.alert("Success", "Friend request sent!");
       setMessage("Friend request sent!");
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
@@ -133,6 +127,8 @@ const HomeScreen = ({ navigation, route }) => {
         error.message === "Friend request already exists"
           ? "Friend request already sent!"
           : "Failed to send friend request.";
+      console.log("Friend request error:", errorMsg);
+      Alert.alert("Error", errorMsg);
       setMessage(errorMsg);
       setTimeout(() => setMessage(""), 3000);
       console.error("Error sending friend request:", error);
@@ -146,10 +142,6 @@ const HomeScreen = ({ navigation, route }) => {
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => {
           const isCurrentUser = item._id === currentUser?._id;
-          const isFriendRequestSent = sentRequests.some(
-            (request) => request.to?._id === item._id || request.to === item._id
-          );
-
           return (
             <View style={styles.userItem}>
               <Avatar.Image
@@ -164,19 +156,17 @@ const HomeScreen = ({ navigation, route }) => {
                 <TouchableOpacity
                   style={styles.addButton}
                   onPress={() => handleSendFriendRequest(item._id)}
-                  disabled={isFriendRequestSent}
                 >
                   <MaterialCommunityIcons
-                    name={isFriendRequestSent ? "clock-outline" : "account-plus"}
+                    name="account-plus"
                     size={24}
-                    color={isFriendRequestSent ? "#888" : colors.primary}
+                    color={colors.primary}
                   />
                 </TouchableOpacity>
               )}
             </View>
           );
         }}
-        ListEmptyComponent={null}
         style={styles.resultsContainer}
       />
     );
@@ -198,15 +188,17 @@ const HomeScreen = ({ navigation, route }) => {
         );
       }
       return (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, position: "relative" }}>
           <ChatList chats={[]} onChatSelect={() => {}} />
-          {searchResults.length > 0 && searchQuery.trim() !== "" && renderSearchResults()}
-          {!isSearching && searchResults.length === 0 && searchQuery.trim() !== "" && (
+          {searchResults.length > 0 && searchQuery.trim() && renderSearchResults()}
+          {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
             <Text style={styles.noResults}>No users found.</Text>
           )}
-          {message ? (
-            <Text style={[styles.message, { color: colors.primary }]}>{message}</Text>
-          ) : null}
+          {message && (
+            <Text style={[styles.message, { color: colors.primary, backgroundColor: "#fff", padding: 10 }]}>
+              {message}
+            </Text>
+          )}
         </View>
       );
     }
@@ -214,90 +206,89 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   return (
-    <TouchableWithoutFeedback
+    <Pressable
       onPress={() => {
         setShowDropdown(false);
         Keyboard.dismiss();
       }}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {showAppbar && (
-          <View style={{ position: "relative", zIndex: 3 }}>
-            <Appbar.Header style={styles.appBar}>
-              <SearchBar
-                searchQuery={searchQuery}
-                setSearchQuery={handleSearchChange}
-                isSearchFocused={isSearchFocused}
-                setIsSearchFocused={setIsSearchFocused}
+      {showAppbar && (
+        <View style={{ position: "relative", zIndex: 3 }}>
+          <Appbar.Header style={styles.appBar}>
+            <SearchBar
+              searchQuery={searchQuery}
+              setSearchQuery={handleSearchChange}
+              isSearchFocused={isSearchFocused}
+              setIsSearchFocused={setIsSearchFocused}
+              colors={colors}
+            />
+            <View style={styles.avatarContainer}>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setShowDropdown(!showDropdown);
+                }}
+              >
+                <Avatar.Image
+                  size={36}
+                  source={{ uri: currentUser?.avatar || "https://i.pravatar.cc/150" }}
+                  style={styles.avatar}
+                />
+              </TouchableOpacity>
+              <DropdownMenu
+                showDropdown={showDropdown}
+                setShowDropdown={setShowDropdown}
+                currentUser={currentUser}
+                setVisibleProfile={setVisibleProfile}
+                setVisibleSettings={setVisibleSettings}
+                handleLogout={handleLogout}
                 colors={colors}
               />
-              <View style={styles.avatarContainer}>
-                <TouchableOpacity
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setShowDropdown(!showDropdown);
-                  }}
-                >
-                  <Avatar.Image
-                    size={36}
-                    source={{ uri: currentUser?.avatar || "https://i.pravatar.cc/150" }}
-                    style={styles.avatar}
-                  />
-                </TouchableOpacity>
-                <DropdownMenu
-                  showDropdown={showDropdown}
-                  setShowDropdown={setShowDropdown}
-                  currentUser={currentUser}
-                  setVisibleProfile={setVisibleProfile}
-                  setVisibleSettings={setVisibleSettings}
-                  handleLogout={handleLogout}
-                  colors={colors}
-                />
+            </View>
+          </Appbar.Header>
+        </View>
+      )}
+      <View style={{ flex: 1 }}>{renderScene()}</View>
+      {showBottomNav && (
+        <BottomNavigation
+          navigationState={{ index, routes }}
+          onIndexChange={setIndex}
+          renderScene={() => null}
+          barStyle={styles.bottomNavBar}
+          activeColor={colors.primary}
+          inactiveColor="#888"
+          labeled={false}
+          sceneAnimationEnabled={true}
+          sceneAnimationType="shifting"
+          renderIcon={({ route, focused, color }) => {
+            let iconName;
+            if (route.key === "messages") {
+              iconName = focused ? "message-text" : "message-text-outline";
+            } else if (route.key === "contacts") {
+              iconName = focused ? "account-group" : "account-group-outline";
+            }
+            return (
+              <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
+                <MaterialCommunityIcons name={iconName} size={28} color={color} />
               </View>
-            </Appbar.Header>
-          </View>
-        )}
-        <View style={{ flex: 1 }}>{renderScene()}</View>
-        {showBottomNav && (
-          <BottomNavigation
-            navigationState={{ index, routes }}
-            onIndexChange={setIndex}
-            renderScene={() => null}
-            barStyle={styles.bottomNavBar}
-            activeColor={colors.primary}
-            inactiveColor="#888"
-            labeled={false}
-            sceneAnimationEnabled={true}
-            sceneAnimationType="shifting"
-            renderIcon={({ route, focused, color }) => {
-              let iconName;
-              if (route.key === "messages") {
-                iconName = focused ? "message-text" : "message-text-outline";
-              } else if (route.key === "contacts") {
-                iconName = focused ? "account-group" : "account-group-outline";
-              }
-              return (
-                <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-                  <MaterialCommunityIcons name={iconName} size={28} color={color} />
-                </View>
-              );
-            }}
-            style={styles.bottomNav}
-          />
-        )}
-        <ProfileModal
-          visible={visibleProfile}
-          user={currentUser}
-          onDismiss={() => setVisibleProfile(false)}
-          onUpdateSuccess={handleProfileUpdateSuccess}
+            );
+          }}
+          style={styles.bottomNav}
         />
-        <SettingsModal
-          visible={visibleSettings}
-          user={currentUser}
-          onDismiss={() => setVisibleSettings(false)}
-        />
-      </View>
-    </TouchableWithoutFeedback>
+      )}
+      <ProfileModal
+        visible={visibleProfile}
+        user={currentUser}
+        onDismiss={() => setVisibleProfile(false)}
+        onUpdateSuccess={handleProfileUpdateSuccess}
+      />
+      <SettingsModal
+        visible={visibleSettings}
+        user={currentUser}
+        onDismiss={() => setVisibleSettings(false)}
+      />
+    </Pressable>
   );
 };
 
@@ -365,6 +356,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginVertical: 10,
     fontSize: 14,
+    position: "absolute",
+    bottom: 20,
+    width: "100%",
+    zIndex: 10,
   },
 });
 

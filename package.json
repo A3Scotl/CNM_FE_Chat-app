@@ -21,6 +21,7 @@
     "@react-navigation/native-stack": "^7.3.9",
     "axios": "^1.8.4",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "expo": "~52.0.43",
     "expo-image-manipulator": "^13.0.6",
