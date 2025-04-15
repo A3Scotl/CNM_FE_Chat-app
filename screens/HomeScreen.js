@@ -7,6 +7,7 @@ import {
   Text,
   FlatList,
   Alert,
+  Keyboard
 } from "react-native";
 import { Appbar, Avatar, useTheme, BottomNavigation } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -84,7 +85,9 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const handleSearch = useCallback(
+    
     debounce(async (query) => {
+      Keyboard.dismiss(); 
       const formattedQuery = query.replace(/[^0-9]/g, "");
       console.log("Searching:", formattedQuery);
       if (!formattedQuery.trim()) {

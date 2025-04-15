@@ -1,111 +1,118 @@
 import React, { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, Alert } from "react-native";
 import { useTheme, Avatar, Button } from "react-native-paper";
 import { useFriendRequest } from "../hooks/useFriendRequest";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-dayjs.extend(relativeTime);
 
+dayjs.extend(relativeTime);
 
 const ContactsScreen = () => {
   const { colors } = useTheme();
-  const {
-    requests,
-    loading,
-    error,
-    acceptRequest,
-    rejectRequest,
-    fetchRequests,
-  } = useFriendRequest();
+  const { requests, sentRequests, friends, loading, error, acceptRequest, rejectRequest, fetchRequests, fetchSentRequests, fetchFriends } = useFriendRequest();
   const [activeTab, setActiveTab] = useState("friends");
 
+  // Refresh dữ liệu khi màn hình được focus
   useFocusEffect(
     useCallback(() => {
       fetchRequests();
-    }, [fetchRequests])
+      fetchSentRequests();
+      fetchFriends();
+    }, [fetchRequests, fetchSentRequests, fetchFriends])
   );
 
+  // Xử lý chấp nhận lời mời
   const handleAccept = async (requestId) => {
     try {
       await acceptRequest(requestId);
     } catch (error) {
-      console.error("Failed to accept request:", error);
       Alert.alert("Lỗi", error.message || "Không thể chấp nhận lời mời");
     }
   };
 
+  // Xử lý từ chối lời mời
   const handleReject = async (requestId) => {
     try {
       await rejectRequest(requestId);
     } catch (error) {
-      console.error("Failed to reject request:", error);
       Alert.alert("Lỗi", error.message || "Không thể từ chối lời mời");
     }
   };
 
+  // Render lời mời kết bạn
   const renderRequestItem = ({ item }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
-        <Avatar.Image
-          size={48}
-          source={{ uri: item.from?.avatar || "https://i.pravatar.cc/150" }}
-        />
+        <Avatar.Image size={48} source={{ uri: item.from?.avatar || "https://i.pravatar.cc/150" }} />
         <View style={styles.infoContainer}>
-          <Text style={[styles.name, { color: colors.text }]}>
-            {item.from?.fullName || "Người dùng ẩn danh"}
-          </Text>
-          <Text style={[styles.subText, { color: colors.text }]}>
-            {dayjs(item.createdAt).fromNow()}
-          </Text>
+          <Text style={[styles.name, { color: colors.text }]}>{item.from?.fullName || "Người dùng ẩn danh"}</Text>
+          <Text style={[styles.subText, { color: colors.text }]}>{dayjs(item.createdAt).fromNow()}</Text>
         </View>
       </View>
       <View style={styles.rowBottom}>
-        <Button
-          mode="contained"
-          onPress={() => handleAccept(item._id)}
-          style={[styles.button, { backgroundColor: colors.primary }]}
-        >
+        <Button mode="contained" onPress={() => handleAccept(item._id)} style={[styles.button, { backgroundColor: colors.primary }]}>
           Chấp nhận
         </Button>
-        <Button
-          mode="outlined"
-          onPress={() => handleReject(item._id)}
-          style={styles.button}
-        >
+        <Button mode="outlined" onPress={() => handleReject(item._id)} style={styles.button}>
           Từ chối
         </Button>
       </View>
     </View>
   );
+
+  // Render lời mời đã gửi
   const renderSentRequestItem = ({ item }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
-        <Avatar.Image
-          size={48}
-          source={{ uri: item.to?.avatar || "https://i.pravatar.cc/150" }}
-        />
+        <Avatar.Image size={48} source={{ uri: item.to?.avatar || "https://i.pravatar.cc/150" }} />
         <View style={styles.infoContainer}>
-          <Text style={[styles.name, { color: colors.text }]}>
-            {item.to?.fullName || "Người dùng ẩn danh"}
-          </Text>
-          <Text style={[styles.subText, { color: colors.text }]}>
-            Đã gửi {dayjs(item.createdAt).fromNow()}
-          </Text>
+          <Text style={[styles.name, { color: colors.text }]}>{item.to?.fullName || "Người dùng ẩn danh"}</Text>
+          <Text style={[styles.subText, { color: colors.text }]}>Đã gửi {dayjs(item.createdAt).fromNow()}</Text>
         </View>
       </View>
     </View>
   );
 
+  // Render bạn bè
+  const renderFriendItem = ({ item }) => (
+    <View style={styles.itemContainer}>
+      <View style={styles.rowTop}>
+        <Avatar.Image size={48} source={{ uri: item.avatar || "https://i.pravatar.cc/150" }} />
+        <View style={styles.infoContainer}>
+          <Text style={[styles.name, { color: colors.text }]}>{item.fullName || "Người dùng ẩn danh"}</Text>
+          <Text style={[styles.subText, { color: colors.text }]}>Bạn bè</Text>
+        </View>
+      </View>
+      <View style={styles.rowBottom}>
+        <Button mode="outlined" style={styles.button} disabled>
+          Hủy kết bạn
+        </Button>
+      </View>
+    </View>
+  );
+
+  // Render section (lời mời, bạn bè, v.v.)
+  const renderSection = (title, data, renderItem, emptyMessage) => (
+    <>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
+        <TouchableOpacity onPress={() => data === requests ? fetchRequests() : data === sentRequests ? fetchSentRequests() : fetchFriends()} disabled={loading}>
+          <MaterialCommunityIcons name="refresh" size={24} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+      {loading ? (
+        <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
+      ) : error ? (
+        <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {error}</Text>
+      ) : data.length > 0 ? (
+        <FlatList data={data} renderItem={renderItem} keyExtractor={(item) => item._id} scrollEnabled={false} />
+      ) : (
+        <Text style={[styles.emptyText, { color: colors.text }]}>{emptyMessage}</Text>
+      )}
+    </>
+  );
 
   return (
     <View style={styles.container}>
@@ -114,96 +121,30 @@ const ContactsScreen = () => {
           style={[styles.tab, activeTab === "friends" && styles.activeTab]}
           onPress={() => setActiveTab("friends")}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "friends" && { color: colors.primary },
-            ]}
-          >
-            Bạn bè
-          </Text>
+          <Text style={[styles.tabText, activeTab === "friends" && { color: colors.primary }]}>Bạn bè</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "groups" && styles.activeTab]}
           onPress={() => setActiveTab("groups")}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "groups" && { color: colors.primary },
-            ]}
-          >
-            Nhóm
-          </Text>
+          <Text style={[styles.tabText, activeTab === "groups" && { color: colors.primary }]}>Nhóm</Text>
         </TouchableOpacity>
       </View>
 
       {activeTab === "friends" && (
         <ScrollView>
-          {/* Lời mời kết bạn */}
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Lời mời kết bạn ({requests.length})
-            </Text>
-            <TouchableOpacity onPress={fetchRequests} disabled={loading}>
-              <MaterialCommunityIcons
-                name="refresh"
-                size={24}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {loading ? (
-            <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
-          ) : error ? (
-            <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {error}</Text>
-          ) : requests.length > 0 ? (
-            <FlatList
-              data={requests}
-              renderItem={renderRequestItem}
-              keyExtractor={(item) => item._id}
-              scrollEnabled={false}
-            />
-          ) : (
-            <Text style={[styles.emptyText, { color: colors.text }]}>Không có lời mời kết bạn.</Text>
-          )}
-
-          {/* Lời mời đã gửi */}
-           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Lời mời đã gửi 
-              {/* ({requests.length}) */}
-            </Text>
-          </View>
-        {/*
-          {requests.length > 0 ? (
-            <FlatList
-              data={requests}
-              renderItem={renderSentRequestItem}
-              keyExtractor={(item) => item._id}
-              scrollEnabled={false}
-            />
-          ) : (
-            <Text style={[styles.emptyText, { color: colors.text }]}>
-              Bạn chưa gửi lời mời kết bạn nào.
-            </Text>
-          )
-          } */}
+          {renderSection(`Lời mời kết bạn (${requests.length})`, requests, renderRequestItem, "Không có lời mời kết bạn.")}
+          {renderSection(`Lời mời đã gửi (${sentRequests.length})`, sentRequests, renderSentRequestItem, "Bạn chưa gửi lời mời kết bạn nào.")}
+          {renderSection(`Bạn bè (${friends.length})`, friends, renderFriendItem, "Chưa có bạn bè.")}
         </ScrollView>
       )}
-
 
       {activeTab === "groups" && (
         <ScrollView>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              Danh sách nhóm
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.primary }]}>Danh sách nhóm</Text>
           </View>
-          <Text style={[styles.emptyText, { color: colors.text }]}>
-            Chưa có dữ liệu nhóm.
-          </Text>
+          <Text style={[styles.emptyText, { color: colors.text }]}>Chưa có dữ liệu nhóm.</Text>
         </ScrollView>
       )}
     </View>
@@ -263,6 +204,10 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "500",
+  },
+  subText: {
+    fontSize: 14,
+    opacity: 0.6,
   },
   rowBottom: {
     flexDirection: "row",
