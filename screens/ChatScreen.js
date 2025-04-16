@@ -96,23 +96,26 @@ const ChatScreen = ({ navigation, route }) => {
 
       socketConnection.on("new-message", (msg) => {
         const isCurrentUser = String(msg.sender._id) === String(userId);
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            _id: msg._id,
-            content: msg.content,
-            senderId: msg.sender._id,
-            isCurrentUser,
-            timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            type: msg.type,
-            fileMeta: msg.fileMeta || []
-          },
-        ]);
+      
+        const newMessage = {
+          _id: msg._id,
+          content: msg.content,
+          senderId: msg.sender._id,
+          isCurrentUser,
+          timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          type: msg.type,
+          fileMeta: msg.fileMeta || []
+        };
+      
+        setMessages((prev) => [...prev, newMessage]); 
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       });
+      
 
       setSocket(socketConnection);
 
