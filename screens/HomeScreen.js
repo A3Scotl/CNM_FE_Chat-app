@@ -22,6 +22,7 @@ import { logout } from "../apis/auth.api";
 import { useFriendRequest } from "../hooks/useFriendRequest";
 import { useSocket } from "../hooks/useSocket";
 import { getMyConversations } from "../apis/conversation.api";
+import ChatArea from "../components/Chat/ChatArea";
 
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
@@ -131,7 +132,6 @@ const HomeScreen = ({ navigation, route }) => {
     debounce(async (query) => {
       Keyboard.dismiss();
       const formattedQuery = query.replace(/[^0-9]/g, "");
-      console.log("Searching:", formattedQuery);
       if (!formattedQuery.trim()) {
         setSearchResults([]);
         setIsSearching(false);
@@ -142,7 +142,6 @@ const HomeScreen = ({ navigation, route }) => {
         const results = await findUserByPhone(formattedQuery);
         const resultsArray = Array.isArray(results) ? results : [results];
         setSearchResults(resultsArray);
-        console.log("Search results:", resultsArray);
       } catch (error) {
         console.error("Search error:", error);
         setSearchResults([]);
@@ -163,7 +162,7 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const handleSendFriendRequest = async (receiverId) => {
-    console.log("Sending friend request to:", receiverId);
+
     try {
       await sendRequest(receiverId);
       console.log("Friend request sent successfully");
@@ -239,7 +238,7 @@ const HomeScreen = ({ navigation, route }) => {
       }
       return (
         <View style={{ flex: 1, position: "relative" }}>
-          <ChatList chats={[]} onChatSelect={() => {}} />
+          <ChatList chats={conversations} onChatSelect={(chat) => setSelectedChat(chat)} />
           {searchResults.length > 0 &&
             searchQuery.trim() &&
             renderSearchResults()}

@@ -32,6 +32,7 @@ export default function AppRouter() {
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="OTPScreen" component={OTPScreen} />
         <Stack.Screen name="Chat" component={ChatScreen} />
+        
       </Stack.Navigator>
     </NavigationContainer>
   );

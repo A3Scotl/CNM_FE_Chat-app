@@ -3,8 +3,9 @@ import { FlatList, StyleSheet, View, Text } from "react-native";
 import ChatListItem from "./ChatListItem";
 
 const ChatList = ({ chats, onChatSelect }) => {
+
   if (!chats || chats.length === 0) {
-    console.log("Conversations:", chats);
+  
 
     return (
       <View style={styles.emptyContainer}>

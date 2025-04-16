@@ -6,8 +6,8 @@ import ErrorDialog from "../components/Error/ErrorDialog";
 
 export default function LoginScreen({ navigation }) {
   const [form, setForm] = useState({
-    phoneNumber: "1234567890",
-    passWord: "admin",
+    phoneNumber: "0815950975",
+    passWord: "123456",
   });
 
   const [loading, setLoading] = useState(false);
@@ -41,7 +41,6 @@ export default function LoginScreen({ navigation }) {
         passWord: form.passWord.trim(),
       });
       if (response?.data?.access_token) {
-        console.log(response.data);
         navigation.navigate("Home", {
           user: {
             ...response.data.user,

@@ -44,7 +44,6 @@ export const findUserByPhone = async (phone) => {
     console.log(`Searching: ${phone}`)
     const { data } = await axiosInstance.get("/user/search", { params: { phone } });
 
-    console.log(data.data);
     return data.data || [];
   } catch (error) {
     handleApiError(error);
