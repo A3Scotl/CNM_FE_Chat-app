@@ -313,13 +313,12 @@ const HomeScreen = ({ navigation, route }) => {
               >
                 <MaterialCommunityIcons
                   name={iconName}
-                  size={28}
+                  size={30}
                   color={color}
                 />
               </View>
             );
           }}
-          style={styles.bottomNav}
         />
       )}
 
@@ -368,11 +367,17 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   iconContainer: {
-    padding: 10,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 30,
+    height: 30,
   },
   activeIconContainer: {
-    backgroundColor: "rgba(0, 152, 249, 0.1)",
-    borderRadius: 20,
+    // backgroundColor: "rgba(0, 152, 249, 0.1)",
+    // borderRadius: 50,
+    // width: 30,
+    // height: 30,
   },
 });
 
