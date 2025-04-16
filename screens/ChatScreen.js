@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator, Image, Alert } from "react-native";
-import { Avatar, Text, useTheme, Card, Button, Portal, Modal } from "react-native-paper";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  ActivityIndicator,
+  Image,
+  Alert,
+  Text as RNText
+} from "react-native";
+import { Avatar, Text, useTheme, Portal, Modal } from "react-native-paper";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
@@ -8,13 +21,31 @@ import EmojiSelector from "react-native-emoji-selector";
 import { getMessages } from "../apis/message.api";
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
 import mime from 'mime';
 
 const ChatScreen = ({ navigation, route }) => {
+  // Guard against undefined route.params
+  if (!route?.params || !route.params.chat || !route.params.user) {
+    console.warn("ChatScreen: Thiếu route.params", { routeParams: route?.params });
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Không thể tải hội thoại. Vui lòng thử lại.</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Quay lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const { chat, user } = route.params;
   const { colors } = useTheme();
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const viewRefs = useRef({});
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [typing, setTyping] = useState(false);
@@ -28,13 +59,26 @@ const ChatScreen = ({ navigation, route }) => {
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [focusedMessage, setFocusedMessage] = useState(null);
+  const [recording, setRecording] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
 
-  // Focus vào TextInput khi component mount
+  // Validate conversationId
+  useEffect(() => {
+    if (!chat?._id) {
+      console.warn("ChatScreen: conversationId không hợp lệ", { chatId: chat?._id });
+      Alert.alert("Lỗi", "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
+    }
+  }, [chat?._id, navigation]);
+
+  // Focus TextInput on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // Cuộn ScrollView khi bàn phím mở hoặc đóng
+  // Handle keyboard show/hide
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener("keyboardDidShow", () => {
       scrollRef.current?.scrollToEnd({ animated: true });
@@ -50,22 +94,35 @@ const ChatScreen = ({ navigation, route }) => {
     };
   }, []);
 
-  // Lấy userId từ AsyncStorage
+  // Fetch userId from AsyncStorage
   useEffect(() => {
     const fetchUserId = async () => {
       try {
         const id = await AsyncStorage.getItem("userId");
-        if (id) {
-          setUserId(id);
-        }
+        if (id) setUserId(id);
       } catch (err) {
-        console.error("Lỗi lấy userId:", err);
+        console.error("Lỗi khi lấy userId:", err);
       }
     };
     fetchUserId();
   }, []);
 
-  // Thiết lập socket
+  // Request permissions for media and audio
+  useEffect(() => {
+    (async () => {
+      const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (mediaStatus !== 'granted') {
+        Alert.alert('Cần quyền truy cập', 'Cần quyền truy cập thư viện để gửi hình ảnh');
+      }
+
+      const { status: audioStatus } = await Audio.requestPermissionsAsync();
+      if (audioStatus !== 'granted') {
+        Alert.alert('Cần quyền truy cập', 'Cần quyền truy cập micro để ghi âm');
+      }
+    })();
+  }, []);
+
+  // Setup socket connection with reconnection
   useEffect(() => {
     const setupSocket = async () => {
       if (!userId || !chat._id) return;
@@ -74,22 +131,28 @@ const ChatScreen = ({ navigation, route }) => {
 
       const socketConnection = io("https://be.haudev.io.vn", {
         auth: { token },
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
       });
 
       socketConnection.on("connect", () => {
-        console.log("✅ Socket connected");
+        console.log("✅ Socket kết nối thành công");
         socketConnection.emit("join-room", chat._id);
+      });
+
+      socketConnection.on("connect_error", (err) => {
+        console.error("Lỗi kết nối socket:", err);
       });
 
       socketConnection.on("new-message", (msg) => {
         const isCurrentUser = String(msg.sender._id) === String(userId);
-        
         const newMessage = {
           _id: msg._id,
           content: msg.content,
           sender: msg.sender,
           isCurrentUser,
-          timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
+          timestamp: new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
             hour: "2-digit",
             minute: "2-digit",
           }),
@@ -97,7 +160,7 @@ const ChatScreen = ({ navigation, route }) => {
           fileMeta: msg.fileMeta || [],
           replyTo: msg.replyTo
         };
-        
+
         setMessages((prev) => [...prev, newMessage]);
         setTimeout(() => {
           scrollRef.current?.scrollToEnd({ animated: true });
@@ -114,17 +177,52 @@ const ChatScreen = ({ navigation, route }) => {
     setupSocket();
   }, [chat._id, userId]);
 
-  // Yêu cầu quyền truy cập thư viện ảnh
+  // Fetch messages and scroll to end
   useEffect(() => {
-    (async () => {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Thông báo', 'Cần cấp quyền truy cập thư viện ảnh để gửi hình ảnh');
-      }
-    })();
-  }, []);
+    const fetchMessages = async () => {
+      if (!chat._id || !userId) return;
 
-  // Xử lý reply
+      setIsLoading(true);
+      try {
+        const data = await getMessages(chat._id, userId);
+        const formattedMessages = data.map((msg) => {
+          const isCurrentUser = String(msg.sender._id) === String(userId);
+          return {
+            _id: msg._id,
+            content: msg.content,
+            sender: msg.sender,
+            isCurrentUser,
+            timestamp: new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            type: msg.type || "text",
+            fileMeta: msg.fileMeta || [],
+            replyTo: msg.replyTo
+          };
+        });
+        setMessages(formattedMessages);
+      } catch (error) {
+        console.error("Lỗi tải tin nhắn:", error);
+        Alert.alert("Lỗi", "Không thể tải tin nhắn. Hội thoại có thể không tồn tại.", [
+          { text: "OK", onPress: () => navigation.goBack() }
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMessages();
+  }, [chat._id, userId, navigation]);
+
+  // Scroll to end when messages load or update
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollRef.current?.scrollToEnd({ animated: false });
+    }
+  }, [messages]);
+
+  // Handle reply and focus
   const handleReply = (message) => {
     setReplyingTo(message);
     inputRef.current?.focus();
@@ -134,7 +232,107 @@ const ChatScreen = ({ navigation, route }) => {
     setReplyingTo(null);
   };
 
-  // Chọn ảnh từ thư viện
+  const focusMessage = (messageId) => {
+    setFocusedMessage(messageId);
+    if (viewRefs.current[messageId] && scrollRef.current) {
+      viewRefs.current[messageId].measureInWindow((x, y, width, height) => {
+        if (y !== undefined) {
+          scrollRef.current.scrollTo({ y: y - 100, animated: true }); // Center the message
+          setTimeout(() => setFocusedMessage(null), 2000); // Clear highlight after 2s
+        } else {
+          console.warn('Vị trí y không xác định cho messageId:', messageId);
+          scrollRef.current?.scrollToEnd({ animated: true });
+        }
+      });
+    } else {
+      console.warn('Không tìm thấy ref cho messageId:', messageId);
+      scrollRef.current?.scrollToEnd({ animated: true }); // Fallback
+    }
+  };
+
+  // Audio recording
+  const startRecording = async () => {
+    try {
+      if (Platform.OS === 'ios') {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: false,
+          });
+        } catch (modeErr) {
+          console.warn('setAudioModeAsync không khả dụng, tiếp tục ghi âm:', modeErr);
+        }
+      }
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(recording);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Lỗi bắt đầu ghi âm:', err);
+      Alert.alert('Lỗi', 'Không thể bắt đầu ghi âm');
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setSelectedFile({
+        uri,
+        name: `recording-${Date.now()}.m4a`,
+        type: 'audio/m4a',
+        size: 0 // expo-av không cung cấp kích thước
+      });
+      setSelectedMedia(null);
+      setRecording(null);
+      setIsRecording(false);
+    } catch (err) {
+      console.error('Lỗi dừng ghi âm:', err);
+      Alert.alert('Lỗi', 'Không thể dừng ghi âm');
+    }
+  };
+
+  // Play audio
+  const playAudio = async (uri) => {
+    if (!uri) {
+      console.error('playAudio: URI âm thanh không hợp lệ', { uri });
+      Alert.alert('Lỗi', 'Không thể phát âm thanh do tệp không hợp lệ.');
+      return;
+    }
+
+    try {
+      console.log('Phát âm thanh:', { uri });
+      const { sound } = await Audio.Sound.createAsync({ uri });
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (err) {
+      console.error('Lỗi phát âm thanh:', err, { uri });
+      Alert.alert('Lỗi', 'Không thể phát âm thanh. Tệp có thể bị hỏng.');
+    }
+  };
+
+  // Get audio duration
+  const getAudioDuration = async (uri) => {
+    try {
+      const { sound } = await Audio.Sound.createAsync({ uri });
+      const status = await sound.getStatusAsync();
+      await sound.unloadAsync();
+      return Math.round(status.durationMillis / 1000); // seconds
+    } catch (err) {
+      console.error('Lỗi lấy duration âm thanh:', err);
+      return 0;
+    }
+  };
+
+  // Pick image from library
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -154,12 +352,12 @@ const ChatScreen = ({ navigation, route }) => {
         setSelectedFile(null);
       }
     } catch (error) {
-      console.error("Lỗi khi chọn ảnh:", error);
-      Alert.alert("Lỗi", "Không thể chọn ảnh lúc này, vui lòng thử lại sau.");
+      console.error("Lỗi chọn hình ảnh:", error);
+      Alert.alert("Lỗi", "Không thể chọn hình ảnh, vui lòng thử lại.");
     }
   };
 
-  // Chọn file từ thư viện
+  // Pick document
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -177,62 +375,100 @@ const ChatScreen = ({ navigation, route }) => {
         setSelectedMedia(null);
       }
     } catch (error) {
-      console.error("Lỗi khi chọn file:", error);
-      Alert.alert("Lỗi", "Không thể chọn file lúc này, vui lòng thử lại sau.");
+      console.error("Lỗi chọn tài liệu:", error);
+      Alert.alert("Lỗi", "Không thể chọn tài liệu, vui lòng thử lại.");
     }
   };
 
-  // Hủy chọn media hoặc file
+  // Cancel media/file selection
   const cancelMediaSelection = () => {
     setSelectedMedia(null);
     setSelectedFile(null);
   };
 
-  // Gửi ảnh hoặc file
-  const uploadMedia = async () => {
+  // Upload file to S3
+  const uploadToS3 = async (file) => {
     try {
-      setIsSending(true);
       const token = await AsyncStorage.getItem("token");
-
       const formData = new FormData();
-      formData.append('conversationId', chat._id);
-      formData.append('sender', user._id);
-      
-      if (message.trim()) {
-        formData.append('content', message.trim());
-      } else {
-        formData.append('content', selectedMedia ? 'Đã gửi một hình ảnh' : 'Đã gửi một file');
-      }
+      formData.append('file', {
+        uri: Platform.OS === 'ios' ? file.uri.replace('file://', '') : file.uri,
+        name: file.name,
+        type: file.type,
+      });
 
-      // Thêm replyTo nếu có
-      if (replyingTo) {
-        formData.append('replyTo', replyingTo._id);
-      }
-
-      if (selectedMedia) {
-        const fileName = selectedMedia.uri.split('/').pop();
-        const fileType = mime.getType(fileName) || 'image/jpeg';
-        formData.append('type', 'image');
-        formData.append('file', {
-          uri: Platform.OS === 'ios' ? selectedMedia.uri.replace('file://', '') : selectedMedia.uri,
-          name: fileName,
-          type: fileType,
-        });
-      } else if (selectedFile) {
-        formData.append('type', 'file');
-        formData.append('file', {
-          uri: Platform.OS === 'ios' ? selectedFile.uri.replace('file://', '') : selectedFile.uri,
-          name: selectedFile.name,
-          type: selectedFile.type,
-        });
-      }
-
-      const response = await fetch("https://be.haudev.io.vn/api/message/send", {
+      const response = await fetch("https://be.haudev.io.vn/api/upload", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },
         body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Lỗi tải lên tệp");
+      }
+
+      return data.data.url;
+    } catch (error) {
+      console.error("Lỗi tải lên S3:", error);
+      throw error;
+    }
+  };
+
+  // Upload media
+  const uploadMedia = async () => {
+    if (!chat._id) {
+      console.error("uploadMedia: conversationId không hợp lệ", { chatId: chat._id });
+      Alert.alert("Lỗi", "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.");
+      return;
+    }
+
+    try {
+      setIsSending(true);
+      const token = await AsyncStorage.getItem("token");
+
+      console.log("Gửi yêu cầu uploadMedia", { conversationId: chat._id, type: selectedMedia ? 'image' : 'audio' });
+
+      let payload = {
+        conversationId: chat._id,
+        sender: user._id,
+        type: selectedMedia ? 'image' : 'audio',
+        content: message.trim() || (selectedMedia ? 'Đã gửi hình ảnh' : 'Đã gửi âm thanh'),
+      };
+
+      if (replyingTo) {
+        payload.replyTo = replyingTo._id;
+      }
+
+      if (selectedMedia || selectedFile) {
+        const file = selectedMedia || selectedFile;
+        // Upload to S3
+        const url = await uploadToS3(file);
+
+        // Get duration for audio
+        let duration = 0;
+        if (file.type.startsWith('audio')) {
+          duration = await getAudioDuration(file.uri);
+        }
+
+        payload.fileMeta = [{
+          name: file.name,
+          size: file.size || 0,
+          mimeType: file.type,
+          duration: duration || undefined,
+          url
+        }];
+      }
+
+      const response = await fetch("https://be.haudev.io.vn/api/message/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
       });
 
       const responseData = await response.json();
@@ -243,31 +479,46 @@ const ChatScreen = ({ navigation, route }) => {
         setSelectedFile(null);
         setReplyingTo(null);
       } else {
-        console.error("Lỗi từ server:", responseData);
-        Alert.alert("Lỗi", responseData.message || "Không thể gửi ảnh/file");
+        console.error("Lỗi server:", responseData, { conversationId: chat._id });
+        if (responseData.message === "Conversation not found") {
+          Alert.alert(
+            "Lỗi",
+            "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại để chọn một hội thoại khác.",
+            [{ text: "OK", onPress: () => navigation.goBack() }]
+          );
+        } else {
+          Alert.alert("Lỗi", responseData.message || "Không thể gửi tệp");
+        }
       }
     } catch (error) {
-      console.error("Lỗi khi gửi media:", error);
-      Alert.alert("Lỗi", "Không thể gửi file/ảnh, vui lòng thử lại sau.");
+      console.error("Lỗi tải lên tệp:", error, { conversationId: chat._id });
+      Alert.alert("Lỗi", "Không thể gửi tệp, vui lòng thử lại.");
     } finally {
       setIsSending(false);
     }
   };
 
-  // Gửi tin nhắn văn bản
+  // Send text message
   const handleSend = async () => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage && !selectedMedia && !selectedFile) return;
 
-    // Nếu có ảnh hoặc file được chọn, sử dụng hàm uploadMedia
     if (selectedMedia || selectedFile) {
       await uploadMedia();
+      return;
+    }
+
+    if (!chat._id) {
+      console.error("handleSend: conversationId không hợp lệ", { chatId: chat._id });
+      Alert.alert("Lỗi", "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.");
       return;
     }
 
     try {
       setIsSending(true);
       const token = await AsyncStorage.getItem("token");
+
+      console.log("Gửi yêu cầu handleSend", { conversationId: chat._id });
 
       const payload = {
         conversationId: chat._id,
@@ -276,7 +527,6 @@ const ChatScreen = ({ navigation, route }) => {
         type: "text",
       };
 
-      // Thêm replyTo nếu có
       if (replyingTo) {
         payload.replyTo = replyingTo._id;
       }
@@ -290,25 +540,33 @@ const ChatScreen = ({ navigation, route }) => {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const responseData = await response.json();
 
       if (response.ok) {
         setMessage("");
         setShowEmojiPicker(false);
         setReplyingTo(null);
       } else {
-        console.error("❌ Lỗi gửi tin nhắn:", data.message || data);
-        Alert.alert("Lỗi", data.message || "Không thể gửi tin nhắn");
+        console.error("Lỗi gửi tin nhắn:", responseData, { conversationId: chat._id });
+        if (responseData.message === "Conversation not found") {
+          Alert.alert(
+            "Lỗi",
+            "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại để chọn một hội thoại khác.",
+            [{ text: "OK", onPress: () => navigation.goBack() }]
+          );
+        } else {
+          Alert.alert("Lỗi", responseData.message || "Không thể gửi tin nhắn");
+        }
       }
     } catch (error) {
-      console.error("❌ Gửi tin nhắn thất bại:", error);
-      Alert.alert("Lỗi", "Không thể gửi tin nhắn, vui lòng thử lại sau.");
+      console.error("Lỗi gửi tin nhắn:", error, { conversationId: chat._id });
+      Alert.alert("Lỗi", "Không thể gửi tin nhắn, vui lòng thử lại.");
     } finally {
       setIsSending(false);
     }
   };
 
-  // Xử lý trạng thái typing
+  // Handle typing status
   const handleTyping = () => {
     if (!typing && socket) {
       setTyping(true);
@@ -323,110 +581,74 @@ const ChatScreen = ({ navigation, route }) => {
     }, 2000);
   };
 
-  // Lấy danh sách tin nhắn
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!chat._id || !userId) return;
-
-      setIsLoading(true);
-      try {
-        const data = await getMessages(chat._id, userId);
-
-        const formattedMessages = data.map((msg) => {
-          const isCurrentUser = String(msg.sender._id) === String(userId);
-          return {
-            _id: msg._id,
-            content: msg.content,
-            sender: msg.sender,
-            isCurrentUser,
-            timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            type: msg.type || "text",
-            fileMeta: msg.fileMeta || [],
-            replyTo: msg.replyTo
-          };
-        });
-        setMessages(formattedMessages);
-      } catch (error) {
-        console.error("❌ Không thể tải tin nhắn:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchMessages();
-  }, [chat._id, userId]);
-
-  // Cuộn ScrollView khi có tin nhắn mới
-  useEffect(() => {
-    scrollRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
-
-  // Xem trước ảnh
+  // Open image preview
   const openImagePreview = (imageUrl) => {
     setPreviewImage(imageUrl);
     setShowImagePreview(true);
   };
 
-  // Hiển thị tin nhắn theo loại
-  const renderMessageContent = (msg) => {
-    if (msg.type === "text") {
-      return <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>{msg.content}</Text>;
-    } else if (msg.type === "image" && msg.fileMeta && msg.fileMeta.length > 0) {
-      const imageUrl = msg.fileMeta[0].url;
+  // Render message content
+  const renderMessage = (msg) => {
+    if (msg.type === "image" && msg.fileMeta?.length > 0) {
       return (
-        <TouchableOpacity onPress={() => openImagePreview(imageUrl)}>
-          <Image 
-            source={{ uri: imageUrl }} 
-            style={styles.messageImage} 
+        <TouchableOpacity onPress={() => openImagePreview(msg.fileMeta[0].url)}>
+          <Image
+            source={{ uri: msg.fileMeta[0].url }}
+            style={styles.messageImage}
             resizeMode="cover"
           />
-          {msg.content !== "Đã gửi một hình ảnh" && 
-            <Text style={[msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther, { marginTop: 5 }]}>{msg.content}</Text>
-          }
         </TouchableOpacity>
       );
-    } else if (msg.type === "file" && msg.fileMeta && msg.fileMeta.length > 0) {
-      const file = msg.fileMeta[0];
+    } else if (msg.type === "audio" && msg.fileMeta?.length > 0) {
       return (
-        <TouchableOpacity 
-          style={styles.fileContainer}
-          onPress={() => {
-            Alert.alert("Thông báo", `File: ${file.name}\nSize: ${(file.size/1024).toFixed(2)} KB`);
-          }}
+        <TouchableOpacity
+          style={styles.audioContainer}
+          onPress={() => playAudio(msg.fileMeta[0].url)}
         >
+          <FontAwesome5 name="play-circle" size={24} color={msg.isCurrentUser ? "white" : "#444"} />
+          <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
+            Tin nhắn âm thanh
+          </Text>
+        </TouchableOpacity>
+      );
+    } else if (msg.type === "file" && msg.fileMeta?.length > 0) {
+      return (
+        <View style={styles.fileContainer}>
           <FontAwesome5 name="file-alt" size={24} color={msg.isCurrentUser ? "white" : "#444"} />
           <View style={styles.fileInfo}>
-            <Text style={[msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther, { fontWeight: "bold" }]} numberOfLines={1}>
-              {file.name}
+            <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
+              {msg.fileMeta[0].name}
             </Text>
             <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
-              {(file.size/1024).toFixed(2)} KB
+              {(msg.fileMeta[0].size / 1024).toFixed(2)} KB
             </Text>
           </View>
-        </TouchableOpacity>
+        </View>
       );
-    } else {
-      return <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>{msg.content}</Text>;
     }
+    return (
+      <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
+        {msg.content}
+      </Text>
+    );
   };
 
-  // Hiển thị reply preview
+  // Render reply preview
   const renderReplyPreview = () => {
     if (!replyingTo) return null;
 
     const isCurrentUserReply = replyingTo.isCurrentUser;
-    const senderName = isCurrentUserReply ? "Bạn" : replyingTo.sender?.fullName?.split(" ").pop() || "Người lạ";
+    const senderName = isCurrentUserReply ? "Bạn" : replyingTo.sender.fullName;
 
     let replyContent = "";
     if (replyingTo.type === "text") {
       replyContent = replyingTo.content;
     } else if (replyingTo.type === "image") {
       replyContent = "Hình ảnh";
+    } else if (replyingTo.type === "audio") {
+      replyContent = "Tin nhắn âm thanh";
     } else if (replyingTo.type === "file") {
-      replyContent = "File đính kèm";
+      replyContent = "Tệp đính kèm";
     }
 
     return (
@@ -434,9 +656,9 @@ const ChatScreen = ({ navigation, route }) => {
         <View style={styles.replyPreviewContent}>
           <View style={[styles.replyIndicator, { backgroundColor: isCurrentUserReply ? "#0e76a8" : "#f1f1f1" }]} />
           <View style={styles.replyTextContainer}>
-            <Text style={styles.replySenderText}>Trả lời {senderName}</Text>
-            <Text 
-              style={styles.replyContentText} 
+            <Text style={styles.replySenderText}>Đang trả lời {senderName}</Text>
+            <Text
+              style={styles.replyContentText}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -451,32 +673,33 @@ const ChatScreen = ({ navigation, route }) => {
     );
   };
 
-  // Hiển thị tin nhắn được reply
+  // Render replied message
   const renderReplyToMessage = (msg) => {
     if (!msg.replyTo) return null;
 
     const isCurrentUserReply = String(msg.replyTo.sender._id) === String(userId);
-    const senderName = isCurrentUserReply ? "Bạn" : msg.replyTo.sender?.fullName?.split(" ").pop() || "Người lạ";
-
+    const senderName = isCurrentUserReply ? "Bạn" : msg.sender.fullName.split(" ").pop();
     let replyContent = "";
     if (msg.replyTo.type === "text") {
       replyContent = msg.replyTo.content;
     } else if (msg.replyTo.type === "image") {
       replyContent = "Hình ảnh";
+    } else if (msg.replyTo.type === "audio") {
+      replyContent = "Tin nhắn âm thanh";
     } else if (msg.replyTo.type === "file") {
-      replyContent = "File đính kèm";
+      replyContent = "Tệp đính kèm";
     }
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
           styles.replyToContainer,
           msg.isCurrentUser ? styles.replyToContainerMe : styles.replyToContainerOther
         ]}
-        onPress={() => handleReply(msg.replyTo)}
+        onPress={() => focusMessage(msg.replyTo._id)}
       >
         <View style={[
-          styles.replyIndicatorSmall, 
+          styles.replyIndicatorSmall,
           { backgroundColor: msg.isCurrentUser ? "white" : "#0e76a8" }
         ]} />
         <View>
@@ -486,7 +709,7 @@ const ChatScreen = ({ navigation, route }) => {
           ]}>
             {senderName}
           </Text>
-          <Text 
+          <Text
             style={[
               styles.replyContentTextSmall,
               { color: msg.isCurrentUser ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }
@@ -519,13 +742,13 @@ const ChatScreen = ({ navigation, route }) => {
               source={{ uri: chat?.user?.avatar || "https://i.pravatar.cc/150" }}
             />
             <View style={styles.headerContent}>
-              <Text style={styles.chatName}>{chat?.user?.fullName || "Không tên"}</Text>
-              <Text style={styles.statusText}>Online</Text>
+              <Text style={styles.chatName}>{chat?.user?.fullName || "Không có tên"}</Text>
+              <Text style={styles.statusText}>Trực tuyến</Text>
             </View>
           </View>
         </View>
 
-        {/* Tin nhắn */}
+        {/* Messages */}
         <ScrollView
           ref={scrollRef}
           style={styles.chatContent}
@@ -538,21 +761,32 @@ const ChatScreen = ({ navigation, route }) => {
             </View>
           ) : (
             messages.map((msg, index) => (
-              <TouchableOpacity
-                key={index}
-                activeOpacity={0.7}
-                onLongPress={() => handleReply(msg)}
-                style={[styles.messageBubble, msg.isCurrentUser ? styles.messageMe : styles.messageOther]}
+              <View
+                key={msg._id}
+                ref={(ref) => (viewRefs.current[msg._id] = ref)}
+                collapsable={false}
+                style={[
+                  styles.messageBubble,
+                  msg.isCurrentUser ? styles.messageMe : styles.messageOther,
+                  focusedMessage === msg._id && styles.focusedMessage
+                ]}
               >
-                {renderReplyToMessage(msg)}
-                {renderMessageContent(msg)}
-                <Text style={[
-                  styles.timestamp,
-                  { color: msg.isCurrentUser ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }
-                ]}>
-                  {msg.timestamp}
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => msg.replyTo && focusMessage(msg.replyTo._id)}
+                  onLongPress={() => handleReply(msg)}
+                  delayLongPress={2000}
+                >
+                  {renderReplyToMessage(msg)}
+                  {renderMessage(msg)}
+                  <RNText style={[
+                    styles.timestamp,
+                    { color: msg.isCurrentUser ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }
+                  ]}>
+                    {msg.timestamp}
+                  </RNText>
+                </TouchableOpacity>
+              </View>
             ))
           )}
         </ScrollView>
@@ -574,11 +808,13 @@ const ChatScreen = ({ navigation, route }) => {
         {selectedFile && (
           <View style={styles.filePreviewContainer}>
             <View style={styles.filePreview}>
-              <FontAwesome5 name="file-alt" size={24} color="#444" />
+              <FontAwesome5 name={selectedFile.type.startsWith('audio') ? "file-audio" : "file-alt"} size={24} color="#444" />
               <Text style={styles.fileNameText} numberOfLines={1}>{selectedFile.name}</Text>
-              <Text style={styles.fileSizeText}>
-                {(selectedFile.size/1024).toFixed(2)} KB
-              </Text>
+              {selectedFile.size > 0 && (
+                <Text style={styles.fileSizeText}>
+                  {(selectedFile.size / 1024).toFixed(2)} KB
+                </Text>
+              )}
             </View>
             <TouchableOpacity style={styles.cancelFileButton} onPress={cancelMediaSelection}>
               <MaterialIcons name="close" size={18} color="white" />
@@ -611,6 +847,16 @@ const ChatScreen = ({ navigation, route }) => {
             <TouchableOpacity onPress={pickDocument} style={styles.inputIcon}>
               <MaterialIcons name="attach-file" size={24} color="#666" />
             </TouchableOpacity>
+            <TouchableOpacity
+              onPress={isRecording ? stopRecording : startRecording}
+              style={styles.inputIcon}
+            >
+              <MaterialIcons
+                name={isRecording ? "stop" : "mic"}
+                size={24}
+                color={isRecording ? "#ff0000" : "#666"}
+              />
+            </TouchableOpacity>
           </View>
           <TextInput
             ref={inputRef}
@@ -627,9 +873,9 @@ const ChatScreen = ({ navigation, route }) => {
               setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
             }}
           />
-          <TouchableOpacity 
-            style={[styles.sendButton, isSending && styles.sendButtonDisabled]} 
-            onPress={handleSend} 
+          <TouchableOpacity
+            style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
+            onPress={handleSend}
             disabled={isSending || (!message.trim() && !selectedMedia && !selectedFile)}
           >
             {isSending ? (
@@ -645,8 +891,8 @@ const ChatScreen = ({ navigation, route }) => {
           <Modal visible={showImagePreview} onDismiss={() => setShowImagePreview(false)} contentContainerStyle={styles.imagePreviewModal}>
             <View style={styles.imagePreviewContainer}>
               <Image source={{ uri: previewImage }} style={styles.fullSizeImage} resizeMode="contain" />
-              <TouchableOpacity 
-                style={styles.closePreviewButton} 
+              <TouchableOpacity
+                style={styles.closePreviewButton}
                 onPress={() => setShowImagePreview(false)}
               >
                 <MaterialIcons name="close" size={24} color="white" />
@@ -661,6 +907,29 @@ const ChatScreen = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5", paddingTop: 40, paddingBottom: 20 },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#666",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  backButton: {
+    backgroundColor: "#0098f9",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  backButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
   header: {
     backgroundColor: "white",
     elevation: 2,
@@ -680,20 +949,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     maxWidth: "80%",
   },
-  messageMe: { 
-    alignSelf: "flex-end", 
+  messageMe: {
+    alignSelf: "flex-end",
     backgroundColor: "#0e76a8",
     borderBottomRightRadius: 2,
   },
-  messageOther: { 
-    alignSelf: "flex-start", 
+  messageOther: {
+    alignSelf: "flex-start",
     backgroundColor: "#f1f1f1",
     borderBottomLeftRadius: 2,
   },
   messageTextMe: { color: "white" },
   messageTextOther: { color: "black" },
-  timestamp: { 
-    fontSize: 10, 
+  timestamp: {
+    fontSize: 10,
     alignSelf: "flex-end",
     marginTop: 4,
   },
@@ -737,7 +1006,6 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: "#99CDF7",
   },
-  typingText: { textAlign: "center", fontSize: 12, color: "#888", marginTop: 4 },
   emojiPickerContainer: {
     height: 200,
     backgroundColor: "white",
@@ -819,6 +1087,11 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 8,
   },
+  audioContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 5,
+  },
   fileContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -854,7 +1127,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 8,
   },
-  // Reply styles
   replyPreviewContainer: {
     backgroundColor: "#f0f0f0",
     padding: 10,
@@ -891,7 +1163,6 @@ const styles = StyleSheet.create({
   cancelReplyButton: {
     marginLeft: 10,
   },
-  // Reply to message styles
   replyToContainer: {
     padding: 8,
     borderRadius: 8,
@@ -918,6 +1189,10 @@ const styles = StyleSheet.create({
   replyContentTextSmall: {
     fontSize: 12,
     marginTop: 2,
+  },
+  focusedMessage: {
+    borderWidth: 2,
+    borderColor: '#0098f9',
   },
 });
 
