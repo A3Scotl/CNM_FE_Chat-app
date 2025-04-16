@@ -19,7 +19,10 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!form.phoneNumber.trim() && !form.passWord.trim()) {
-      setError({ visible: true, message: "Vui lòng nhập số điện thoại và mật khẩu" });
+      setError({
+        visible: true,
+        message: "Vui lòng nhập số điện thoại và mật khẩu",
+      });
       return;
     }
     if (!form.phoneNumber.trim()) {
@@ -38,7 +41,13 @@ export default function LoginScreen({ navigation }) {
         passWord: form.passWord.trim(),
       });
       if (response?.data?.access_token) {
-        navigation.navigate("Home", { user: response.data.user });
+        console.log(response.data);
+        navigation.navigate("Home", {
+          user: {
+            ...response.data.user,
+            token: response.data.access_token,
+          },
+        });
       } else {
         setError({
           visible: true,
@@ -48,7 +57,8 @@ export default function LoginScreen({ navigation }) {
     } catch (err) {
       setError({
         visible: true,
-        message: err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.",
+        message:
+          err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.",
       });
     } finally {
       setLoading(false);
@@ -79,7 +89,10 @@ export default function LoginScreen({ navigation }) {
         mode="outlined"
       />
 
-      <Text style={styles.forgotPasswordText} onPress={() => navigation.navigate("ForgotPassword")}>
+      <Text
+        style={styles.forgotPasswordText}
+        onPress={() => navigation.navigate("ForgotPassword")}
+      >
         Quên mật khẩu?
       </Text>
 
@@ -94,7 +107,10 @@ export default function LoginScreen({ navigation }) {
         Đăng Nhập
       </Button>
 
-      <Text style={styles.registerText} onPress={() => navigation.navigate("Register")}>
+      <Text
+        style={styles.registerText}
+        onPress={() => navigation.navigate("Register")}
+      >
         Chưa có tài khoản? Đăng ký ngay
       </Text>
 

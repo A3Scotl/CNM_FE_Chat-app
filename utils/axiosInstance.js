@@ -1,9 +1,10 @@
-// axiosInstance.js
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const API_URL = "http://192.168.1.3:5000/api";
+
 // const API_URL = "https://be.haudev.io.vn/api"; // Thay bằng ngrok URL nếu cần
-const API_URL = "http://192.168.1.188:5000/api"
+// const API_URL = "http://192.168.1.188:5000/api"
 const axiosInstance = axios.create({
   baseURL: API_URL,
   headers: {

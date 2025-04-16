@@ -7,12 +7,11 @@ import {
   Text,
   FlatList,
   Alert,
-  Keyboard
+  Keyboard,
 } from "react-native";
 import { Appbar, Avatar, useTheme, BottomNavigation } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import ChatList from "../components/Chat/ChatList";
-import ChatArea from "../components/Chat/ChatArea";
 import ProfileModal from "../components/Modal/ProfileModal";
 import SettingsModal from "../components/Modal/SettingsModal";
 import DropdownMenu from "../components/DropdownMenu";
@@ -21,6 +20,8 @@ import ContactsScreen from "./ContactsScreen";
 import { getMyProfile, findUserByPhone } from "../apis/user.api";
 import { logout } from "../apis/auth.api";
 import { useFriendRequest } from "../hooks/useFriendRequest";
+import { useSocket } from "../hooks/useSocket";
+import { getMyConversations } from "../apis/conversation.api";
 
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
@@ -39,6 +40,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [message, setMessage] = useState("");
+  const [conversations, setConversations] = useState([]);
 
   const { sendRequest } = useFriendRequest();
 
@@ -50,16 +52,57 @@ const HomeScreen = ({ navigation, route }) => {
   const fetchProfile = useCallback(async () => {
     try {
       const profile = await getMyProfile();
-      setCurrentUser(profile);
+      setCurrentUser({
+        ...profile,
+        token: route.params?.user?.token, // giữ lại token từ route
+      });
     } catch (error) {
       console.error("Failed to fetch profile:", error);
       Alert.alert("Error", "Failed to load profile.");
     }
   }, []);
 
+  const handleUpdateLastMessage = (conversationId, message) => {
+    setConversations((prev) =>
+      prev.map((item) =>
+        item._id === conversationId ? { ...item, lastMessage: message } : item
+      )
+    );
+  };
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      if (!currentUser?._id) return;
+
+      try {
+        const res = await getMyConversations();
+
+        const mappedConversations = res.data
+          .filter((convo) => convo.participants.length === 2)
+          .map((convo) => {
+            const other = convo.participants.find(
+              (p) => p._id !== currentUser._id
+            );
+
+            return {
+              _id: convo._id,
+              user: other,
+              lastMessage: convo.lastMessage,
+            };
+          });
+
+        setConversations(mappedConversations);
+      } catch (err) {
+        console.error("Failed to load conversations", err);
+      }
+    };
+
+    fetchConversations();
+  }, [currentUser]);
 
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
@@ -85,9 +128,8 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const handleSearch = useCallback(
-    
     debounce(async (query) => {
-      Keyboard.dismiss(); 
+      Keyboard.dismiss();
       const formattedQuery = query.replace(/[^0-9]/g, "");
       console.log("Searching:", formattedQuery);
       if (!formattedQuery.trim()) {
@@ -104,7 +146,10 @@ const HomeScreen = ({ navigation, route }) => {
       } catch (error) {
         console.error("Search error:", error);
         setSearchResults([]);
-        Alert.alert("Search Error", "Unable to search users. Please try again.");
+        Alert.alert(
+          "Search Error",
+          "Unable to search users. Please try again."
+        );
       } finally {
         setIsSearching(false);
       }
@@ -152,7 +197,9 @@ const HomeScreen = ({ navigation, route }) => {
                 source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
               />
               <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.fullName || "Unknown User"}</Text>
+                <Text style={styles.userName}>
+                  {item.fullName || "Unknown User"}
+                </Text>
                 <Text style={styles.userPhone}>{item.phoneNumber}</Text>
               </View>
               {!isCurrentUser && (
@@ -193,12 +240,19 @@ const HomeScreen = ({ navigation, route }) => {
       return (
         <View style={{ flex: 1, position: "relative" }}>
           <ChatList chats={[]} onChatSelect={() => {}} />
-          {searchResults.length > 0 && searchQuery.trim() && renderSearchResults()}
+          {searchResults.length > 0 &&
+            searchQuery.trim() &&
+            renderSearchResults()}
           {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
             <Text style={styles.noResults}>No users found.</Text>
           )}
           {message && (
-            <Text style={[styles.message, { color: colors.primary, backgroundColor: "#fff", padding: 10 }]}>
+            <Text
+              style={[
+                styles.message,
+                { color: colors.primary, backgroundColor: "#fff", padding: 10 },
+              ]}
+            >
               {message}
             </Text>
           )}
@@ -235,7 +289,9 @@ const HomeScreen = ({ navigation, route }) => {
               >
                 <Avatar.Image
                   size={36}
-                  source={{ uri: currentUser?.avatar || "https://i.pravatar.cc/150" }}
+                  source={{
+                    uri: currentUser?.avatar || "https://i.pravatar.cc/150",
+                  }}
                   style={styles.avatar}
                 />
               </TouchableOpacity>
@@ -272,8 +328,17 @@ const HomeScreen = ({ navigation, route }) => {
               iconName = focused ? "account-group" : "account-group-outline";
             }
             return (
-              <View style={[styles.iconContainer, focused && styles.activeIconContainer]}>
-                <MaterialCommunityIcons name={iconName} size={28} color={color} />
+              <View
+                style={[
+                  styles.iconContainer,
+                  focused && styles.activeIconContainer,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={iconName}
+                  size={28}
+                  color={color}
+                />
               </View>
             );
           }}

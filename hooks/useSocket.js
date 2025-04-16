@@ -5,7 +5,10 @@ import { Alert } from "react-native";
 
 const SOCKET_URL = "https://be.haudev.io.vn";
 
-export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } = {}) => {
+export const useSocket = (
+  userId,
+  { onFriendRequest, onFriendRequestAccepted } = {}
+) => {
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -44,13 +47,23 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
           console.log("Registered userId:", userId);
         });
 
-        socketRef.current.on("friend-request", ({ message, from, requestId }) => {
-          console.log("iOS Received friend request:", { message, from, requestId });
-          Alert.alert("New Friend Request", `${message} from ${from.fullName}`);
-          if (onFriendRequest) {
-            onFriendRequest({ message, from, requestId });
+        socketRef.current.on(
+          "friend-request",
+          ({ message, from, requestId }) => {
+            console.log("iOS Received friend request:", {
+              message,
+              from,
+              requestId,
+            });
+            Alert.alert(
+              "New Friend Request",
+              `${message} from ${from.fullName}`
+            );
+            if (onFriendRequest) {
+              onFriendRequest({ message, from, requestId });
+            }
           }
-        });
+        );
 
         socketRef.current.on("friend-request-accepted", ({ message, user }) => {
           console.log("iOS Friend request accepted:", { message, user });
