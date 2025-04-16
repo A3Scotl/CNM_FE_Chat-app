@@ -175,7 +175,7 @@ const ContactsScreen = () => {
       </View>
 
       {activeTab === "friends" && (
-        <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
           {renderSection(`Lời mời kết bạn (${requests.length})`, requests, renderRequestItem, "Không có lời mời kết bạn.", loadingRequests, errorRequests)}
           {renderSection(`Lời mời đã gửi (${sentRequests.length})`, sentRequests, renderSentRequestItem, "Bạn chưa gửi lời mời kết bạn nào.", loadingSentRequests, errorSentRequests)}
           {renderSection(`Bạn bè (${friends.length})`, friends, renderFriendItem, "Chưa có bạn bè.", loadingFriends, errorFriends)}
@@ -183,7 +183,7 @@ const ContactsScreen = () => {
       )}
 
       {activeTab === "groups" && (
-        <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.primary }]}>Danh sách nhóm</Text>
           </View>

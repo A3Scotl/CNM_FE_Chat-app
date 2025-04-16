@@ -4,8 +4,6 @@ import {
   StyleSheet,
   Pressable,
   TouchableOpacity,
-  Text,
-  FlatList,
   Alert,
   Keyboard,
 } from "react-native";
@@ -15,12 +13,12 @@ import ChatList from "../components/Chat/ChatList";
 import ProfileModal from "../components/Modal/ProfileModal";
 import SettingsModal from "../components/Modal/SettingsModal";
 import DropdownMenu from "../components/DropdownMenu";
-import SearchBar from "../components/SearchBar";
 import ContactsScreen from "./ContactsScreen";
+import SearchBar from "../components/SearchBar";
+import SearchOverlay from "../components/SearchOverlay";
 import { getMyProfile, findUserByPhone } from "../apis/user.api";
 import { logout } from "../apis/auth.api";
 import { useFriendRequest } from "../hooks/useFriendRequest";
-import { useSocket } from "../hooks/useSocket";
 import { getMyConversations } from "../apis/conversation.api";
 
 const HomeScreen = ({ navigation, route }) => {
@@ -49,12 +47,13 @@ const HomeScreen = ({ navigation, route }) => {
     { key: "contacts", title: "Contacts", icon: "account-group" },
   ];
 
+  // Fetch profile data
   const fetchProfile = useCallback(async () => {
     try {
       const profile = await getMyProfile();
       setCurrentUser({
         ...profile,
-        token: route.params?.user?.token, // giữ lại token từ route
+        token: route.params?.user?.token,
       });
     } catch (error) {
       console.error("Failed to fetch profile:", error);
@@ -62,6 +61,7 @@ const HomeScreen = ({ navigation, route }) => {
     }
   }, []);
 
+  // Update last message in conversation
   const handleUpdateLastMessage = (conversationId, message) => {
     setConversations((prev) =>
       prev.map((item) =>
@@ -70,10 +70,12 @@ const HomeScreen = ({ navigation, route }) => {
     );
   };
 
+  // Initial profile fetch
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
 
+  // Fetch conversations
   useEffect(() => {
     const fetchConversations = async () => {
       if (!currentUser?._id) return;
@@ -104,10 +106,12 @@ const HomeScreen = ({ navigation, route }) => {
     fetchConversations();
   }, [currentUser]);
 
+  // Profile update handler
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
   };
 
+  // Logout handler
   const handleLogout = async () => {
     try {
       setShowDropdown(false);
@@ -119,6 +123,7 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
 
+  // Search debounce utility
   const debounce = (func, delay) => {
     let timeoutId;
     return (...args) => {
@@ -127,11 +132,11 @@ const HomeScreen = ({ navigation, route }) => {
     };
   };
 
+  // Search handler
   const handleSearch = useCallback(
     debounce(async (query) => {
       Keyboard.dismiss();
       const formattedQuery = query.replace(/[^0-9]/g, "");
-      console.log("Searching:", formattedQuery);
       if (!formattedQuery.trim()) {
         setSearchResults([]);
         setIsSearching(false);
@@ -142,7 +147,6 @@ const HomeScreen = ({ navigation, route }) => {
         const results = await findUserByPhone(formattedQuery);
         const resultsArray = Array.isArray(results) ? results : [results];
         setSearchResults(resultsArray);
-        console.log("Search results:", resultsArray);
       } catch (error) {
         console.error("Search error:", error);
         setSearchResults([]);
@@ -153,20 +157,20 @@ const HomeScreen = ({ navigation, route }) => {
       } finally {
         setIsSearching(false);
       }
-    }, 500),
+    }, 1300),
     []
   );
 
+  // Search change handler
   const handleSearchChange = (query) => {
     setSearchQuery(query);
     handleSearch(query);
   };
 
+  // Send friend request handler
   const handleSendFriendRequest = async (receiverId) => {
-    console.log("Sending friend request to:", receiverId);
     try {
       await sendRequest(receiverId);
-      console.log("Friend request sent successfully");
       Alert.alert("Success", "Friend request sent!");
       setMessage("Friend request sent!");
       setTimeout(() => setMessage(""), 3000);
@@ -175,51 +179,10 @@ const HomeScreen = ({ navigation, route }) => {
         error.message === "Friend request already exists"
           ? "Friend request already sent!"
           : "Failed to send friend request.";
-      console.log("Friend request error:", errorMsg);
       Alert.alert("Error", errorMsg);
       setMessage(errorMsg);
       setTimeout(() => setMessage(""), 3000);
-      console.error("Error sending friend request:", error);
     }
-  };
-
-  const renderSearchResults = () => {
-    return (
-      <FlatList
-        data={searchResults}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item }) => {
-          const isCurrentUser = item._id === currentUser?._id;
-          return (
-            <View style={styles.userItem}>
-              <Avatar.Image
-                size={40}
-                source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-              />
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>
-                  {item.fullName || "Unknown User"}
-                </Text>
-                <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-              </View>
-              {!isCurrentUser && (
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => handleSendFriendRequest(item._id)}
-                >
-                  <MaterialCommunityIcons
-                    name="account-plus"
-                    size={24}
-                    color={colors.primary}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        }}
-        style={styles.resultsContainer}
-      />
-    );
   };
 
   const renderScene = () => {
@@ -238,28 +201,19 @@ const HomeScreen = ({ navigation, route }) => {
         );
       }
       return (
-        <View style={{ flex: 1, position: "relative" }}>
-          <ChatList chats={[]} onChatSelect={() => {}} />
-          {searchResults.length > 0 &&
-            searchQuery.trim() &&
-            renderSearchResults()}
-          {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
-            <Text style={styles.noResults}>No users found.</Text>
-          )}
-          {message && (
-            <Text
-              style={[
-                styles.message,
-                { color: colors.primary, backgroundColor: "#fff", padding: 10 },
-              ]}
-            >
-              {message}
-            </Text>
-          )}
+        <View style={{ flex: 1 }}>
+          <ChatList
+            chats={conversations}
+            onChatSelect={(chat) => {
+              setSelectedChat(chat);
+              setShowAppbar(false);
+              setShowBottomNav(false);
+            }}
+          />
         </View>
       );
     }
-    return <ContactsScreen navigation={navigation} />;
+    return <ContactsScreen style={{ flex: 1, position: "relative" }} navigation={navigation} />;
   };
 
   return (
@@ -270,8 +224,9 @@ const HomeScreen = ({ navigation, route }) => {
       }}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      {/* Header with SearchBar */}
       {showAppbar && (
-        <View style={{ position: "relative", zIndex: 3 }}>
+        <View style={styles.appBarContainer}>
           <Appbar.Header style={styles.appBar}>
             <SearchBar
               searchQuery={searchQuery}
@@ -279,6 +234,7 @@ const HomeScreen = ({ navigation, route }) => {
               isSearchFocused={isSearchFocused}
               setIsSearchFocused={setIsSearchFocused}
               colors={colors}
+              onSearch={handleSearch}
             />
             <View style={styles.avatarContainer}>
               <TouchableOpacity
@@ -308,7 +264,28 @@ const HomeScreen = ({ navigation, route }) => {
           </Appbar.Header>
         </View>
       )}
-      <View style={{ flex: 1 }}>{renderScene()}</View>
+      {/* Search results overlay */}
+      <SearchOverlay
+        isVisible={searchQuery.trim().length > 0}
+        searchResults={searchResults}
+        isSearching={isSearching}
+        searchQuery={searchQuery}
+        currentUser={currentUser}
+        onSendFriendRequest={handleSendFriendRequest}
+        message={message}
+        colors={colors}
+      />
+
+      {/* Main content */}
+      <View style={[
+        { flex: 1,minHeight:550 },
+        showAppbar && { marginTop: 110 }, 
+      ]}>
+        {renderScene()}
+      </View>
+
+
+      {/* Bottom navigation */}
       {showBottomNav && (
         <BottomNavigation
           navigationState={{ index, routes }}
@@ -345,6 +322,8 @@ const HomeScreen = ({ navigation, route }) => {
           style={styles.bottomNav}
         />
       )}
+
+      {/* Modals */}
       <ProfileModal
         visible={visibleProfile}
         user={currentUser}
@@ -364,6 +343,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  appBarContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
   appBar: {
     backgroundColor: "#0098f9",
     paddingHorizontal: 10,
@@ -377,8 +363,9 @@ const styles = StyleSheet.create({
   bottomNavBar: {
     borderTopWidth: 0.5,
     borderTopColor: "#e0e0e0",
-    backgroundColor: "#fff",
-    elevation: 8,
+    backgroundColor: "white",
+    elevation:8,
+    zIndex: 10,
   },
   iconContainer: {
     padding: 10,
@@ -386,48 +373,6 @@ const styles = StyleSheet.create({
   activeIconContainer: {
     backgroundColor: "rgba(0, 152, 249, 0.1)",
     borderRadius: 20,
-  },
-  resultsContainer: {
-    paddingHorizontal: 15,
-    backgroundColor: "#fff",
-    zIndex: 2,
-  },
-  userItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  userInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  userPhone: {
-    fontSize: 14,
-    color: "#666",
-  },
-  addButton: {
-    padding: 5,
-  },
-  noResults: {
-    textAlign: "center",
-    marginVertical: 10,
-    color: "#666",
-    fontStyle: "italic",
-  },
-  message: {
-    textAlign: "center",
-    marginVertical: 10,
-    fontSize: 14,
-    position: "absolute",
-    bottom: 20,
-    width: "100%",
-    zIndex: 10,
   },
 });
 
