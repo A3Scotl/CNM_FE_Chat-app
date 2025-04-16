@@ -2,8 +2,7 @@ import { useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import { Alert } from "react-native";
-
-const SOCKET_URL = "https://be.haudev.io.vn";
+import {SOCKET_URL} from "@env";
 
 export const useSocket = (
   userId,
@@ -29,7 +28,6 @@ export const useSocket = (
           console.error("No token found in AsyncStorage");
           return;
         }
-
         console.log("Initializing socket for userId:", userId);
         console.log("Token used:", token.substring(0, 10) + "...");
         socketRef.current = io(SOCKET_URL, {
