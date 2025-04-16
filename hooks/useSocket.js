@@ -23,8 +23,8 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
           return;
         }
 
-        console.log("Initializing socket for userId:", userId);
-        console.log("Token used:", token.substring(0, 10) + "...");
+        // console.log("Initializing socket for userId:", userId);
+        // console.log("Token used:", token.substring(0, 10) + "...");
 
         socketRef.current = io(SOCKET_URL, {
           auth: { userId, token },
@@ -44,7 +44,7 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
             description: err.description,
             context: err.context,
           });
-          Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ.");
+          // Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ.");
         });
 
         socketRef.current.on("friend-request", ({ message, from, requestId }) => {
@@ -64,7 +64,8 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
         });
 
         socketRef.current.on("disconnect", (reason) => {
-          Alert.alert("Ngắt kết nối", `Lý do: ${reason}`);
+          // Alert.alert("Ngắt kết nối", `Lý do: ${reason}`);
+          console.log("Ngắt kết nối", `Lý do: ${reason}`);
         });
 
         socketRef.current.onAny((event, ...args) => {

@@ -307,7 +307,7 @@ const HomeScreen = ({ navigation, route }) => {
           </Appbar.Header>
         </View>
       )}
-      <View style={{ flex: 1 }}>{renderScene()}</View>
+      <View style={{ flex: 1,minHeight:550 }}>{renderScene()}</View>
       {showBottomNav && (
         <BottomNavigation
           navigationState={{ index, routes }}
@@ -329,8 +329,7 @@ const HomeScreen = ({ navigation, route }) => {
             return (
               <View
                 style={[
-                  styles.iconContainer,
-                  focused && styles.activeIconContainer,
+                  styles.iconContainer
                 ]}
               >
                 <MaterialCommunityIcons
@@ -380,7 +379,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   iconContainer: {
-    padding: 10,
     width:30,
     height:30,
   },

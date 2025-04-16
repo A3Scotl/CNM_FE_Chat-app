@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
+import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,6 +29,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [userId, setUserId] = useState(null);
   const [socket, setSocket] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Focus vào TextInput khi component mount
   useEffect(() => {
@@ -164,6 +165,7 @@ const ChatScreen = ({ navigation, route }) => {
     const fetchMessages = async () => {
       if (!chat._id || !userId) return;
 
+      setIsLoading(true);
       try {
         const data = await getMessages(chat._id);
 
@@ -182,6 +184,8 @@ const ChatScreen = ({ navigation, route }) => {
         setMessages(formattedMessages);
       } catch (error) {
         console.error("❌ Không thể tải tin nhắn:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -197,7 +201,7 @@ const ChatScreen = ({ navigation, route }) => {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 20}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       <View style={styles.container}>
         {/* Header */}
@@ -223,17 +227,24 @@ const ChatScreen = ({ navigation, route }) => {
           style={styles.chatContent}
           contentContainerStyle={{ paddingBottom: 16, flexGrow: 1 }}
         >
-          {messages.map((msg, index) => (
-            <View
-              key={index}
-              style={[styles.messageBubble, msg.isCurrentUser ? styles.messageMe : styles.messageOther]}
-            >
-              <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
-                {msg.content}
-              </Text>
-              <Text style={styles.timestamp}>{msg.timestamp}</Text>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#0098f9" />
+              <Text style={styles.loadingText}>Đang tải tin nhắn...</Text>
             </View>
-          ))}
+          ) : (
+            messages.map((msg, index) => (
+              <View
+                key={index}
+                style={[styles.messageBubble, msg.isCurrentUser ? styles.messageMe : styles.messageOther]}
+              >
+                <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
+                  {msg.content}
+                </Text>
+                <Text style={styles.timestamp}>{msg.timestamp}</Text>
+              </View>
+            ))
+          )}
         </ScrollView>
 
         {/* Emoji Picker */}
@@ -265,7 +276,7 @@ const ChatScreen = ({ navigation, route }) => {
             autoCorrect={false}
             onFocus={() => {
               handleTyping();
-              setShowEmojiPicker(false); // Ẩn emoji picker khi focus vào TextInput
+              setShowEmojiPicker(false);
               setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
             }}
           />
@@ -274,15 +285,13 @@ const ChatScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Typing Indicator */}
-        {typing && <Text style={styles.typingText}>User is typing...</Text>}
       </View>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5", paddingTop: 40 },
+  container: { flex: 1, backgroundColor: "#f5f5f5", paddingTop: 40, paddingBottom: 20 },
   header: {
     backgroundColor: "white",
     elevation: 2,
@@ -338,6 +347,16 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#ddd",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 16,
+    color: "#666",
   },
 });
 
