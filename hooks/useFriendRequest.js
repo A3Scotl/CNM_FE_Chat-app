@@ -7,8 +7,12 @@ export const useFriendRequest = () => {
   const [requests, setRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
   const [friends, setFriends] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [loadingSentRequests, setLoadingSentRequests] = useState(false);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [errorRequests, setErrorRequests] = useState(null);
+  const [errorSentRequests, setErrorSentRequests] = useState(null);
+  const [errorFriends, setErrorFriends] = useState(null);
   const [userId, setUserId] = useState(null);
 
   // Lấy userId từ AsyncStorage
@@ -22,7 +26,7 @@ export const useFriendRequest = () => {
         }
       } catch (err) {
         if (isMounted) {
-          setError("Failed to fetch user ID");
+          console.error("Failed to fetch user ID:", err);
         }
       }
     };
@@ -31,6 +35,25 @@ export const useFriendRequest = () => {
       isMounted = false;
     };
   }, []);
+
+  // Hàm cache dữ liệu
+  const cacheData = async (key, data) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(data));
+    } catch (err) {
+      console.error(`Failed to cache ${key}:`, err);
+    }
+  };
+
+  const getCachedData = async (key) => {
+    try {
+      const data = await AsyncStorage.getItem(key);
+      return data ? JSON.parse(data) : null;
+    } catch (err) {
+      console.error(`Failed to get cached ${key}:`, err);
+      return null;
+    }
+  };
 
   // Khởi tạo socket listeners
   useSocket(userId, {
@@ -44,18 +67,42 @@ export const useFriendRequest = () => {
     },
     onFriendRequestAccepted: ({ user }) => {
       setSentRequests((prev) => prev.filter((req) => req.to._id !== user._id));
-      fetchFriends(); // Cập nhật danh sách bạn bè khi có chấp nhận
+      fetchFriends(); // Cập nhật danh sách bạn bè
+      fetchSentRequests(); // Làm mới danh sách đã gửi
     },
   });
 
-  // Hàm fetch chung để tái sử dụng
-  const fetchData = async (fetchFn, setState) => {
+  // Hàm fetch chung
+  const fetchData = async (fetchFn, setState, cacheKey, setLoading, setError) => {
     if (!userId) return;
     setLoading(true);
     setError(null);
+
+    // Kiểm tra cache trước
+    const cachedData = await getCachedData(cacheKey);
+    if (cachedData) {
+      setState(cachedData);
+      setLoading(false);
+      // Cập nhật nền
+      try {
+        const data = await fetchFn();
+        // Loại bỏ trùng lặp trước khi set state
+        const uniqueData = Array.from(new Map(data.map(item => [item._id, item])).values());
+        setState(uniqueData || []);
+        await cacheData(cacheKey, uniqueData || []);
+      } catch (err) {
+        console.error(`Failed to update ${cacheKey}:`, err);
+      }
+      return;
+    }
+
+    // Nếu không có cache, gọi API
     try {
       const data = await fetchFn();
-      setState(data || []);
+      // Loại bỏ trùng lặp trước khi set state
+      const uniqueData = Array.from(new Map(data.map(item => [item._id, item])).values());
+      setState(uniqueData || []);
+      await cacheData(cacheKey, uniqueData || []);
     } catch (err) {
       setError(err.message);
       setState([]);
@@ -65,18 +112,31 @@ export const useFriendRequest = () => {
   };
 
   // Fetch các loại dữ liệu
-  const fetchRequests = useCallback(() => fetchData(friendRequest.getRequests, setRequests), [userId]);
-  const fetchSentRequests = useCallback(() => fetchData(friendRequest.getSentFriendsRequest, setSentRequests), [userId]);
-  const fetchFriends = useCallback(() => fetchData(friendRequest.getFriends, setFriends), [userId]);
+  const fetchRequests = useCallback(
+    () => fetchData(friendRequest.getRequests, setRequests, "friendRequests", setLoadingRequests, setErrorRequests),
+    [userId]
+  );
+  const fetchSentRequests = useCallback(
+    () => fetchData(friendRequest.getSentFriendsRequest, setSentRequests, "sentRequests", setLoadingSentRequests, setErrorSentRequests),
+    [userId]
+  );
+  const fetchFriends = useCallback(
+    () => fetchData(friendRequest.getFriends, setFriends, "friends", setLoadingFriends, setErrorFriends),
+    [userId]
+  );
 
   // Gửi lời mời kết bạn
   const sendRequest = async (receiverId) => {
     try {
       const response = await friendRequest.sendRequest(receiverId);
-      setSentRequests((prev) => [
-        ...prev,
-        { _id: response._id, to: { _id: receiverId }, status: "pending" },
-      ]);
+      setSentRequests((prev) => {
+        const newRequest = { _id: response._id, to: { _id: receiverId }, status: "pending" };
+        const updatedRequests = [...prev, newRequest];
+        // Loại bỏ trùng lặp
+        return Array.from(new Map(updatedRequests.map(item => [item._id, item])).values());
+      });
+      // Làm mới danh sách từ server
+      await fetchSentRequests();
     } catch (err) {
       throw new Error(err.message);
     }
@@ -87,7 +147,7 @@ export const useFriendRequest = () => {
     try {
       await friendRequest.acceptRequest(requestId);
       setRequests((prev) => prev.filter((req) => req._id !== requestId));
-      fetchFriends(); // Cập nhật danh sách bạn bè
+      fetchFriends();
     } catch (err) {
       throw new Error(err.message);
     }
@@ -116,8 +176,12 @@ export const useFriendRequest = () => {
     requests,
     sentRequests,
     friends,
-    loading,
-    error,
+    loadingRequests,
+    loadingSentRequests,
+    loadingFriends,
+    errorRequests,
+    errorSentRequests,
+    errorFriends,
     sendRequest,
     acceptRequest,
     rejectRequest,

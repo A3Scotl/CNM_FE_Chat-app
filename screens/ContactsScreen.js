@@ -1,26 +1,53 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { useTheme, Avatar, Button } from "react-native-paper";
 import { useFriendRequest } from "../hooks/useFriendRequest";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import debounce from "lodash.debounce";
 
 dayjs.extend(relativeTime);
 
 const ContactsScreen = () => {
   const { colors } = useTheme();
-  const { requests, sentRequests, friends, loading, error, acceptRequest, rejectRequest, fetchRequests, fetchSentRequests, fetchFriends } = useFriendRequest();
+  const {
+    requests,
+    sentRequests,
+    friends,
+    loadingRequests,
+    loadingSentRequests,
+    loadingFriends,
+    errorRequests,
+    errorSentRequests,
+    errorFriends,
+    acceptRequest,
+    rejectRequest,
+    fetchRequests,
+    fetchSentRequests,
+    fetchFriends,
+  } = useFriendRequest();
   const [activeTab, setActiveTab] = useState("friends");
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Refresh dữ liệu khi làm mới
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    Promise.all([fetchRequests(), fetchSentRequests(), fetchFriends()])
+      .finally(() => setRefreshing(false));
+  }, [fetchRequests, fetchSentRequests, fetchFriends]);
 
   // Refresh dữ liệu khi màn hình được focus
   useFocusEffect(
-    useCallback(() => {
-      fetchRequests();
-      fetchSentRequests();
-      fetchFriends();
-    }, [fetchRequests, fetchSentRequests, fetchFriends])
+    useCallback(
+      debounce(() => {
+        fetchRequests();
+        fetchSentRequests();
+        fetchFriends();
+      }, 300),
+      [fetchRequests, fetchSentRequests, fetchFriends]
+    )
   );
 
   // Xử lý chấp nhận lời mời
@@ -28,7 +55,7 @@ const ContactsScreen = () => {
     try {
       await acceptRequest(requestId);
     } catch (error) {
-      Alert.alert("Lỗi", error.message || "Không thể chấp nhận lời mời");
+      ToastAndroid.show(error.message || "Không thể chấp nhận lời mời", ToastAndroid.SHORT);
     }
   };
 
@@ -37,12 +64,11 @@ const ContactsScreen = () => {
     try {
       await rejectRequest(requestId);
     } catch (error) {
-      Alert.alert("Lỗi", error.message || "Không thể từ chối lời mời");
+      ToastAndroid.show(error.message || "Không thể từ chối lời mời", ToastAndroid.SHORT);
     }
   };
 
-  // Render lời mời kết bạn
-  const renderRequestItem = ({ item }) => (
+  const RequestItem = React.memo(({ item, handleAccept, handleReject, colors }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
         <Avatar.Image size={48} source={{ uri: item.from?.avatar || "https://i.pravatar.cc/150" }} />
@@ -60,10 +86,9 @@ const ContactsScreen = () => {
         </Button>
       </View>
     </View>
-  );
+  ));
 
-  // Render lời mời đã gửi
-  const renderSentRequestItem = ({ item }) => (
+  const SentRequestItem = React.memo(({ item, colors }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
         <Avatar.Image size={48} source={{ uri: item.to?.avatar || "https://i.pravatar.cc/150" }} />
@@ -73,10 +98,9 @@ const ContactsScreen = () => {
         </View>
       </View>
     </View>
-  );
+  ));
 
-  // Render bạn bè
-  const renderFriendItem = ({ item }) => (
+  const FriendItem = React.memo(({ item, colors }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
         <Avatar.Image size={48} source={{ uri: item.avatar || "https://i.pravatar.cc/150" }} />
@@ -91,23 +115,42 @@ const ContactsScreen = () => {
         </Button>
       </View>
     </View>
+  ));
+
+  // Render các item
+  const renderRequestItem = ({ item }) => (
+    <RequestItem item={item} handleAccept={handleAccept} handleReject={handleReject} colors={colors} />
   );
 
-  // Render section (lời mời, bạn bè, v.v.)
-  const renderSection = (title, data, renderItem, emptyMessage) => (
+  const renderSentRequestItem = ({ item }) => (
+    <SentRequestItem item={item} colors={colors} />
+  );
+
+  const renderFriendItem = ({ item }) => (
+    <FriendItem item={item} colors={colors} />
+  );
+
+  // Render section
+  const renderSection = (title, data, renderItem, emptyMessage, isLoading, error) => (
     <>
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
-        <TouchableOpacity onPress={() => data === requests ? fetchRequests() : data === sentRequests ? fetchSentRequests() : fetchFriends()} disabled={loading}>
-          <MaterialCommunityIcons name="refresh" size={24} color={colors.primary} />
-        </TouchableOpacity>
+       
       </View>
-      {loading ? (
+      {isLoading ? (
         <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
       ) : error ? (
         <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {error}</Text>
       ) : data.length > 0 ? (
-        <FlatList data={data} renderItem={renderItem} keyExtractor={(item) => item._id} scrollEnabled={false} />
+        <FlatList
+          data={data}
+          renderItem={renderItem}
+          keyExtractor={(item) => item._id}
+          scrollEnabled={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={21}
+        />
       ) : (
         <Text style={[styles.emptyText, { color: colors.text }]}>{emptyMessage}</Text>
       )}
@@ -132,15 +175,15 @@ const ContactsScreen = () => {
       </View>
 
       {activeTab === "friends" && (
-        <ScrollView>
-          {renderSection(`Lời mời kết bạn (${requests.length})`, requests, renderRequestItem, "Không có lời mời kết bạn.")}
-          {renderSection(`Lời mời đã gửi (${sentRequests.length})`, sentRequests, renderSentRequestItem, "Bạn chưa gửi lời mời kết bạn nào.")}
-          {renderSection(`Bạn bè (${friends.length})`, friends, renderFriendItem, "Chưa có bạn bè.")}
+        <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+          {renderSection(`Lời mời kết bạn (${requests.length})`, requests, renderRequestItem, "Không có lời mời kết bạn.", loadingRequests, errorRequests)}
+          {renderSection(`Lời mời đã gửi (${sentRequests.length})`, sentRequests, renderSentRequestItem, "Bạn chưa gửi lời mời kết bạn nào.", loadingSentRequests, errorSentRequests)}
+          {renderSection(`Bạn bè (${friends.length})`, friends, renderFriendItem, "Chưa có bạn bè.", loadingFriends, errorFriends)}
         </ScrollView>
       )}
 
       {activeTab === "groups" && (
-        <ScrollView>
+        <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.primary }]}>Danh sách nhóm</Text>
           </View>
@@ -191,6 +234,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#e0e0e0",
+    flex:1
   },
   rowTop: {
     flexDirection: "row",
