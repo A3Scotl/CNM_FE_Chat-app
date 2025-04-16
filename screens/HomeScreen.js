@@ -8,6 +8,7 @@ import {
   FlatList,
   Alert,
   Keyboard,
+  ActivityIndicator,
 } from "react-native";
 import { Appbar, Avatar, useTheme, BottomNavigation } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -42,7 +43,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [message, setMessage] = useState("");
   const [conversations, setConversations] = useState([]);
-
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const { sendRequest } = useFriendRequest();
 
   const routes = [
@@ -79,6 +80,7 @@ const HomeScreen = ({ navigation, route }) => {
       if (!currentUser?._id) return;
 
       try {
+        setLoadingConversations(true); 
         const res = await getMyConversations();
 
         const mappedConversations = res.data
@@ -98,6 +100,8 @@ const HomeScreen = ({ navigation, route }) => {
         setConversations(mappedConversations);
       } catch (err) {
         console.error("Failed to load conversations", err);
+      }finally{
+        setLoadingConversations(false); 
       }
     };
 
@@ -242,19 +246,20 @@ const HomeScreen = ({ navigation, route }) => {
       }
       return (
         <View style={{ flex: 1, position: "relative" }}>
-          <ChatList chats={conversations} onChatSelect={(chat) => setSelectedChat(chat)} />
-          {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
-            <Text style={styles.noResults}>No users found.</Text>
-          )}
-          {message && (
-            <Text
-              style={[
-                styles.message,
-                { color: colors.primary, backgroundColor: "#fff", padding: 10 },
-              ]}
-            >
-              {message}
-            </Text>
+          {loadingConversations ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : (
+            <>
+              <ChatList 
+                chats={conversations} 
+                onChatSelect={(chat) => setSelectedChat(chat)} 
+              />
+              {conversations.length === 0 && !loadingConversations && (
+                <Text style={styles.noConversations}>No conversations yet</Text>
+              )}
+            </>
           )}
         </View>
       );
@@ -368,6 +373,21 @@ const styles = StyleSheet.create({
   appBar: {
     backgroundColor: "#0098f9",
     paddingHorizontal: 10,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#0098f9',
+  },
+  noConversations: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
+    color: '#666',
   },
   avatarContainer: {
     marginLeft: 10,
