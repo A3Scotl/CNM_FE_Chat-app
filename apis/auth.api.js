@@ -15,6 +15,7 @@ export const login = async ({ phoneNumber, passWord }) => {
     return data;
   } catch (error) {
     const errorMessage = handleApiError(error);
+    console.log(error)
     throw new Error(errorMessage);
   }
 };

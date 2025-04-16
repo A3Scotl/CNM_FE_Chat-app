@@ -59,7 +59,6 @@ const HomeScreen = ({ navigation, route }) => {
       });
     } catch (error) {
       console.error("Failed to fetch profile:", error);
-      Alert.alert("Error", "Failed to load profile.");
     }
   }, []);
 
@@ -116,7 +115,6 @@ const HomeScreen = ({ navigation, route }) => {
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
-      Alert.alert("Error", "Failed to log out.");
     }
   };
 
@@ -145,10 +143,6 @@ const HomeScreen = ({ navigation, route }) => {
       } catch (error) {
         console.error("Search error:", error);
         setSearchResults([]);
-        Alert.alert(
-          "Search Error",
-          "Unable to search users. Please try again."
-        );
       } finally {
         setIsSearching(false);
       }
@@ -175,7 +169,6 @@ const HomeScreen = ({ navigation, route }) => {
           ? "Friend request already sent!"
           : "Failed to send friend request.";
       console.log("Friend request error:", errorMsg);
-      Alert.alert("Error", errorMsg);
       setMessage(errorMsg);
       setTimeout(() => setMessage(""), 3000);
       console.error("Error sending friend request:", error);
@@ -183,43 +176,54 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const renderSearchResults = () => {
+    if (!searchQuery.trim()) return null;
+
     return (
-      <FlatList
-        data={searchResults}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item }) => {
-          const isCurrentUser = item._id === currentUser?._id;
-          return (
-            <View style={styles.userItem}>
-              <Avatar.Image
-                size={40}
-                source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-              />
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>
-                  {item.fullName || "Unknown User"}
-                </Text>
-                <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-              </View>
-              {!isCurrentUser && (
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={() => handleSendFriendRequest(item._id)}
-                >
-                  <MaterialCommunityIcons
-                    name="account-plus"
-                    size={24}
-                    color={colors.primary}
+      <View style={styles.searchOverlay}>
+        {isSearching ? (
+          <Text style={styles.searchingText}>Searching...</Text>
+        ) : searchResults.length > 0 ? (
+          <FlatList
+            data={searchResults}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => {
+              const isCurrentUser = item._id === currentUser?._id;
+              return (
+                <View style={styles.userItem}>
+                  <Avatar.Image
+                    size={40}
+                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
                   />
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        }}
-        style={styles.resultsContainer}
-      />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>
+                      {item.fullName || "Unknown User"}
+                    </Text>
+                    <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                  </View>
+                  {!isCurrentUser && (
+                    <TouchableOpacity
+                      style={styles.addButton}
+                      onPress={() => handleSendFriendRequest(item._id)}
+                    >
+                      <MaterialCommunityIcons
+                        name="account-plus"
+                        size={24}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            }}
+          />
+        ) : (
+          <Text style={styles.noResults}>No users found.</Text>
+        )}
+      </View>
     );
   };
+
+
 
   const renderScene = () => {
     if (index === 0) {
@@ -239,9 +243,6 @@ const HomeScreen = ({ navigation, route }) => {
       return (
         <View style={{ flex: 1, position: "relative" }}>
           <ChatList chats={conversations} onChatSelect={(chat) => setSelectedChat(chat)} />
-          {searchResults.length > 0 &&
-            searchQuery.trim() &&
-            renderSearchResults()}
           {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
             <Text style={styles.noResults}>No users found.</Text>
           )}
@@ -307,7 +308,9 @@ const HomeScreen = ({ navigation, route }) => {
           </Appbar.Header>
         </View>
       )}
-      <View style={{ flex: 1,minHeight:550 }}>{renderScene()}</View>
+      {renderSearchResults()}
+
+      <View style={{ flex: 1, minHeight: 550 }}>{renderScene()}</View>
       {showBottomNav && (
         <BottomNavigation
           navigationState={{ index, routes }}
@@ -379,8 +382,25 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   iconContainer: {
-    width:30,
-    height:30,
+    width: 30,
+    height: 30,
+  },
+  searchOverlay: {
+    position: 'absolute',
+    top: 100,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    zIndex: 20,
+    elevation: 20,
+    padding: 10,
+  },
+  searchingText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
+    color: '#0098f9',
   },
 
   resultsContainer: {
