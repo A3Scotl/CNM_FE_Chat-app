@@ -381,11 +381,10 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     padding: 10,
+    width:30,
+    height:30,
   },
-  activeIconContainer: {
-    backgroundColor: "rgba(0, 152, 249, 0.1)",
-    borderRadius: 20,
-  },
+
   resultsContainer: {
     paddingHorizontal: 15,
     backgroundColor: "#fff",

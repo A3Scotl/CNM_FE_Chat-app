@@ -36,6 +36,7 @@
     "react-native-date-picker": "^5.0.12",
     "react-native-dotenv": "^3.4.11",
     "react-native-emoji-picker": "^0.2.2",
+    "react-native-emoji-selector": "^0.2.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-paper": "^5.13.1",
     "react-native-picker": "^4.3.7",
