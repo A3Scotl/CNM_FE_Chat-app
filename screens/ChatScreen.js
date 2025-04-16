@@ -237,8 +237,8 @@ const ChatScreen = ({ navigation, route }) => {
     if (viewRefs.current[messageId] && scrollRef.current) {
       viewRefs.current[messageId].measureInWindow((x, y, width, height) => {
         if (y !== undefined) {
-          scrollRef.current.scrollTo({ y: y - 100, animated: true }); // Center the message
-          setTimeout(() => setFocusedMessage(null), 2000); // Clear highlight after 2s
+          scrollRef.current.scrollTo({ y: y - 100, animated: true }); 
+          setTimeout(() => setFocusedMessage(null), 2000); 
         } else {
           console.warn('Vị trí y không xác định cho messageId:', messageId);
           scrollRef.current?.scrollToEnd({ animated: true });
@@ -299,23 +299,47 @@ const ChatScreen = ({ navigation, route }) => {
   // Play audio
   const playAudio = async (uri) => {
     if (!uri) {
-      console.error('playAudio: URI âm thanh không hợp lệ', { uri });
-      Alert.alert('Lỗi', 'Không thể phát âm thanh do tệp không hợp lệ.');
+      Alert.alert('Lỗi', 'Không có file âm thanh để phát');
       return;
     }
-
+  
     try {
-      console.log('Phát âm thanh:', { uri });
-      const { sound } = await Audio.Sound.createAsync({ uri });
-      await sound.playAsync();
+      // Kiểm tra định dạng file và platform
+      const fileExt = uri.split('.').pop().toLowerCase();
+      const isWebm = fileExt === 'webm';
+      
+      if (Platform.OS === 'ios' && isWebm) {
+        Alert.alert('Thông báo', 'iOS không hỗ trợ phát file WEBM trực tiếp. Vui lòng chuyển đổi sang MP3/M4A');
+        return;
+      }
+  
+      // Cấu hình audio mode đúng cách
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
+        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
+      });
+  
+      console.log('Đang phát âm thanh từ:', uri);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true }
+      );
+  
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.didJustFinish) {
           sound.unloadAsync();
         }
       });
+  
+      await sound.playAsync();
     } catch (err) {
-      console.error('Lỗi phát âm thanh:', err, { uri });
-      Alert.alert('Lỗi', 'Không thể phát âm thanh. Tệp có thể bị hỏng.');
+      console.error('Lỗi phát âm thanh:', err);
+      Alert.alert('Lỗi', `Không thể phát âm thanh: ${err.message}`);
     }
   };
 
@@ -578,7 +602,7 @@ const ChatScreen = ({ navigation, route }) => {
         socket.emit("stop-typing", chat._id, user._id);
         setTyping(false);
       }
-    }, 2000);
+    }, 750);
   };
 
   // Open image preview
@@ -603,7 +627,7 @@ const ChatScreen = ({ navigation, route }) => {
       return (
         <TouchableOpacity
           style={styles.audioContainer}
-          onPress={() => playAudio(msg.fileMeta[0].url)}
+          onPress={() => playAudio(msg.content)}
         >
           <FontAwesome5 name="play-circle" size={24} color={msg.isCurrentUser ? "white" : "#444"} />
           <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
@@ -676,9 +700,8 @@ const ChatScreen = ({ navigation, route }) => {
   // Render replied message
   const renderReplyToMessage = (msg) => {
     if (!msg.replyTo) return null;
-
-    const isCurrentUserReply = String(msg.replyTo.sender._id) === String(userId);
-    const senderName = isCurrentUserReply ? "Bạn" : msg.sender.fullName.split(" ").pop();
+    const isCurrentUserReply = String(msg.replyTo.sender) === String(userId);
+    const senderName = isCurrentUserReply ? "Bạn": msg.sender.fullName.split(" ").pop() ;
     let replyContent = "";
     if (msg.replyTo.type === "text") {
       replyContent = msg.replyTo.content;
