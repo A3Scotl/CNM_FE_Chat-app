@@ -4,6 +4,9 @@ import { useTheme, Avatar, Button } from "react-native-paper";
 import { useFriendRequest } from "../hooks/useFriendRequest";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import debounce from "lodash.debounce";
@@ -12,6 +15,7 @@ dayjs.extend(relativeTime);
 
 const ContactsScreen = () => {
   const { colors } = useTheme();
+  const navigation = useNavigation();
   const {
     requests,
     sentRequests,
@@ -67,7 +71,58 @@ const ContactsScreen = () => {
       ToastAndroid.show(error.message || "Không thể từ chối lời mời", ToastAndroid.SHORT);
     }
   };
-
+  const handleChat = async (friend) => {
+    // try {
+    //   const token = await AsyncStorage.getItem("token");
+    //   const currentUserId = await AsyncStorage.getItem("userId");
+  
+    //   // Gọi đúng API getOrCreateConversationDetail của backend
+    //   const response = await fetch("https://be.haudev.io.vn/api/conversation/detail", {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       Authorization: `Bearer ${token}`,
+    //     },
+    //     body: JSON.stringify({
+    //       to: friend._id // Đúng với tham số backend yêu cầu
+    //     }),
+    //   });
+  
+    //   const data = await response.json();
+      
+    //   if (!response.ok) {
+    //     throw new Error(data.message || "Không thể tạo/mở hội thoại");
+    //   }
+  
+    //   // Backend trả về data có cấu trúc { messages, ...conversation }
+    //   navigation.navigate("Chat", {
+    //     chat: data,
+    //     user: friend
+    //   });
+  
+    // } catch (error) {
+    //   console.error("Lỗi khi mở chat:", error);
+      
+    //   // Fallback: tạo conversation tạm trên client
+    //   const tempConversation = {
+    //     _id: `temp_${currentUserId}_${friend._id}`,
+    //     participants: [
+    //       { _id: currentUserId, fullName: "Bạn" },
+    //       { _id: friend._id, fullName: friend.fullName }
+    //     ],
+    //     type: "private",
+    //     messages: [], // Thêm mảng messages trống
+    //     isTemp: true
+    //   };
+      
+    //   navigation.navigate("Chat", {
+    //     chat: tempConversation,
+    //     user: friend
+    //   });
+      
+    //   Alert.alert("Thông báo", "Đang sử dụng hội thoại tạm");
+    // }
+  };
   const RequestItem = React.memo(({ item, handleAccept, handleReject, colors }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
@@ -100,7 +155,7 @@ const ContactsScreen = () => {
     </View>
   ));
 
-  const FriendItem = React.memo(({ item, colors }) => (
+  const FriendItem = React.memo(({ item, colors, onChatPress }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
         <Avatar.Image size={48} source={{ uri: item.avatar || "https://i.pravatar.cc/150" }} />
@@ -110,12 +165,16 @@ const ContactsScreen = () => {
         </View>
       </View>
       <View style={styles.rowBottom}>
+        <Button mode="contained" onPress={() => onChatPress(item)} style={[styles.button, { backgroundColor: colors.primary }]}>
+          Nhắn tin
+        </Button>
         <Button mode="outlined" style={styles.button} disabled>
           Hủy kết bạn
         </Button>
       </View>
     </View>
   ));
+
 
   // Render các item
   const renderRequestItem = ({ item }) => (
@@ -127,15 +186,20 @@ const ContactsScreen = () => {
   );
 
   const renderFriendItem = ({ item }) => (
-    <FriendItem item={item} colors={colors} />
+    <FriendItem
+      item={item}
+      colors={colors}
+      onChatPress={() => handleChat(item)}
+    />
   );
+
 
   // Render section
   const renderSection = (title, data, renderItem, emptyMessage, isLoading, error) => (
     <>
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
-       
+
       </View>
       {isLoading ? (
         <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
@@ -234,7 +298,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#e0e0e0",
-    flex:1
+    flex: 1
   },
   rowTop: {
     flexDirection: "row",

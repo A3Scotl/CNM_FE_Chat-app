@@ -1,27 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator, Image, Alert } from "react-native";
 import { Avatar, Text, useTheme, Card, Button, Portal, Modal } from "react-native-paper";
-import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import EmojiSelector from "react-native-emoji-selector";
 import { getMessages } from "../apis/message.api";
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import mime from 'mime';
-import { fromPairs } from "lodash";
-
-// Lấy token từ AsyncStorage
-const getToken = async () => {
-  try {
-    const token = await AsyncStorage.getItem("token");
-    return token;
-  } catch (error) {
-    console.error("❌ Lỗi khi lấy token từ AsyncStorage:", error);
-    return null;
-  }
-};
 
 const ChatScreen = ({ navigation, route }) => {
   const { chat, user } = route.params;
@@ -40,6 +27,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
 
   // Focus vào TextInput khi component mount
   useEffect(() => {
@@ -53,7 +41,7 @@ const ChatScreen = ({ navigation, route }) => {
     });
     const keyboardDidHideListener = Keyboard.addListener("keyboardDidHide", () => {
       scrollRef.current?.scrollToEnd({ animated: true });
-      setShowEmojiPicker(false); // Ẩn emoji picker khi bàn phím đóng
+      setShowEmojiPicker(false);
     });
 
     return () => {
@@ -81,7 +69,7 @@ const ChatScreen = ({ navigation, route }) => {
   useEffect(() => {
     const setupSocket = async () => {
       if (!userId || !chat._id) return;
-      const token = await getToken();
+      const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
       const socketConnection = io("https://be.haudev.io.vn", {
@@ -91,37 +79,35 @@ const ChatScreen = ({ navigation, route }) => {
       socketConnection.on("connect", () => {
         console.log("✅ Socket connected");
         socketConnection.emit("join-room", chat._id);
-        console.log("📥 Đã join phòng:", chat._id);
       });
 
       socketConnection.on("new-message", (msg) => {
         const isCurrentUser = String(msg.sender._id) === String(userId);
-      
+        
         const newMessage = {
           _id: msg._id,
           content: msg.content,
-          senderId: msg.sender._id,
+          sender: msg.sender,
           isCurrentUser,
           timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           }),
           type: msg.type,
-          fileMeta: msg.fileMeta || []
+          fileMeta: msg.fileMeta || [],
+          replyTo: msg.replyTo
         };
-      
-        setMessages((prev) => [...prev, newMessage]); 
+        
+        setMessages((prev) => [...prev, newMessage]);
         setTimeout(() => {
           scrollRef.current?.scrollToEnd({ animated: true });
         }, 100);
       });
-      
 
       setSocket(socketConnection);
 
       return () => {
         socketConnection.disconnect();
-        console.log("⚠️ Socket disconnected");
       };
     };
 
@@ -137,6 +123,16 @@ const ChatScreen = ({ navigation, route }) => {
       }
     })();
   }, []);
+
+  // Xử lý reply
+  const handleReply = (message) => {
+    setReplyingTo(message);
+    inputRef.current?.focus();
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
+  };
 
   // Chọn ảnh từ thư viện
   const pickImage = async () => {
@@ -155,7 +151,7 @@ const ChatScreen = ({ navigation, route }) => {
           type: 'image',
           name: selectedAsset.uri.split('/').pop()
         });
-        setSelectedFile(null); // Xóa file nếu đã chọn trước đó
+        setSelectedFile(null);
       }
     } catch (error) {
       console.error("Lỗi khi chọn ảnh:", error);
@@ -178,7 +174,7 @@ const ChatScreen = ({ navigation, route }) => {
           type: mime.getType(result.name) || 'application/octet-stream',
           size: result.size
         });
-        setSelectedMedia(null); // Xóa ảnh nếu đã chọn trước đó
+        setSelectedMedia(null);
       }
     } catch (error) {
       console.error("Lỗi khi chọn file:", error);
@@ -196,22 +192,23 @@ const ChatScreen = ({ navigation, route }) => {
   const uploadMedia = async () => {
     try {
       setIsSending(true);
-      const token = await getToken();
-      console.log("Token:", token);
-      console.log("Conversation ID:", chat._id);
-      console.log("Sender ID:", user._id);
-      console.log("Selected Media:", selectedMedia);
-      console.log("Selected File:", selectedFile);
-  
+      const token = await AsyncStorage.getItem("token");
+
       const formData = new FormData();
       formData.append('conversationId', chat._id);
       formData.append('sender', user._id);
+      
       if (message.trim()) {
         formData.append('content', message.trim());
       } else {
         formData.append('content', selectedMedia ? 'Đã gửi một hình ảnh' : 'Đã gửi một file');
       }
-  
+
+      // Thêm replyTo nếu có
+      if (replyingTo) {
+        formData.append('replyTo', replyingTo._id);
+      }
+
       if (selectedMedia) {
         const fileName = selectedMedia.uri.split('/').pop();
         const fileType = mime.getType(fileName) || 'image/jpeg';
@@ -229,9 +226,7 @@ const ChatScreen = ({ navigation, route }) => {
           type: selectedFile.type,
         });
       }
-  
-      console.log("FormData:", formData._parts);
-  
+
       const response = await fetch("https://be.haudev.io.vn/api/message/send", {
         method: "POST",
         headers: {
@@ -239,14 +234,14 @@ const ChatScreen = ({ navigation, route }) => {
         },
         body: formData,
       });
-  
+
       const responseData = await response.json();
-      console.log("Response:", responseData);
-  
+
       if (response.ok) {
         setMessage("");
         setSelectedMedia(null);
         setSelectedFile(null);
+        setReplyingTo(null);
       } else {
         console.error("Lỗi từ server:", responseData);
         Alert.alert("Lỗi", responseData.message || "Không thể gửi ảnh/file");
@@ -272,7 +267,19 @@ const ChatScreen = ({ navigation, route }) => {
 
     try {
       setIsSending(true);
-      const token = await getToken();
+      const token = await AsyncStorage.getItem("token");
+
+      const payload = {
+        conversationId: chat._id,
+        sender: user._id,
+        content: trimmedMessage,
+        type: "text",
+      };
+
+      // Thêm replyTo nếu có
+      if (replyingTo) {
+        payload.replyTo = replyingTo._id;
+      }
 
       const response = await fetch("https://be.haudev.io.vn/api/message/send", {
         method: "POST",
@@ -280,19 +287,15 @@ const ChatScreen = ({ navigation, route }) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          conversationId: chat._id,
-          sender: user._id,
-          content: trimmedMessage,
-          type: "text",
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (response.ok) {
         setMessage("");
-        setShowEmojiPicker(false); // Ẩn emoji picker sau khi gửi
+        setShowEmojiPicker(false);
+        setReplyingTo(null);
       } else {
         console.error("❌ Lỗi gửi tin nhắn:", data.message || data);
         Alert.alert("Lỗi", data.message || "Không thể gửi tin nhắn");
@@ -327,21 +330,22 @@ const ChatScreen = ({ navigation, route }) => {
 
       setIsLoading(true);
       try {
-        const data = await getMessages(chat._id);
+        const data = await getMessages(chat._id, userId);
 
         const formattedMessages = data.map((msg) => {
           const isCurrentUser = String(msg.sender._id) === String(userId);
           return {
             _id: msg._id,
             content: msg.content,
-            senderId: msg.sender._id,
+            sender: msg.sender,
             isCurrentUser,
             timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             }),
             type: msg.type || "text",
-            fileMeta: msg.fileMeta || []
+            fileMeta: msg.fileMeta || [],
+            replyTo: msg.replyTo
           };
         });
         setMessages(formattedMessages);
@@ -380,7 +384,7 @@ const ChatScreen = ({ navigation, route }) => {
             resizeMode="cover"
           />
           {msg.content !== "Đã gửi một hình ảnh" && 
-            <Text style={[styles.messageTextMe, { marginTop: 5 }]}>{msg.content}</Text>
+            <Text style={[msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther, { marginTop: 5 }]}>{msg.content}</Text>
           }
         </TouchableOpacity>
       );
@@ -390,14 +394,13 @@ const ChatScreen = ({ navigation, route }) => {
         <TouchableOpacity 
           style={styles.fileContainer}
           onPress={() => {
-            // Mở file hoặc tải xuống file
-            Alert.alert("Thông báo", `File: ${file.originalname}\nSize: ${(file.size/1024).toFixed(2)} KB`);
+            Alert.alert("Thông báo", `File: ${file.name}\nSize: ${(file.size/1024).toFixed(2)} KB`);
           }}
         >
           <FontAwesome5 name="file-alt" size={24} color={msg.isCurrentUser ? "white" : "#444"} />
           <View style={styles.fileInfo}>
             <Text style={[msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther, { fontWeight: "bold" }]} numberOfLines={1}>
-              {file.originalname}
+              {file.name}
             </Text>
             <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>
               {(file.size/1024).toFixed(2)} KB
@@ -408,6 +411,94 @@ const ChatScreen = ({ navigation, route }) => {
     } else {
       return <Text style={msg.isCurrentUser ? styles.messageTextMe : styles.messageTextOther}>{msg.content}</Text>;
     }
+  };
+
+  // Hiển thị reply preview
+  const renderReplyPreview = () => {
+    if (!replyingTo) return null;
+
+    const isCurrentUserReply = replyingTo.isCurrentUser;
+    const senderName = isCurrentUserReply ? "Bạn" : replyingTo.sender?.fullName?.split(" ").pop() || "Người lạ";
+
+    let replyContent = "";
+    if (replyingTo.type === "text") {
+      replyContent = replyingTo.content;
+    } else if (replyingTo.type === "image") {
+      replyContent = "Hình ảnh";
+    } else if (replyingTo.type === "file") {
+      replyContent = "File đính kèm";
+    }
+
+    return (
+      <View style={styles.replyPreviewContainer}>
+        <View style={styles.replyPreviewContent}>
+          <View style={[styles.replyIndicator, { backgroundColor: isCurrentUserReply ? "#0e76a8" : "#f1f1f1" }]} />
+          <View style={styles.replyTextContainer}>
+            <Text style={styles.replySenderText}>Trả lời {senderName}</Text>
+            <Text 
+              style={styles.replyContentText} 
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {replyContent}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={cancelReply} style={styles.cancelReplyButton}>
+          <Ionicons name="close" size={20} color="#666" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Hiển thị tin nhắn được reply
+  const renderReplyToMessage = (msg) => {
+    if (!msg.replyTo) return null;
+
+    const isCurrentUserReply = String(msg.replyTo.sender._id) === String(userId);
+    const senderName = isCurrentUserReply ? "Bạn" : msg.replyTo.sender?.fullName?.split(" ").pop() || "Người lạ";
+
+    let replyContent = "";
+    if (msg.replyTo.type === "text") {
+      replyContent = msg.replyTo.content;
+    } else if (msg.replyTo.type === "image") {
+      replyContent = "Hình ảnh";
+    } else if (msg.replyTo.type === "file") {
+      replyContent = "File đính kèm";
+    }
+
+    return (
+      <TouchableOpacity 
+        style={[
+          styles.replyToContainer,
+          msg.isCurrentUser ? styles.replyToContainerMe : styles.replyToContainerOther
+        ]}
+        onPress={() => handleReply(msg.replyTo)}
+      >
+        <View style={[
+          styles.replyIndicatorSmall, 
+          { backgroundColor: msg.isCurrentUser ? "white" : "#0e76a8" }
+        ]} />
+        <View>
+          <Text style={[
+            styles.replySenderTextSmall,
+            { color: msg.isCurrentUser ? "white" : "#0e76a8" }
+          ]}>
+            {senderName}
+          </Text>
+          <Text 
+            style={[
+              styles.replyContentTextSmall,
+              { color: msg.isCurrentUser ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }
+            ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {replyContent}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -447,16 +538,27 @@ const ChatScreen = ({ navigation, route }) => {
             </View>
           ) : (
             messages.map((msg, index) => (
-              <View
+              <TouchableOpacity
                 key={index}
+                activeOpacity={0.7}
+                onLongPress={() => handleReply(msg)}
                 style={[styles.messageBubble, msg.isCurrentUser ? styles.messageMe : styles.messageOther]}
               >
+                {renderReplyToMessage(msg)}
                 {renderMessageContent(msg)}
-                <Text style={styles.timestamp}>{msg.timestamp}</Text>
-              </View>
+                <Text style={[
+                  styles.timestamp,
+                  { color: msg.isCurrentUser ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)" }
+                ]}>
+                  {msg.timestamp}
+                </Text>
+              </TouchableOpacity>
             ))
           )}
         </ScrollView>
+
+        {/* Reply Preview */}
+        {replyingTo && renderReplyPreview()}
 
         {/* Media Preview */}
         {selectedMedia && (
@@ -578,11 +680,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     maxWidth: "80%",
   },
-  messageMe: { alignSelf: "flex-end", backgroundColor: "#0e76a8" },
-  messageOther: { alignSelf: "flex-start", backgroundColor: "#f1f1f1" },
+  messageMe: { 
+    alignSelf: "flex-end", 
+    backgroundColor: "#0e76a8",
+    borderBottomRightRadius: 2,
+  },
+  messageOther: { 
+    alignSelf: "flex-start", 
+    backgroundColor: "#f1f1f1",
+    borderBottomLeftRadius: 2,
+  },
   messageTextMe: { color: "white" },
   messageTextOther: { color: "black" },
-  timestamp: { fontSize: 10, color: "#666", marginTop: 4 },
+  timestamp: { 
+    fontSize: 10, 
+    alignSelf: "flex-end",
+    marginTop: 4,
+  },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -650,7 +764,7 @@ const styles = StyleSheet.create({
   mediaPreview: {
     height: 100,
     borderRadius: 8,
-    marginRight: 50,  // Space for the cancel button
+    marginRight: 50,
   },
   cancelMediaButton: {
     position: "absolute",
@@ -739,6 +853,71 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: 20,
     padding: 8,
+  },
+  // Reply styles
+  replyPreviewContainer: {
+    backgroundColor: "#f0f0f0",
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  replyPreviewContent: {
+    flexDirection: "row",
+    flex: 1,
+    alignItems: "center",
+  },
+  replyIndicator: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+    marginRight: 10,
+  },
+  replyTextContainer: {
+    flex: 1,
+  },
+  replySenderText: {
+    fontWeight: "bold",
+    fontSize: 14,
+    color: "#333",
+  },
+  replyContentText: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  cancelReplyButton: {
+    marginLeft: 10,
+  },
+  // Reply to message styles
+  replyToContainer: {
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 5,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  replyToContainerMe: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  replyToContainerOther: {
+    backgroundColor: "rgba(0,118,168,0.1)",
+  },
+  replyIndicatorSmall: {
+    width: 3,
+    height: 30,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  replySenderTextSmall: {
+    fontWeight: "bold",
+    fontSize: 12,
+  },
+  replyContentTextSmall: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });
 
