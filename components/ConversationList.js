@@ -18,18 +18,18 @@ const ConversationList = ({ currentUser }) => {
       const response = await getMyConversations();
       const data = response.data || [];
       if (!Array.isArray(data)) {
-        console.error("Dữ liệu không phải mảng:", data);
         throw new Error("Dữ liệu cuộc trò chuyện không hợp lệ");
       }
-
       const mappedConversations = data.map((convo) => {
         if (convo.type === "group") {
+          // console.log("convo",convo);
           return {
             _id: convo._id,
             user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
             lastMessage: convo.lastMessage || null,
             type: "group",
             unreadCount: convo.unreadCount || 0,
+            participants: convo.participants || [],
           };
         } else {
           const otherParticipant = convo.participants?.find(
@@ -52,7 +52,6 @@ const ConversationList = ({ currentUser }) => {
       });
 
       setConversations(mappedConversations);
-      console.log("Conversations cập nhật:", mappedConversations);
     } catch (error) {
       console.error("❌ Lỗi khi tải cuộc trò chuyện:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
@@ -125,14 +124,10 @@ const ConversationList = ({ currentUser }) => {
         c._id === chat._id ? { ...c, unreadCount: 0 } : c
       )
     );
-
+    // console.log("Chat:",chat);
     navigation.navigate("Chat", {
       conversationId: chat._id,
-      chat: {
-        _id: chat._id,
-        user: chat.user,
-        type: chat.type,
-      },
+      chat:chat,
       user: currentUser,
     });
   };

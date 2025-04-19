@@ -93,7 +93,7 @@ const ChatScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     const fetchDetails = async () => {
-      console.log(chat)
+      // console.log(chat)
       if (chat.type === "group" && chat._id) {
         try {
           const details = await getConversationDetails(chat._id);
@@ -796,7 +796,7 @@ const ChatScreen = ({ navigation, route }) => {
   const renderChatInfoModal = () => {
     const isGroup = chat.type === "group";
     const images = messages.filter((msg) => msg.type === "image" && msg.fileMeta?.length > 0);
-
+    // console.log("chat:",chat)
     return (
       <Portal>
         <Modal
@@ -805,11 +805,8 @@ const ChatScreen = ({ navigation, route }) => {
           contentContainerStyle={styles.modalContainer}
         >
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {isGroup ? "Thông tin nhóm" : "Thông tin hội thoại"}
-            </Text>
             <TouchableOpacity onPress={() => setShowChatInfoModal(false)}>
-              <Ionicons name="close" size={24} color="#666" />
+              <Text>Đóng</Text>
             </TouchableOpacity>
           </View>
 
@@ -817,17 +814,26 @@ const ChatScreen = ({ navigation, route }) => {
           <View style={styles.modalAvatarContainer}>
             <Avatar.Image
               size={80}
-              source={{ uri: chat?.user?.avatar || "https://i.pravatar.cc/150" }}
+              source={{
+                uri:
+                  isGroup && conversationDetails?.avatar
+                    ? conversationDetails.avatar
+                    : chat?.user?.avatar || "https://i.pravatar.cc/150",
+              }}
             />
-            <Text style={styles.modalChatName}>{chat?.user?.fullName || "Không có tên"}</Text>
+            <Text style={styles.modalChatName}>
+              {isGroup ? conversationDetails?.name || "Nhóm không tên" : chat?.user?.fullName || "Không có tên"}
+            </Text>
           </View>
 
           {/* Thành viên (nếu là nhóm) */}
-          {isGroup && conversationDetails?.participants && (
+          {isGroup && (
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Thành viên</Text>
+              <Text style={styles.modalSectionTitle}>
+                Thành viên ({chat.participants.length})
+              </Text>
               <FlatList
-                data={conversationDetails.participants}
+                data={chat.participants}
                 keyExtractor={(item) => item._id}
                 renderItem={({ item }) => (
                   <View style={styles.participantItem}>
@@ -846,7 +852,7 @@ const ChatScreen = ({ navigation, route }) => {
           {/* Ảnh đã gửi */}
           {images.length > 0 && (
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Ảnh đã gửi</Text>
+              <Text style={styles.modalSectionTitle}>Ảnh đã gửi ({images.length})</Text>
               <FlatList
                 data={images}
                 keyExtractor={(item) => item._id}
@@ -874,6 +880,15 @@ const ChatScreen = ({ navigation, route }) => {
             >
               Xóa đoạn chat
             </Button>
+            {isGroup && (
+              <Button
+                mode="outlined"
+                onPress={() => Alert.alert("Rời nhóm", "Tính năng đang phát triển!")}
+                style={styles.modalButton}
+              >
+                Rời nhóm
+              </Button>
+            )}
           </View>
         </Modal>
       </Portal>
@@ -1413,7 +1428,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     margin: 20,
     paddingVertical: 50,
-    paddingHorizontal:30,
+    paddingHorizontal: 30,
     borderRadius: 10,
     maxHeight: "100%",
   },

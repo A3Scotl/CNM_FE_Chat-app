@@ -427,7 +427,7 @@ const HomeScreen = ({ navigation, route }) => {
             >
               <MaterialCommunityIcons
                 name="account-group"
-                size={24}
+                size={30}
                 color="white"
               />
             </TouchableOpacity>
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   groupIcon: {
-    marginRight: 10,
+    marginLeft:10
   },
   loadingContainer: {
     flex: 1,
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatarContainer: {
-    marginLeft: 10,
+    marginLeft: 5,
   },
   avatar: {
     marginLeft: 10,
