@@ -1,7 +1,6 @@
 import axiosInstance from "../utils/axiosInstance";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Hàm lấy token từ AsyncStorage
 const getToken = async () => {
   try {
     const token = await AsyncStorage.getItem("token");
@@ -12,94 +11,96 @@ const getToken = async () => {
   }
 };
 
-// Gửi tin nhắn
-export const sendMessage = async (messageData) => {
+// Tạo nhóm mới
+export const createGroup = async (groupData) => {
   try {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.post("/message/send", messageData, {
+    const res = await axiosInstance.post("/conversationGroup", groupData, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi gửi tin nhắn:", error?.response?.data || error);
+    console.error("❌ Lỗi khi tạo nhóm:", error?.response?.data || error);
     throw error;
   }
 };
 
-// Lấy tin nhắn của cuộc trò chuyện
-export const getMessages = async (conversationId) => {
+// Lấy danh sách nhóm của người dùng
+export const getMyGroups = async () => {
   try {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.get(`/message/${conversationId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const messages = res.data?.data || [];
-    return messages;
-  } catch (error) {
-    console.error("❌ Lỗi khi lấy tin nhắn:", error?.response?.data || error);
-    throw error;
-  }
-};
-
-// Ẩn cuộc trò chuyện
-export const hideConversation = async (conversationId) => {
-  try {
-    const token = await getToken();
-    if (!token) throw new Error("Token không tồn tại");
-
-    const res = await axiosInstance.patch(`/message/hide/${conversationId}`, {}, {
+    const res = await axiosInstance.get("/group/me", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi ẩn cuộc trò chuyện:", error?.response?.data || error);
+    console.error("❌ Lỗi khi lấy danh sách nhóm:", error?.response?.data || error);
     throw error;
   }
 };
 
-// Thu hồi tin nhắn
-export const recallMessage = async (messageId) => {
+// Thêm thành viên vào nhóm
+export const addGroupMember = async (groupId, userId) => {
   try {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.put(`/message/recall/${messageId}`, {}, {
+    const res = await axiosInstance.post(
+      `/group/add-member/${groupId}`,
+      { userId },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return res.data;
+  } catch (error) {
+    console.error("❌ Lỗi khi thêm thành viên vào nhóm:", error?.response?.data || error);
+    throw error;
+  }
+};
+
+// Rời nhóm
+export const leaveGroup = async (groupId) => {
+  try {
+    const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
+    const res = await axiosInstance.post(`/group/leave/${groupId}`, {}, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi thu hồi tin nhắn:", error?.response?.data || error);
+    console.error("❌ Lỗi khi rời nhóm:", error?.response?.data || error);
     throw error;
   }
 };
 
-// Chuyển tiếp tin nhắn
-export const forwardMessage = async (messageData) => {
+// Giải tán nhóm
+export const disbandGroup = async (groupId) => {
   try {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.post("/message/forward", messageData, {
+    const res = await axiosInstance.delete(`/group/disband/${groupId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi chuyển tiếp tin nhắn:", error?.response?.data || error);
+    console.error("❌ Lỗi khi giải tán nhóm:", error?.response?.data || error);
     throw error;
   }
 };

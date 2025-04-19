@@ -22,7 +22,7 @@ const SearchBar = ({
         ]}
         value={searchQuery}
         onChangeText={setSearchQuery}
-        placeholder="Search by phone number"
+        placeholder="Tìm theo số điện thoại"
         placeholderTextColor="#888"
         keyboardType="phone-pad"
         onFocus={() => setIsSearchFocused(true)}
@@ -46,7 +46,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 20,
     paddingHorizontal: 15,
-    width: 300,
+    width: 270,
+    flex:1
   },
   searchInput: {
     flex: 1,

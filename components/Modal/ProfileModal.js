@@ -151,7 +151,7 @@ const ProfileModal = ({
             </View>
           )}
 
-          <ScrollView>
+          <ScrollView style={{}}>
             {isEditingProfile ? (
               <>
                 <View style={styles.editHeader}>
@@ -182,23 +182,23 @@ const ProfileModal = ({
                     mode="outlined"
                   />
                   
-                  <TextInput
+                  {/* <TextInput
                     label="Số điện thoại"
                     value={editFormData.phoneNumber}
                     onChangeText={text => setEditFormData({...editFormData, phoneNumber: text})}
                     style={styles.input}
                     mode="outlined"
                     keyboardType="phone-pad"
-                  />
+                  /> */}
                   
-                  <TextInput
+                  {/* <TextInput
                     label="Email"
                     value={editFormData.email}
                     onChangeText={text => setEditFormData({...editFormData, email: text})}
                     style={styles.input}
                     mode="outlined"
                     keyboardType="email-address"
-                  />
+                  /> */}
                   
                   <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePickerButton}>
                     <TextInput
@@ -356,13 +356,14 @@ const createStyles = (colors) => StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
+    height:600
   },
   card: {
     margin: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: 'white',
-    maxHeight: '90%',
+    maxHeight: '100%',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -402,8 +403,7 @@ const createStyles = (colors) => StyleSheet.create({
   actions: {
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 8,
+   
   },
   saveButton: {
     backgroundColor: colors.primary,

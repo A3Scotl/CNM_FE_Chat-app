@@ -1,4 +1,3 @@
-// ChatDetail.js
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, FlatList, Text, TextInput, Button } from "react-native";
 import { Avatar } from "react-native-paper";
