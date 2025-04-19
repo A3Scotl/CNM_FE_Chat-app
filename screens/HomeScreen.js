@@ -256,9 +256,7 @@ const HomeScreen = ({ navigation, route }) => {
                 chats={conversations} 
                 onChatSelect={(chat) => setSelectedChat(chat)} 
               />
-              {conversations.length === 0 && !loadingConversations && (
-                <Text style={styles.noConversations}>No conversations yet</Text>
-              )}
+             
             </>
           )}
         </View>
