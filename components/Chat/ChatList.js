@@ -2,11 +2,8 @@ import React from "react";
 import { FlatList, StyleSheet, View, Text } from "react-native";
 import ChatListItem from "./ChatListItem";
 
-const ChatList = ({ chats, onChatSelect }) => {
-
+const ChatList = ({ chats, onChatSelect, currentUserId }) => {
   if (!chats || chats.length === 0) {
-  
-
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>Chưa có cuộc trò chuyện nào.</Text>
@@ -19,7 +16,11 @@ const ChatList = ({ chats, onChatSelect }) => {
       data={chats}
       keyExtractor={(item) => item._id}
       renderItem={({ item }) => (
-        <ChatListItem item={item} onPress={onChatSelect} />
+        <ChatListItem 
+          item={item} 
+          onPress={onChatSelect} 
+          userId={currentUserId} 
+        />
       )}
     />
   );

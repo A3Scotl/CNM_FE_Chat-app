@@ -1,49 +1,148 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator, Alert, Text } from "react-native";
 import ChatList from "../components/Chat/ChatList";
 import { getMyConversations } from "../apis/conversation.api";
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import io from "socket.io-client";
+import { Audio } from "expo-av";
 
-const ConversationList = () => {
+const ConversationList = ({ currentUser }) => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getMyConversations();
-      
-      // Lọc các cuộc trò chuyện có đúng 2 người tham gia và xử lý dữ liệu
-      const filteredConversations = data
-        .filter((convo) => convo.participants.length === 2) // Chỉ chọn những cuộc trò chuyện có 2 người
-        .map((convo) => {
-          const otherParticipant = convo.participants.find(
+      const response = await getMyConversations();
+      const data = response.data || [];
+      if (!Array.isArray(data)) {
+        console.error("Dữ liệu không phải mảng:", data);
+        throw new Error("Dữ liệu cuộc trò chuyện không hợp lệ");
+      }
+
+      const mappedConversations = data.map((convo) => {
+        if (convo.type === "group") {
+          return {
+            _id: convo._id,
+            user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
+            lastMessage: convo.lastMessage || null,
+            type: "group",
+            unreadCount: convo.unreadCount || 0,
+          };
+        } else {
+          const otherParticipant = convo.participants?.find(
             (p) => p._id !== currentUser._id
-          ); // Lấy thông tin người tham gia còn lại
+          ) || { fullName: "Unknown", avatar: "https://i.pravatar.cc/150" };
           return {
             _id: convo._id,
             user: otherParticipant,
-            lastMessage: convo.lastMessage,
+            lastMessage: convo.lastMessage || null,
+            type: "private",
+            unreadCount: convo.unreadCount || 0,
           };
-        });
-      setConversations(filteredConversations);
+        }
+      });
+
+      mappedConversations.sort((a, b) => {
+        const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt) : 0;
+        const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt) : 0;
+        return bTime - aTime;
+      });
+
+      setConversations(mappedConversations);
+      console.log("Conversations cập nhật:", mappedConversations);
     } catch (error) {
       console.error("❌ Lỗi khi tải cuộc trò chuyện:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser]);
+
+  // Keep the group invite notification functionality
+  useEffect(() => {
+    let socketConnection;
+
+    const setupSocket = async () => {
+      const token = await AsyncStorage.getItem("token");
+      const userId = await AsyncStorage.getItem("userId");
+      if (!token || !userId) {
+        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        return;
+      }
+
+      socketConnection = io("https://be.haudev.io.vn", {
+        auth: { token },
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+      });
+
+      socketConnection.on("connect", () => {
+        console.log("✅ Socket kết nối thành công trong ConversationList (cho lời mời nhóm)");
+      });
+
+      socketConnection.on("group-invite", async ({ groupId, inviteId }) => {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require("../assets/sounds/invire-group.mp3")
+          );
+          await sound.playAsync();
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.didJustFinish) sound.unloadAsync();
+          });
+          Alert.alert("Lời mời tham gia nhóm", `Bạn nhận được lời mời tham gia nhóm ${groupId}`);
+          fetchConversations(); // Tải lại danh sách khi nhận lời mời nhóm
+        } catch (err) {
+          console.error("Lỗi phát âm thanh lời mời nhóm:", err);
+        }
+      });
+
+      socketConnection.on("disconnect", (reason) => {
+        console.log("Ngắt kết nối Socket.IO trong ConversationList. Lý do:", reason);
+      });
+
+      socketConnection.on("connect_error", (error) => {
+        console.error("Lỗi kết nối Socket.IO trong ConversationList:", error);
+      });
+    };
+
+    setupSocket();
+
+    return () => {
+      if (socketConnection) {
+        socketConnection.disconnect();
+        console.log("Socket.IO đã ngắt kết nối trong ConversationList");
+      }
+    };
+  }, [fetchConversations]);
 
   const handleChatSelect = (chat) => {
-    navigation.navigate("ChatDetail", { conversationId: chat._id });
+    setConversations((prev) =>
+      prev.map((c) =>
+        c._id === chat._id ? { ...c, unreadCount: 0 } : c
+      )
+    );
+
+    navigation.navigate("Chat", {
+      conversationId: chat._id,
+      chat: {
+        _id: chat._id,
+        user: chat.user,
+        type: chat.type,
+      },
+      user: currentUser,
+    });
   };
 
   useEffect(() => {
-    fetchConversations();
-  }, []);
-
+    if (currentUser?._id) {
+      fetchConversations();
+    }
+  }, [fetchConversations, currentUser]);
+  
   return (
     <View style={styles.container}>
       {loading ? (
@@ -51,7 +150,11 @@ const ConversationList = () => {
       ) : conversations.length === 0 ? (
         <Text style={styles.noResults}>Không có cuộc trò chuyện nào.</Text>
       ) : (
-        <ChatList chats={conversations} onChatSelect={handleChatSelect} />
+        <ChatList 
+          chats={conversations} 
+          onChatSelect={handleChatSelect} 
+          currentUserId={currentUser?._id} 
+        />
       )}
     </View>
   );

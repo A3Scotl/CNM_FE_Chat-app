@@ -17,11 +17,11 @@ export const getMyConversations = async () => {
   try {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
-    
+
     const res = await axiosInstance.get("/conversation/me", {
       headers: {
         Authorization: `Bearer ${token}`,
-      }
+      },
     });
     return res.data;
   } catch (error) {
@@ -39,7 +39,7 @@ export const getConversationDetail = async (id) => {
     const res = await axiosInstance.get(`/conversation/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
-      }
+      },
     });
     return res.data;
   } catch (error) {
@@ -57,7 +57,7 @@ export const getOrCreateConversationDetail = async (to) => {
     const res = await axiosInstance.post("/conversation/detail", { to }, {
       headers: {
         Authorization: `Bearer ${token}`,
-      }
+      },
     });
     return res.data;
   } catch (error) {

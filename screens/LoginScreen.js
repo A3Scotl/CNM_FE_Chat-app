@@ -6,7 +6,7 @@ import ErrorDialog from "../components/Error/ErrorDialog";
 
 export default function LoginScreen({ navigation }) {
   const [form, setForm] = useState({
-    phoneNumber: "0964133949",
+    phoneNumber: "1234567890",
     passWord: "123456",
   });
 

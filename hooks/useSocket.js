@@ -2,9 +2,12 @@ import { useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import { Alert } from "react-native";
-import {SOCKET_URL} from "@env";
+import { SOCKET_URL } from "@env";
 
-export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } = {}) => {
+export const useSocket = (
+  userId,
+  { onFriendRequest, onFriendRequestAccepted, onNewMessage, onTyping, onStopTyping } = {}
+) => {
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -20,11 +23,9 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
       try {
         const token = await AsyncStorage.getItem("token");
         if (!token) {
+          console.warn("useSocket: Token không tồn tại");
           return;
         }
-
-        // console.log("Initializing socket for userId:", userId);
-        // console.log("Token used:", token.substring(0, 10) + "...");
 
         socketRef.current = io(SOCKET_URL, {
           auth: { userId, token },
@@ -35,6 +36,7 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
         });
 
         socketRef.current.on("connect", () => {
+          console.log("✅ Socket kết nối thành công");
           socketRef.current.emit("register", userId);
         });
 
@@ -44,7 +46,7 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
             description: err.description,
             context: err.context,
           });
-          // Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ.");
+          Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ.");
         });
 
         socketRef.current.on("friend-request", ({ message, from, requestId }) => {
@@ -63,14 +65,36 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
           }
         });
 
+        socketRef.current.on("new-message", (msg) => {
+          if (!msg._id || !msg.conversationId) {
+            console.warn("Tin nhắn không hợp lệ từ socket:", msg);
+            return;
+          }
+          console.log("Nhận tin nhắn mới:", msg);
+          if (onNewMessage) {
+            onNewMessage(msg);
+          }
+        });
+
+        socketRef.current.on("typing", ({ conversationId, userId: typingUserId, fullName }) => {
+          if (onTyping && conversationId && typingUserId && fullName) {
+            onTyping({ conversationId, userId: typingUserId, fullName });
+          }
+        });
+
+        socketRef.current.on("stop-typing", ({ conversationId, userId: typingUserId }) => {
+          if (onStopTyping && conversationId && typingUserId) {
+            onStopTyping({ conversationId, userId: typingUserId });
+          }
+        });
+
         socketRef.current.on("disconnect", (reason) => {
-          // Alert.alert("Ngắt kết nối", `Lý do: ${reason}`);
           console.log("Ngắt kết nối", `Lý do: ${reason}`);
         });
 
         socketRef.current.onAny((event, ...args) => {
+          console.log(`Sự kiện socket: ${event}`, args);
         });
-
       } catch (err) {
         console.error("Lỗi khi khởi tạo socket:", err);
       }
@@ -84,8 +108,26 @@ export const useSocket = (userId, { onFriendRequest, onFriendRequestAccepted } =
         socketRef.current = null;
       }
     };
-  }, [userId, onFriendRequest, onFriendRequestAccepted]);
+  }, [userId, onFriendRequest, onFriendRequestAccepted, onNewMessage, onTyping, onStopTyping]);
 
-  return null;
+  const joinRoom = (conversationId) => {
+    if (socketRef.current && conversationId) {
+      socketRef.current.emit("join-room", conversationId);
+      console.log(`Đã tham gia phòng: ${conversationId}`);
+    }
+  };
+
+  const emitTyping = (conversationId, userId) => {
+    if (socketRef.current && conversationId && userId) {
+      socketRef.current.emit("typing", conversationId, userId);
+    }
+  };
+
+  const emitStopTyping = (conversationId, userId) => {
+    if (socketRef.current && conversationId && userId) {
+      socketRef.current.emit("stop-typing", conversationId, userId);
+    }
+  };
+
+  return { socket: socketRef.current, joinRoom, emitTyping, emitStopTyping };
 };
-
