@@ -1,15 +1,20 @@
+
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, SectionList, TouchableOpacity, RefreshControl } from "react-native";
 import { useTheme, Avatar, Button } from "react-native-paper";
 import { useFriendRequest } from "../hooks/useFriendRequest";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import dayjs from "dayjs";
+import { getMyProfile } from "../apis/user.api";
 import relativeTime from "dayjs/plugin/relativeTime";
 import debounce from "lodash.debounce";
+import { getMyConversations } from "../apis/conversation.api";
+import ChatList from "../components/Chat/ChatList";
+import { get, set } from "lodash";
+import axios from "axios";
 
 dayjs.extend(relativeTime);
 
@@ -34,27 +39,78 @@ const ContactsScreen = () => {
   } = useFriendRequest();
   const [activeTab, setActiveTab] = useState("friends");
   const [refreshing, setRefreshing] = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [errorGroups, setErrorGroups] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  // const [user,setUser] = useState(null);
 
-  // Refresh dữ liệu khi làm mới
+  // Fetch current user ID
+  useFocusEffect(
+    useCallback(() => {
+      const fetchUserId = async () => {
+        const userId = await AsyncStorage.getItem("userId");
+        setCurrentUserId(userId);
+      };
+      fetchUserId();
+    }, [])
+  );
+ 
+
+  // Fetch groups
+  const fetchGroups = useCallback(async () => {
+    try {
+      setLoadingGroups(true);
+      setErrorGroups(null);
+      const response = await getMyConversations();
+      const data = response.data || [];
+      if (!Array.isArray(data)) {
+        throw new Error("Dữ liệu cuộc trò chuyện không hợp lệ");
+      }
+      const mappedGroups = data
+        .filter((convo) => convo.type === "group")
+        .map((convo) => ({
+          _id: convo._id,
+          user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
+          lastMessage: convo.lastMessage || null,
+          type: "group",
+          unreadCount: convo.unreadCount || 0,
+        }))
+        .sort((a, b) => {
+          const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt) : 0;
+          const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt) : 0;
+          return bTime - aTime;
+        });
+      setGroups(mappedGroups);
+    } catch (error) {
+      console.error("❌ Lỗi khi tải danh sách nhóm:", error);
+      setErrorGroups("Không thể tải danh sách nhóm.");
+    } finally {
+      setLoadingGroups(false);
+    }
+  }, []);
+
+  // Refresh data
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    Promise.all([fetchRequests(), fetchSentRequests(), fetchFriends()])
+    Promise.all([fetchRequests(), fetchSentRequests(), fetchFriends(), fetchGroups()])
       .finally(() => setRefreshing(false));
-  }, [fetchRequests, fetchSentRequests, fetchFriends]);
+  }, [fetchRequests, fetchSentRequests, fetchFriends, fetchGroups]);
 
-  // Refresh dữ liệu khi màn hình được focus
+  // Refresh data on focus
   useFocusEffect(
     useCallback(
       debounce(() => {
         fetchRequests();
         fetchSentRequests();
         fetchFriends();
+        fetchGroups();
       }, 300),
-      [fetchRequests, fetchSentRequests, fetchFriends]
+      [fetchRequests, fetchSentRequests, fetchFriends, fetchGroups]
     )
   );
 
-  // Xử lý chấp nhận lời mời
+  // Handle accept request
   const handleAccept = async (requestId) => {
     try {
       await acceptRequest(requestId);
@@ -63,7 +119,7 @@ const ContactsScreen = () => {
     }
   };
 
-  // Xử lý từ chối lời mời
+  // Handle reject request
   const handleReject = async (requestId) => {
     try {
       await rejectRequest(requestId);
@@ -71,58 +127,54 @@ const ContactsScreen = () => {
       ToastAndroid.show(error.message || "Không thể từ chối lời mời", ToastAndroid.SHORT);
     }
   };
-  const handleChat = async (friend) => {
-    // try {
-    //   const token = await AsyncStorage.getItem("token");
-    //   const currentUserId = await AsyncStorage.getItem("userId");
-  
-    //   // Gọi đúng API getOrCreateConversationDetail của backend
-    //   const response = await fetch("https://be.haudev.io.vn/api/conversation/detail", {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       Authorization: `Bearer ${token}`,
-    //     },
-    //     body: JSON.stringify({
-    //       to: friend._id // Đúng với tham số backend yêu cầu
-    //     }),
-    //   });
-  
-    //   const data = await response.json();
-      
-    //   if (!response.ok) {
-    //     throw new Error(data.message || "Không thể tạo/mở hội thoại");
-    //   }
-  
-    //   // Backend trả về data có cấu trúc { messages, ...conversation }
-    //   navigation.navigate("Chat", {
-    //     chat: data,
-    //     user: friend
-    //   });
-  
-    // } catch (error) {
-    //   console.error("Lỗi khi mở chat:", error);
-      
-    //   // Fallback: tạo conversation tạm trên client
-    //   const tempConversation = {
-    //     _id: `temp_${currentUserId}_${friend._id}`,
-    //     participants: [
-    //       { _id: currentUserId, fullName: "Bạn" },
-    //       { _id: friend._id, fullName: friend.fullName }
-    //     ],
-    //     type: "private",
-    //     messages: [], // Thêm mảng messages trống
-    //     isTemp: true
-    //   };
-      
-    //   navigation.navigate("Chat", {
-    //     chat: tempConversation,
-    //     user: friend
-    //   });
-      
-    //   Alert.alert("Thông báo", "Đang sử dụng hội thoại tạm");
-    // }
+
+  // Handle navigation to ChatScreen
+  const handleChatSelect = async (chat) => {
+    try {
+      // navigation.navigate("Chat", {
+      //   conversationId: chat._id,
+      //   chat: chat,
+      //   user: { _id: currentUserId },
+      // });
+    } catch (error) {
+      console.error("Lỗi khi mở chat:", error);
+      Alert.alert("Lỗi", "Không thể mở hội thoại.");
+    }
   };
+  // Handle chat with friend
+  const handleChat = async (friend) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const response = await fetch("https://be.haudev.io.vn/api/conversation/detail", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          to: friend._id,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Không thể tạo/mở hội thoại");
+      }
+      // console.log("chat:",data.data);
+      // console.log(await getMyProfile());
+      const user = await getMyProfile();
+      // console.log(user);
+      navigation.navigate("Chat", {
+        conversationId: data.data.conversationId,
+        chat: data.data,
+        user: user,
+      });
+    } catch (error) {
+      console.error("Lỗi khi mở chat:", error);
+      Alert.alert("Lỗi", "Không thể mở hội thoại.");
+    }
+  };
+
   const RequestItem = React.memo(({ item, handleAccept, handleReject, colors }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
@@ -175,8 +227,7 @@ const ContactsScreen = () => {
     </View>
   ));
 
-
-  // Render các item
+  // Render items
   const renderRequestItem = ({ item }) => (
     <RequestItem item={item} handleAccept={handleAccept} handleReject={handleReject} colors={colors} />
   );
@@ -193,33 +244,54 @@ const ContactsScreen = () => {
     />
   );
 
+  // Combine sections for friends tab
+  const friendSections = [
+    {
+      title: `Lời mời kết bạn (${requests && requests.length || 0})`,
+      data: requests || [],
+      renderItem: renderRequestItem,
+      emptyMessage: "Không có lời mời kết bạn.",
+      isLoading: loadingRequests,
+      error: errorRequests,
+    },
+    {
+      title: `Lời mời đã gửi (${sentRequests && sentRequests.length || 0})`,
+      data: sentRequests || [],
+      renderItem: renderSentRequestItem,
+      emptyMessage: "Bạn chưa gửi lời mời kết bạn nào.",
+      isLoading: loadingSentRequests,
+      error: errorSentRequests,
+    },
+    {
+      title: `Bạn bè (${friends && friends.length || 0})`,
+      data: friends || [],
+      renderItem: renderFriendItem,
+      emptyMessage: "Chưa có bạn bè.",
+      isLoading: loadingFriends,
+      error: errorFriends,
+    },
+  ];
 
-  // Render section
-  const renderSection = (title, data, renderItem, emptyMessage, isLoading, error) => (
-    <>
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
-
-      </View>
-      {isLoading ? (
-        <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
-      ) : error ? (
-        <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {error}</Text>
-      ) : data.length > 0 ? (
-        <FlatList
-          data={data}
-          renderItem={renderItem}
-          keyExtractor={(item) => item._id}
-          scrollEnabled={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={21}
-        />
-      ) : (
-        <Text style={[styles.emptyText, { color: colors.text }]}>{emptyMessage}</Text>
-      )}
-    </>
+  // Render section header
+  const renderSectionHeader = ({ section }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: colors.primary }]}>{section.title}</Text>
+    </View>
   );
+
+  // Render section item
+  const renderSectionItem = ({ item, section }) => {
+    if (section.isLoading) {
+      return <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>;
+    }
+    if (section.error) {
+      return <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {section.error}</Text>;
+    }
+    if (!section.data || section.data.length === 0) {
+      return <Text style={[styles.emptyText, { color: colors.text }]}>{section.emptyMessage}</Text>;
+    }
+    return section.renderItem({ item });
+  };
 
   return (
     <View style={styles.container}>
@@ -239,20 +311,35 @@ const ContactsScreen = () => {
       </View>
 
       {activeTab === "friends" && (
-        <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-          {renderSection(`Lời mời kết bạn (${requests.length})`, requests, renderRequestItem, "Không có lời mời kết bạn.", loadingRequests, errorRequests)}
-          {renderSection(`Lời mời đã gửi (${sentRequests.length})`, sentRequests, renderSentRequestItem, "Bạn chưa gửi lời mời kết bạn nào.", loadingSentRequests, errorSentRequests)}
-          {renderSection(`Bạn bè (${friends.length})`, friends, renderFriendItem, "Chưa có bạn bè.", loadingFriends, errorFriends)}
-        </ScrollView>
+        <SectionList
+          sections={friendSections}
+          keyExtractor={(item, index) => item._id + index}
+          renderSectionHeader={renderSectionHeader}
+          renderItem={renderSectionItem}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.text }]}>Không có dữ liệu.</Text>}
+        />
       )}
 
       {activeTab === "groups" && (
-        <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <View style={{ flex: 1 }}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>Danh sách nhóm</Text>
+            <Text style={[styles.sectionTitle, { color: colors.primary }]}>Danh sách nhóm ({groups && groups.length || 0})</Text>
           </View>
-          <Text style={[styles.emptyText, { color: colors.text }]}>Chưa có dữ liệu nhóm.</Text>
-        </ScrollView>
+          {loadingGroups ? (
+            <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
+          ) : errorGroups ? (
+            <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {errorGroups}</Text>
+          ) : groups && groups.length > 0 ? (
+            <ChatList
+              chats={groups}
+              onChatSelect={handleChatSelect}
+              currentUserId={currentUserId}
+            />
+          ) : (
+            <Text style={[styles.emptyText, { color: colors.text }]}>Chưa tham gia nhóm nào.</Text>
+          )}
+        </View>
       )}
     </View>
   );
@@ -298,7 +385,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#e0e0e0",
-    flex: 1
   },
   rowTop: {
     flexDirection: "row",

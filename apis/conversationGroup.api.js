@@ -35,7 +35,7 @@ export const getMyGroups = async () => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.get("/group/me", {
+    const res = await axiosInstance.get("/conversationGroup/me", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -54,7 +54,7 @@ export const addGroupMember = async (groupId, userId) => {
     if (!token) throw new Error("Token không tồn tại");
 
     const res = await axiosInstance.post(
-      `/group/add-member/${groupId}`,
+      `/conversationGroup/add-member/${groupId}`,
       { userId },
       {
         headers: {
@@ -75,7 +75,7 @@ export const leaveGroup = async (groupId) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.post(`/group/leave/${groupId}`, {}, {
+    const res = await axiosInstance.post(`/conversationGroup/${groupId}/leave`, {}, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -93,7 +93,7 @@ export const disbandGroup = async (groupId) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.delete(`/group/disband/${groupId}`, {
+    const res = await axiosInstance.delete(`/conversationGroup/disband/${groupId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

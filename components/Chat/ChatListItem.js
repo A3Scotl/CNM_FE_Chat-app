@@ -40,7 +40,6 @@ const ChatListItem = ({ item, onPress, userId }) => {
       // Play sound for messages from others
       if (senderId !== userId) {
         await playNotificationSound();
-        
         // Increment unread count
         setUnreadCount((prev) => (prev || 0) + 1);
       }

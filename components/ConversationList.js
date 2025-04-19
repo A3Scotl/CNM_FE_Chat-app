@@ -141,7 +141,11 @@ const ConversationList = ({ currentUser }) => {
   return (
     <View style={styles.container}>
       {loading ? (
-        <ActivityIndicator size="large" color="#007bff" />
+        <View style={{flex:1,display:'flex',
+          alignItems:'center',
+          justifyContent:'center'}}>
+          <ActivityIndicator size="large" color="#007bff" />
+        </View>
       ) : conversations.length === 0 ? (
         <Text style={styles.noResults}>Không có cuộc trò chuyện nào.</Text>
       ) : (
@@ -159,12 +163,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+    
   },
   noResults: {
     textAlign: "center",
     marginTop: 20,
     fontSize: 16,
     color: "#888",
+    
   },
 });
 

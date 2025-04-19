@@ -20,12 +20,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import EmojiSelector from "react-native-emoji-selector";
 import { getMessages } from "../apis/message.api";
+import { leaveGroup } from "../apis/conversationGroup.api"; 
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import mime from "mime";
 
-// Giả định API lấy chi tiết đoạn chat (nếu cần)
+// Giả định API lấy chi tiết đoạn chat
 const getConversationDetails = async (conversationId) => {
   try {
     const token = await AsyncStorage.getItem("token");
@@ -93,7 +94,6 @@ const ChatScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     const fetchDetails = async () => {
-      // console.log(chat)
       if (chat.type === "group" && chat._id) {
         try {
           const details = await getConversationDetails(chat._id);
@@ -105,7 +105,6 @@ const ChatScreen = ({ navigation, route }) => {
     };
     fetchDetails();
   }, [chat._id, chat.type]);
-  // console.log(conversationDetails);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -656,6 +655,44 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
+  // Handle leave group
+  const handleLeaveGroup = async () => {
+    if (!chat._id) {
+      Alert.alert("Lỗi", "Không thể rời nhóm: ID nhóm không hợp lệ.");
+      return;
+    }
+
+    Alert.alert(
+      "Xác nhận rời nhóm",
+      "Bạn có chắc chắn muốn rời nhóm này không?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Rời nhóm",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await leaveGroup(chat._id);
+              Alert.alert("Thành công", "Bạn đã rời nhóm thành công.", [
+                { text: "OK", onPress: () => navigation.goBack() },
+              ]);
+              // Optionally emit a socket event to notify other users
+              if (socket) {
+                socket.emit("group-update", { groupId: chat._id, action: "leave", userId });
+                Alert.alert("Bạn đã rời khỏi nhóm chat");
+
+              }
+            } catch (error) {
+              console.error("Lỗi khi rời nhóm:", error);
+              Alert.alert("Lỗi", error.message || "Không thể rời nhóm. Vui lòng thử lại.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   // Handle typing status
   const handleTyping = () => {
     if (!typing && socket) {
@@ -796,7 +833,7 @@ const ChatScreen = ({ navigation, route }) => {
   const renderChatInfoModal = () => {
     const isGroup = chat.type === "group";
     const images = messages.filter((msg) => msg.type === "image" && msg.fileMeta?.length > 0);
-    // console.log("chat:",chat)
+
     return (
       <Portal>
         <Modal
@@ -827,13 +864,13 @@ const ChatScreen = ({ navigation, route }) => {
           </View>
 
           {/* Thành viên (nếu là nhóm) */}
-          {isGroup && (
+          {isGroup && conversationDetails?.participants && (
             <View style={styles.modalSection}>
               <Text style={styles.modalSectionTitle}>
-                Thành viên ({chat.participants.length})
+                Thành viên ({conversationDetails.participants.length || 0})
               </Text>
               <FlatList
-                data={chat.participants}
+                data={conversationDetails.participants}
                 keyExtractor={(item) => item._id}
                 renderItem={({ item }) => (
                   <View style={styles.participantItem}>
@@ -883,8 +920,9 @@ const ChatScreen = ({ navigation, route }) => {
             {isGroup && (
               <Button
                 mode="outlined"
-                onPress={() => Alert.alert("Rời nhóm", "Tính năng đang phát triển!")}
-                style={styles.modalButton}
+                onPress={handleLeaveGroup}
+                style={[styles.modalButton, { borderColor: "#ff4444" }]}
+                labelStyle={{ color: "#ff4444" }}
               >
                 Rời nhóm
               </Button>
