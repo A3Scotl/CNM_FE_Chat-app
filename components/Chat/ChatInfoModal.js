@@ -1,0 +1,554 @@
+import React, { useState, useEffect, useRef } from "react";
+import { View, StyleSheet, TouchableOpacity, TextInput, Image, FlatList, Alert, Animated } from "react-native";
+import { Portal, Modal, Avatar, Text, Button, IconButton, Switch } from "react-native-paper";
+import { MaterialIcons } from "@expo/vector-icons";
+import AddMemberModal from "./AddMemberModal";
+
+const ChatInfoModal = ({
+  visible,
+  onDismiss,
+  chat,
+  conversationDetails,
+  messages,
+  groupMembers,
+  isOwner,
+  isAdmin,
+  user,
+  newGroupName,
+  setNewGroupName,
+  newGroupAvatar,
+  setNewGroupAvatar,
+  showAddMemberModal,
+  setShowAddMemberModal,
+  availableFriends,
+  onPickAvatar,
+  onUpdateGroupInfo,
+  onToggleRequireApproval,
+  onLeaveGroup,
+  onDeleteGroup,
+  onAddMember,
+  onRemoveMember,
+  onChangeMemberRole,
+  onFetchAvailableFriends,
+  onOpenImagePreview,
+}) => {
+  const isGroup = chat.type === "group";
+  const images = messages.filter((msg) => msg.type === "image" && msg.fileMeta?.length > 0);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [error, setError] = useState("");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (visible && isGroup && (isOwner || isAdmin) && isEditingName) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+      inputRef.current?.focus();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, isGroup, isOwner, isAdmin, isEditingName]);
+
+  const handleUpdate = () => {
+    if (!newGroupName.trim() && !newGroupAvatar) {
+      setError("Vui lòng nhập tên nhóm hoặc chọn ảnh mới");
+      return;
+    }
+    setError("");
+    setIsEditingName(false);
+    setNewGroupName("");
+    setNewGroupAvatar(null);
+    onUpdateGroupInfo();
+  };
+
+  const handleRemoveAvatar = () => {
+    setNewGroupAvatar(null);
+  };
+
+  const toggleEditName = () => {
+    setIsEditingName(!isEditingName);
+    if (isEditingName) {
+      setNewGroupName("");
+      setNewGroupAvatar(null);
+      setError("");
+    }
+  };
+
+  const sections = [
+    {
+      key: "groupInfo",
+      render: () => (
+        <View style={styles.modalAvatarContainer}>
+          <TouchableOpacity
+            onPress={isOwner || isAdmin ? onPickAvatar : null}
+            disabled={!isOwner && !isAdmin}
+            style={styles.avatarTouchable}
+          >
+            <Avatar.Image
+              size={100}
+              source={{
+                uri:
+                  isGroup && conversationDetails?.avatar
+                    ? conversationDetails.avatar
+                    : chat?.user?.avatar || "https://i.pravatar.cc/150",
+              }}
+              style={styles.avatarImage}
+            />
+            {(isOwner || isAdmin) && (
+              <View style={styles.editAvatarIcon}>
+                <MaterialIcons name="camera-alt" size={20} color="white" />
+              </View>
+            )}
+          </TouchableOpacity>
+          <View style={styles.nameContainer}>
+            <Text style={styles.modalChatName}>
+              {isGroup
+                ? chat.user?.fullName || "Nhóm không tên"
+                : chat?.user?.fullName || "Không có tên"}
+            </Text>
+            {isGroup && (isOwner || isAdmin) && (
+              <TouchableOpacity onPress={toggleEditName} style={styles.editNameIcon}>
+                <MaterialIcons
+                  name={isEditingName ? "close" : "edit"}
+                  size={20}
+                  color="#0098f9"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+          {isGroup && (isOwner || isAdmin) && isEditingName && (
+            <Animated.View style={[styles.groupInfoEdit, { opacity: fadeAnim }]}>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.groupNameInput}
+                  placeholder={conversationDetails?.name || "Nhập tên nhóm"}
+                  placeholderTextColor="#999"
+                  value={newGroupName}
+                  onChangeText={setNewGroupName}
+                />
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              </View>
+              {newGroupAvatar && (
+                <View style={styles.avatarPreviewContainer}>
+                  <TouchableOpacity onPress={() => onOpenImagePreview(newGroupAvatar.uri)}>
+                    <Image source={{ uri: newGroupAvatar.uri }} style={styles.avatarPreview} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.removeAvatarButton} onPress={handleRemoveAvatar}>
+                    <MaterialIcons name="close" size={16} color="white" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <Button
+                mode="contained"
+                onPress={handleUpdate}
+                style={styles.updateButton}
+                contentStyle={styles.updateButtonContent}
+                labelStyle={styles.updateButtonLabel}
+                disabled={!newGroupName.trim() && !newGroupAvatar}
+              >
+                Cập nhật
+              </Button>
+            </Animated.View>
+          )}
+        </View>
+      ),
+    },
+    ...(isGroup
+      ? [
+          {
+            key: "members",
+            render: () => (
+              <View style={styles.modalSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.modalSectionTitle}>
+                    Thành viên ({groupMembers.length || 0})
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      onFetchAvailableFriends();
+                      setShowAddMemberModal(true);
+                    }}
+                  >
+                    <Text style={styles.addMemberText}>+ Thêm thành viên</Text>
+                  </TouchableOpacity>
+                </View>
+                <FlatList
+                  data={groupMembers}
+                  keyExtractor={(item) => item._id}
+                  renderItem={({ item }) => (
+                    <View style={styles.participantItem}>
+                      <Avatar.Image
+                        size={40}
+                        source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                      />
+                      <View style={styles.participantInfo}>
+                        <Text style={styles.participantName}>{item.fullName}</Text>
+                        <Text style={styles.participantRole}>
+                          {item.role === "owner"
+                            ? "Chủ nhóm"
+                            : item.role === "admin"
+                            ? "Quản trị viên"
+                            : "Thành viên"}
+                        </Text>
+                      </View>
+                      {isOwner && item._id !== user._id && (
+                        <View style={styles.memberActions}>
+                          <IconButton
+                            icon="account-edit"
+                            size={20}
+                            onPress={() =>
+                              Alert.alert(
+                                "Thay đổi quyền",
+                                "Chọn vai trò mới:",
+                                [
+                                  {
+                                    text: "Thành viên",
+                                    onPress: () => onChangeMemberRole(item._id, "member"),
+                                  },
+                                  {
+                                    text: "Quản trị viên",
+                                    onPress: () => onChangeMemberRole(item._id, "admin"),
+                                  },
+                                  {
+                                    text: "Chủ nhóm",
+                                    onPress: () => onChangeMemberRole(item._id, "owner"),
+                                  },
+                                  { text: "Hủy", style: "cancel" },
+                                ],
+                                { cancelable: true }
+                              )
+                            }
+                          />
+                          <IconButton
+                            icon="delete"
+                            size={20}
+                            onPress={() => onRemoveMember(item._id)}
+                            iconColor="#ff4444"
+                          />
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  style={styles.participantList}
+                  nestedScrollEnabled={true}
+                />
+              </View>
+            ),
+          },
+        ]
+      : []),
+    ...(images.length > 0
+      ? [
+          {
+            key: "images",
+            render: () => (
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Ảnh đã gửi ({images.length})</Text>
+                <FlatList
+                  data={images}
+                  keyExtractor={(item) => item._id}
+                  horizontal
+                  renderItem={({ item }) => (
+                    <TouchableOpacity onPress={() => onOpenImagePreview(item.fileMeta[0].url)}>
+                      <Image
+                        source={{ uri: item.fileMeta[0].url }}
+                        style={styles.sentImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  )}
+                  style={styles.imageList}
+                />
+              </View>
+            ),
+          },
+        ]
+      : []),
+    ...(isGroup
+      ? [
+          {
+            key: "settings",
+            render: () => (
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Cài đặt nhóm</Text>
+                {isOwner && (
+                  <View style={styles.switchContainer}>
+                    <Text style={styles.switchLabel}>Yêu cầu duyệt thành viên</Text>
+                    <Switch
+                      value={chat?.requireApproval}
+                      onValueChange={onToggleRequireApproval}
+                      color="#0098f9"
+                    />
+                  </View>
+                )}
+                <Button
+                  mode="outlined"
+                  onPress={onLeaveGroup}
+                  style={[styles.modalButton, { borderColor: "#ff4444" }]}
+                  labelStyle={{ color: "#ff4444" }}
+                >
+                  Rời nhóm
+                </Button>
+                {isOwner && (
+                  <Button
+                    mode="outlined"
+                    onPress={onDeleteGroup}
+                    style={[styles.modalButton, { borderColor: "#ff4444" }]}
+                    labelStyle={{ color: "#ff4444" }}
+                  >
+                    Giải tán nhóm
+                  </Button>
+                )}
+              </View>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <Portal >
+      <Modal
+        visible={visible}
+        onDismiss={onDismiss}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>
+            {isGroup ? "Thông tin nhóm" : "Thông tin đoạn chat"}
+          </Text>
+          <TouchableOpacity onPress={onDismiss}>
+            <Text style={styles.modalCloseText}>Đóng</Text>
+          </TouchableOpacity>
+        </View>
+        <FlatList
+          data={sections}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) => item.render()}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        />
+      </Modal>
+      <AddMemberModal
+        visible={showAddMemberModal}
+        onDismiss={() => setShowAddMemberModal(false)}
+        availableFriends={availableFriends}
+        onAddMember={onAddMember}
+      />
+    </Portal>
+  );
+};
+
+const styles = StyleSheet.create({
+  modalContainer: {
+    backgroundColor: "white",
+    margin: 20,
+    padding: 15,
+    borderRadius: 12,
+    maxHeight: "100%",
+    maxWidth: "100%",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: "#0098f9",
+    fontWeight: "500",
+  },
+  modalAvatarContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalChatName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  nameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  editNameIcon: {
+    marginLeft: 8,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 12,
+    padding: 6,
+    elevation: 2,
+  },
+  modalSection: {
+    marginBottom: 20,
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "#333",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  addMemberText: {
+    fontSize: 14,
+    color: "#0098f9",
+    fontWeight: "500",
+  },
+  participantList: {
+    maxHeight: 200,
+  },
+  participantItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  participantInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  participantName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  participantRole: {
+    fontSize: 14,
+    color: "#666",
+  },
+  memberActions: {
+    flexDirection: "row",
+  },
+  imageList: {
+    maxHeight: 100,
+  },
+  sentImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  modalButton: {
+    marginTop: 10,
+    borderRadius: 8,
+  },
+  avatarTouchable: {
+    position: "relative",
+  },
+  avatarImage: {
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#0098f9",
+  },
+  editAvatarIcon: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#0098f9",
+    borderRadius: 12,
+    padding: 6,
+    elevation: 3,
+  },
+  groupInfoEdit: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: 15,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 12,
+    padding: 15,
+    elevation: 2,
+  },
+  inputContainer: {
+    width: "100%",
+    marginBottom: 10,
+  },
+  groupNameInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: "white",
+    elevation: 1,
+    color: "#333",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#ff4444",
+    marginTop: 5,
+    textAlign: "center",
+  },
+  avatarPreviewContainer: {
+    position: "relative",
+    marginBottom: 10,
+  },
+  avatarPreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: "#0098f9",
+  },
+  removeAvatarButton: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#ff4444",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 2,
+  },
+  updateButton: {
+    width: "100%",
+    backgroundColor: "#0098f9",
+    borderRadius: 10,
+    elevation: 3,
+  },
+  updateButtonContent: {
+    paddingVertical: 8,
+  },
+  updateButtonLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "white",
+  },
+  switchContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  switchLabel: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "500",
+  },
+});
+
+export default ChatInfoModal;
