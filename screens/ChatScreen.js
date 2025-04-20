@@ -11,8 +11,9 @@ import {
   ScrollView,
   Modal,
   FlatList,
+  TextInput,
 } from "react-native";
-import { Text } from "react-native-paper";
+import { Text, Avatar } from "react-native-paper";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import { getMessages, hideConversation, recallMessage, forwardMessage, forwardManyMessage } from "../apis/message.api";
@@ -87,7 +88,10 @@ const ChatScreen = ({ navigation, route }) => {
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardMessageData, setForwardMessageData] = useState(null);
   const [conversations, setConversations] = useState([]);
+  const [filteredConversations, setFilteredConversations] = useState([]);
   const [selectedConversations, setSelectedConversations] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [additionalContent, setAdditionalContent] = useState(""); // Nội dung bổ sung khi chuyển tiếp
 
   useEffect(() => {
     if (!chat?._id) {
@@ -131,13 +135,16 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       const response = await getMyConversations();
       const data = response.data || [];
-      const mappedConversations = data.map((convo) => ({
-        _id: convo._id,
-        name: convo.type === "group" ? convo.name : convo.participants.find(p => p._id !== userId)?.fullName || "Unknown",
-        avatar: convo.type === "group" ? convo.avatar : convo.participants.find(p => p._id !== userId)?.avatar || "https://i.pravatar.cc/150",
-        type: convo.type,
-      }));
+      const mappedConversations = data
+        .filter((convo) => convo._id !== chat._id)
+        .map((convo) => ({
+          _id: convo._id,
+          name: convo.type === "group" ? convo.name : convo.participants.find(p => p._id !== userId)?.fullName || "Unknown",
+          avatar: convo.type === "group" ? convo.avatar : convo.participants.find(p => p._id !== userId)?.avatar || "https://i.pravatar.cc/150",
+          type: convo.type,
+        }));
       setConversations(mappedConversations);
+      setFilteredConversations(mappedConversations);
     } catch (error) {
       console.error("Lỗi lấy danh sách cuộc trò chuyện:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
@@ -227,6 +234,8 @@ const ChatScreen = ({ navigation, route }) => {
           fileMeta: msg.fileMeta || [],
           replyTo: msg.replyTo,
           isRevoke: msg.isRevoke || false,
+          forwardedMessage: msg.forwardedMessage || null,
+          additionalContent: msg.additionalContent || "",
         };
 
         setMessages((prev) => [...prev, newMessage]);
@@ -253,7 +262,7 @@ const ChatScreen = ({ navigation, route }) => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg._id === updatedMessage._id
-              ? { ...msg, content: updatedMessage.content, isRevoke: true, fileMeta: [], type: "text" }
+              ? { ...msg, content: updatedMessage.content, isRevoke: true, fileMeta: [], type: "text", forwardedMessage: null }
               : msg
           )
         );
@@ -310,6 +319,8 @@ const ChatScreen = ({ navigation, route }) => {
             fileMeta: msg.fileMeta || [],
             replyTo: msg.replyTo,
             isRevoke: msg.isRevoke || false,
+            forwardedMessage: msg.forwardedMessage || null,
+            additionalContent: msg.additionalContent || "",
           };
         });
         setMessages(formattedMessages);
@@ -344,6 +355,10 @@ const ChatScreen = ({ navigation, route }) => {
   const handleForward = (message) => {
     setForwardMessageData(message);
     setShowForwardModal(true);
+    setSelectedConversations([]);
+    setSearchQuery("");
+    setAdditionalContent(""); // Đặt lại nội dung bổ sung
+    setFilteredConversations(conversations);
   };
 
   const handleRecall = async (messageId) => {
@@ -355,7 +370,7 @@ const ChatScreen = ({ navigation, route }) => {
       setMessages((prev) =>
         prev.map((msg) =>
           msg._id === messageId
-            ? { ...msg, content: "Tin nhắn đã bị thu hồi", isRevoke: true, fileMeta: [], type: "text" }
+            ? { ...msg, content: "Tin nhắn đã bị thu hồi", isRevoke: true, fileMeta: [], type: "text", forwardedMessage: null }
             : msg
         )
       );
@@ -378,6 +393,9 @@ const ChatScreen = ({ navigation, route }) => {
           onPress: async () => {
             try {
               await hideConversation(chat._id);
+              if (socket) {
+                socket.emit("conversation-hidden", { conversationId: chat._id });
+              }
               Alert.alert("Thành công", "Cuộc trò chuyện đã được ẩn.", [
                 { text: "OK", onPress: () => navigation.goBack() },
               ]);
@@ -408,27 +426,42 @@ const ChatScreen = ({ navigation, route }) => {
 
     try {
       setIsSending(true);
+      const payload = {
+        messageId: forwardMessageData._id,
+        targetConversationIds: selectedConversations,
+        additionalContent: additionalContent.trim(), // Nội dung bổ sung
+      };
+
       if (selectedConversations.length === 1) {
-        await forwardMessage({
-          messageId: forwardMessageData._id,
-          targetConversationIds: selectedConversations,
-        });
+        await forwardMessage(payload);
         Alert.alert("Thành công", "Tin nhắn đã được chuyển tiếp.");
       } else {
-        await forwardManyMessage({
-          messageId: forwardMessageData._id,
-          targetConversationIds: selectedConversations,
-        });
+        await forwardManyMessage(payload);
         Alert.alert("Thành công", "Tin nhắn đã được chuyển tiếp đến nhiều cuộc trò chuyện.");
       }
       setShowForwardModal(false);
       setSelectedConversations([]);
       setForwardMessageData(null);
+      setSearchQuery("");
+      setAdditionalContent("");
+      setFilteredConversations(conversations);
     } catch (error) {
       console.error("Lỗi chuyển tiếp tin nhắn:", error);
       Alert.alert("Lỗi", error.message || "Không thể chuyển tiếp tin nhắn.");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSearchConversations = (text) => {
+    setSearchQuery(text);
+    if (text.trim() === "") {
+      setFilteredConversations(conversations);
+    } else {
+      const filtered = conversations.filter((convo) =>
+        convo.name.toLowerCase().includes(text.toLowerCase())
+      );
+      setFilteredConversations(filtered);
     }
   };
 
@@ -979,6 +1012,11 @@ const ChatScreen = ({ navigation, route }) => {
         <Text style={styles.conversationName}>{item.name}</Text>
         <Text style={styles.conversationType}>{item.type === "group" ? "Nhóm" : "Cá nhân"}</Text>
       </View>
+      {selectedConversations.includes(item._id) && (
+        <View style={styles.checkmark}>
+          <Text style={styles.checkmarkText}>✔</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -1097,28 +1135,65 @@ const ChatScreen = ({ navigation, route }) => {
         <Modal
           visible={showForwardModal}
           animationType="slide"
-          onRequestClose={() => setShowForwardModal(false)}
+          onRequestClose={() => {
+            setShowForwardModal(false);
+            setSearchQuery("");
+            setAdditionalContent("");
+            setFilteredConversations(conversations);
+          }}
         >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chuyển tiếp tin nhắn</Text>
-              <TouchableOpacity onPress={() => setShowForwardModal(false)}>
+              <TouchableOpacity onPress={() => {
+                setShowForwardModal(false);
+                setSearchQuery("");
+                setAdditionalContent("");
+                setFilteredConversations(conversations);
+              }}>
                 <Text style={styles.cancelButton}>Hủy</Text>
               </TouchableOpacity>
+              <Text style={styles.modalTitle}>
+                Chuyển tiếp tin nhắn {selectedConversations.length > 0 ? `(${selectedConversations.length})` : ""}
+              </Text>
+              <TouchableOpacity
+                onPress={handleForwardMessage}
+                disabled={isSending || selectedConversations.length === 0}
+              >
+                <Text style={[
+                  styles.forwardButtonText,
+                  (isSending || selectedConversations.length === 0) && styles.disabledButtonText,
+                ]}>
+                  Chuyển tiếp
+                </Text>
+              </TouchableOpacity>
             </View>
-            <FlatList
-              data={conversations}
-              renderItem={renderConversationItem}
-              keyExtractor={(item) => item._id}
-              style={styles.conversationList}
-            />
-            <TouchableOpacity
-              style={[styles.forwardButton, isSending && styles.disabledButton]}
-              onPress={handleForwardMessage}
-              disabled={isSending}
-            >
-              <Text style={styles.forwardButtonText}>Chuyển tiếp</Text>
-            </TouchableOpacity>
+            <View style={styles.additionalContentContainer}>
+              <TextInput
+                style={styles.additionalContentInput}
+                placeholder="Nhập nội dung bổ sung (tuỳ chọn)..."
+                value={additionalContent}
+                onChangeText={setAdditionalContent}
+                multiline
+              />
+            </View>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Tìm kiếm cuộc trò chuyện..."
+                value={searchQuery}
+                onChangeText={handleSearchConversations}
+              />
+            </View>
+            {filteredConversations.length === 0 ? (
+              <Text style={styles.noResults}>Không tìm thấy cuộc trò chuyện nào.</Text>
+            ) : (
+              <FlatList
+                data={filteredConversations}
+                renderItem={renderConversationItem}
+                keyExtractor={(item) => item._id}
+                style={styles.conversationList}
+              />
+            )}
           </View>
         </Modal>
       </View>
@@ -1173,11 +1248,40 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
   cancelButton: { fontSize: 16, color: '#007AFF' },
-  conversationList: { flex: 1, paddingHorizontal: 16 },
+  forwardButtonText: { fontSize: 16, color: '#007AFF', fontWeight: 'bold' },
+  disabledButtonText: { color: '#aaa' },
+  additionalContentContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  additionalContentInput: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 16,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  searchContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  searchInput: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 16,
+  },
+  conversationList: { flex: 1 },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
@@ -1185,15 +1289,21 @@ const styles = StyleSheet.create({
   conversationInfo: { marginLeft: 12, flex: 1 },
   conversationName: { fontSize: 16, fontWeight: '500' },
   conversationType: { fontSize: 14, color: '#666' },
-  forwardButton: {
+  checkmark: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#007AFF',
-    padding: 16,
-    margin: 16,
-    borderRadius: 8,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  forwardButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  disabledButton: { backgroundColor: '#aaa' },
+  checkmarkText: { color: '#fff', fontSize: 16 },
+  noResults: {
+    textAlign: "center",
+    marginTop: 20,
+    fontSize: 16,
+    color: "#888",
+  },
 });
 
 export default ChatScreen;
