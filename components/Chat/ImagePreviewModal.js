@@ -1,25 +1,65 @@
-import React from "react";
-import { View, StyleSheet, TouchableOpacity, Image } from "react-native";
+import React, { useRef } from "react";
+import { View, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { Portal, Modal } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
+import { PinchGestureHandler, State } from "react-native-gesture-handler";
 
 const ImagePreviewModal = ({ visible, imageUrl, onDismiss }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const lastScale = useRef(1);
+
+  const onPinchGestureEvent = Animated.event(
+    [{ nativeEvent: { scale } }],
+    { useNativeDriver: true }
+  );
+
+  const onPinchHandlerStateChange = (event) => {
+    if (event.nativeEvent.state === State.END) {
+      lastScale.current = event.nativeEvent.scale;
+      scale.setValue(event.nativeEvent.scale);
+    }
+  };
+
+  const resetScale = () => {
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+    lastScale.current = 1;
+  };
+
   return (
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={onDismiss}
+        onDismiss={() => {
+          onDismiss();
+          resetScale();
+        }}
         contentContainerStyle={styles.imagePreviewModal}
       >
         <View style={styles.imagePreviewContainer}>
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.fullSizeImage}
-            resizeMode="contain"
-          />
+          <PinchGestureHandler
+            onGestureEvent={onPinchGestureEvent}
+            onHandlerStateChange={onPinchHandlerStateChange}
+          >
+            <Animated.Image
+              source={{ uri: imageUrl }}
+              style={[
+                styles.fullSizeImage,
+                {
+                  transform: [{ scale }],
+                },
+              ]}
+              resizeMode="contain"
+            />
+          </PinchGestureHandler>
           <TouchableOpacity
             style={styles.closePreviewButton}
-            onPress={onDismiss}
+            onPress={() => {
+              onDismiss();
+              resetScale();
+            }}
           >
             <MaterialIcons name="close" size={24} color="white" />
           </TouchableOpacity>
@@ -35,6 +75,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.9)",
+    zIndex:10000
   },
   imagePreviewContainer: {
     width: "100%",

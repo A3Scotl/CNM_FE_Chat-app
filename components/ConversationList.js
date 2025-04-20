@@ -22,7 +22,7 @@ const ConversationList = ({ currentUser }) => {
       }
       const mappedConversations = data.map((convo) => {
         if (convo.type === "group") {
-          // console.log("convo",convo);
+          console.log("convo",convo);
           return {
             _id: convo._id,
             user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
@@ -30,6 +30,8 @@ const ConversationList = ({ currentUser }) => {
             type: "group",
             unreadCount: convo.unreadCount || 0,
             participants: convo.participants || [],
+            requireApproval : convo.requireApproval
+            
           };
         } else {
           const otherParticipant = convo.participants?.find(
@@ -41,6 +43,7 @@ const ConversationList = ({ currentUser }) => {
             lastMessage: convo.lastMessage || null,
             type: "private",
             unreadCount: convo.unreadCount || 0,
+          
           };
         }
       });

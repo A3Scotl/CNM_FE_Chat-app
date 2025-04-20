@@ -96,7 +96,7 @@ const ChatInfoModal = ({
               source={{
                 uri:
                   isGroup && conversationDetails?.avatar
-                    ? conversationDetails.avatar
+                    ? chat.user.avatar
                     : chat?.user?.avatar || "https://i.pravatar.cc/150",
               }}
               style={styles.avatarImage}
@@ -283,7 +283,7 @@ const ChatInfoModal = ({
                   <View style={styles.switchContainer}>
                     <Text style={styles.switchLabel}>Yêu cầu duyệt thành viên</Text>
                     <Switch
-                      value={chat?.requireApproval}
+                      value={conversationDetails?.requireApproval}
                       onValueChange={onToggleRequireApproval}
                       color="#0098f9"
                     />
@@ -315,7 +315,7 @@ const ChatInfoModal = ({
   ];
 
   return (
-    <Portal >
+    <Portal>
       <Modal
         visible={visible}
         onDismiss={onDismiss}

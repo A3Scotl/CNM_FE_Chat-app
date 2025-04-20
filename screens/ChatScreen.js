@@ -31,11 +31,11 @@ import { Audio } from "expo-av";
 import mime from "mime";
 import Header from "../components/Chat/Header";
 import MessageItem from "../components/Chat/MessageItem";
+import ChatInfoModal from "../components/Chat/ChatInfoModal"
 import ReplyPreview from "../components/Chat/ReplyPreview";
 import MediaPreview from "../components/Chat/MediaPreview";
 import InputBar from "../components/Chat/InputBar";
 import ImagePreviewModal from "../components/Chat/ImagePreviewModal";
-import ChatInfoModal from "../components/Chat/ChatInfoModal";
 
 const ChatScreen = ({ navigation, route }) => {
   if (!route?.params || !route.params.chat || !route.params.user) {
@@ -62,7 +62,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [selectedMedia, setSelectedMedia] = useState([]); 
   const [selectedFile, setSelectedFile] = useState(null);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
@@ -80,6 +80,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [availableFriends, setAvailableFriends] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [returnToChatInfo, setReturnToChatInfo] = useState(false);
 
   useEffect(() => {
     if (!chat?._id) {
@@ -88,11 +89,11 @@ const ChatScreen = ({ navigation, route }) => {
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } else if (chat.type === "group") {
-      fetchGroupDetails();
+      fetchMemberInGroupDetails();
     }
   }, [chat?._id, navigation]);
 
-  const fetchGroupDetails = async () => {
+  const fetchMemberInGroupDetails = async () => {
     try {
       setIsLoading(true);
       setConversationDetails(chat);
@@ -236,7 +237,7 @@ const ChatScreen = ({ navigation, route }) => {
 
       socketConnection.on("group-update", ({ groupId, action, userId: actionUserId }) => {
         if (groupId === chat._id) {
-          fetchGroupDetails();
+          fetchMemberInGroupDetails();
           console.log(`Group updated: ${action} by user ${actionUserId}`);
         }
       });
@@ -359,7 +360,7 @@ const ChatScreen = ({ navigation, route }) => {
         type: "audio/m4a",
         size: 0,
       });
-      setSelectedMedia(null);
+      setSelectedMedia([]);
       setRecording(null);
       setIsRecording(false);
     } catch (err) {
@@ -418,18 +419,18 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsMultipleSelection: true, // Cho phép chọn nhiều ảnh
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const selectedAsset = result.assets[0];
-        setSelectedMedia({
-          uri: selectedAsset.uri,
+        const selectedImages = result.assets.map((asset) => ({
+          uri: asset.uri,
           type: "image",
-          name: selectedAsset.uri.split("/").pop(),
-        });
+          name: asset.uri.split("/").pop(),
+          size: asset.fileSize || 0,
+        }));
+        setSelectedMedia(selectedImages);
         setSelectedFile(null);
       }
     } catch (error) {
@@ -452,7 +453,7 @@ const ChatScreen = ({ navigation, route }) => {
           type: mime.getType(result.name) || "application/octet-stream",
           size: result.size,
         });
-        setSelectedMedia(null);
+        setSelectedMedia([]);
       }
     } catch (error) {
       console.error("Lỗi chọn tài liệu:", error);
@@ -461,7 +462,7 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   const cancelMediaSelection = () => {
-    setSelectedMedia(null);
+    setSelectedMedia([]);
     setSelectedFile(null);
   };
 
@@ -509,32 +510,34 @@ const ChatScreen = ({ navigation, route }) => {
       let payload = {
         conversationId: chat._id,
         sender: user._id,
-        type: selectedMedia ? "image" : "audio",
-        content: message.trim() || (selectedMedia ? "Đã gửi hình ảnh" : "Đã gửi âm thanh"),
+        type: selectedMedia.length > 0 ? "image" : "audio",
+        content: message.trim() || (selectedMedia.length > 0 ? "Đã gửi hình ảnh" : "Đã gửi âm thanh"),
       };
 
       if (replyingTo) {
         payload.replyTo = replyingTo._id;
       }
 
-      if (selectedMedia || selectedFile) {
-        const file = selectedMedia || selectedFile;
-        const url = await uploadToS3(file);
+      if (selectedMedia.length > 0 || selectedFile) {
+        const files = selectedMedia.length > 0 ? selectedMedia : [selectedFile];
+        const fileMeta = await Promise.all(
+          files.map(async (file) => {
+            const url = await uploadToS3(file);
+            let duration = 0;
+            if (file.type.startsWith("audio")) {
+              duration = await getAudioDuration(file.uri);
+            }
+            return {
+              name: file.name,
+              size: file.size || 0,
+              mimeType: file.type,
+              duration: duration || undefined,
+              url,
+            };
+          })
+        );
 
-        let duration = 0;
-        if (file.type.startsWith("audio")) {
-          duration = await getAudioDuration(file.uri);
-        }
-
-        payload.fileMeta = [
-          {
-            name: file.name,
-            size: file.size || 0,
-            mimeType: file.type,
-            duration: duration || undefined,
-            url,
-          },
-        ];
+        payload.fileMeta = fileMeta;
       }
 
       const response = await fetch("https://be.haudev.io.vn/api/message/send", {
@@ -550,7 +553,7 @@ const ChatScreen = ({ navigation, route }) => {
 
       if (response.ok) {
         setMessage("");
-        setSelectedMedia(null);
+        setSelectedMedia([]);
         setSelectedFile(null);
         setReplyingTo(null);
       } else {
@@ -567,9 +570,9 @@ const ChatScreen = ({ navigation, route }) => {
 
   const handleSend = async () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage && !selectedMedia && !selectedFile) return;
+    if (!trimmedMessage && selectedMedia.length === 0 && !selectedFile) return;
 
-    if (selectedMedia || selectedFile) {
+    if (selectedMedia.length > 0 || selectedFile) {
       await uploadMedia();
       return;
     }
@@ -732,7 +735,7 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       await addGroupMember(chat._id, friendId);
       Alert.alert("Thành công", "Thêm thành viên thành công.");
-      await fetchGroupDetails();
+      await fetchMemberInGroupDetails();
       setShowAddMemberModal(false);
       if (socket) {
         socket.emit("group-update", { groupId: chat._id, action: "add-member", userId });
@@ -756,7 +759,7 @@ const ChatScreen = ({ navigation, route }) => {
             try {
               await removeGroupMember(chat._id, memberId);
               Alert.alert("Thành công", "Xóa thành viên thành công.");
-              await fetchGroupDetails();
+              await fetchMemberInGroupDetails();
               if (socket) {
                 socket.emit("group-update", { groupId: chat._id, action: "remove-member", userId });
               }
@@ -775,7 +778,7 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       await changeMemberRole(chat._id, memberId, newRole);
       Alert.alert("Thành công", "Cập nhật quyền thành viên thành công.");
-      await fetchGroupDetails();
+      await fetchMemberInGroupDetails();
       if (socket) {
         socket.emit("group-update", { groupId: chat._id, action: "change-role", userId });
       }
@@ -787,14 +790,13 @@ const ChatScreen = ({ navigation, route }) => {
 
   const handleToggleRequireApproval = async () => {
     try {
-      console.log(groupMembers);
+      console.log(chat.requireApproval);
       const result = await toggleRequireApproval(chat._id);
       console.log(result);
       Alert.alert(
         "Thành công",
-        `Đã ${result.data.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
+        `Đã ${result.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
       );
-      await fetchGroupDetails();
     } catch (error) {
       console.error("Lỗi bật/tắt yêu cầu duyệt:", error);
       Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
@@ -874,6 +876,7 @@ const ChatScreen = ({ navigation, route }) => {
                 onFocus={focusMessage}
                 viewRefs={viewRefs}
                 playAudio={playAudio}
+                focusedMessageId={focusedMessage}
               />
             ))
           )}
@@ -904,7 +907,16 @@ const ChatScreen = ({ navigation, route }) => {
         <ImagePreviewModal
           visible={showImagePreview}
           imageUrl={previewImage}
-          onDismiss={() => setShowImagePreview(false)}
+          onDismiss={() =>{
+            setShowImagePreview(false);
+            if (returnToChatInfo) {
+              setShowChatInfoModal(true); 
+              setReturnToChatInfo(false);
+            }
+          } 
+            
+          }
+          
         />
         <ChatInfoModal
           visible={showChatInfoModal}
@@ -934,6 +946,8 @@ const ChatScreen = ({ navigation, route }) => {
           onFetchAvailableFriends={fetchAvailableFriends}
           onOpenImagePreview={(url) => {
             setPreviewImage(url);
+            setReturnToChatInfo(true);
+            setShowChatInfoModal(false);
             setShowImagePreview(true);
           }}
         />
