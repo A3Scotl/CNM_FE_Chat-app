@@ -103,3 +103,21 @@ export const forwardMessage = async (messageData) => {
     throw error;
   }
 };
+
+// Chuyển tiếp tin nhắn đến nhiều cuộc trò chuyện
+export const forwardManyMessage = async (messageData) => {
+  try {
+    const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
+    const res = await axiosInstance.post("/message/forward-many", messageData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return res.data;
+  } catch (error) {
+    console.error("❌ Lỗi khi chuyển tiếp tin nhắn đến nhiều cuộc trò chuyện:", error?.response?.data || error);
+    throw error;
+  }
+};

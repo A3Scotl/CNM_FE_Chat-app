@@ -70,7 +70,7 @@ export const useSocket = (
             console.warn("Tin nhắn không hợp lệ từ socket:", msg);
             return;
           }
-          console.log("Nhận tin nhắn mới:", msg);
+          // console.log("Nhận tin nhắn mới:", msg);
           if (onNewMessage) {
             onNewMessage(msg);
           }

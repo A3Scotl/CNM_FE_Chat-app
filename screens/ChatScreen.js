@@ -9,11 +9,13 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Modal,
+  FlatList,
 } from "react-native";
 import { Text } from "react-native-paper";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
-import { getMessages } from "../apis/message.api";
+import { getMessages, hideConversation, recallMessage, forwardMessage, forwardManyMessage } from "../apis/message.api";
 import {
   leaveGroup,
   getGroupMembersWithRoles,
@@ -25,13 +27,14 @@ import {
   changeMemberRole,
   getFriendsNotInGroup,
 } from "../apis/conversationGroup.api";
+import { getMyConversations } from "../apis/conversation.api";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import mime from "mime";
 import Header from "../components/Chat/Header";
 import MessageItem from "../components/Chat/MessageItem";
-import ChatInfoModal from "../components/Chat/ChatInfoModal"
+import ChatInfoModal from "../components/Chat/ChatInfoModal";
 import ReplyPreview from "../components/Chat/ReplyPreview";
 import MediaPreview from "../components/Chat/MediaPreview";
 import InputBar from "../components/Chat/InputBar";
@@ -62,7 +65,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState([]); 
+  const [selectedMedia, setSelectedMedia] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
@@ -81,6 +84,10 @@ const ChatScreen = ({ navigation, route }) => {
   const [isOwner, setIsOwner] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [returnToChatInfo, setReturnToChatInfo] = useState(false);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardMessageData, setForwardMessageData] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversations, setSelectedConversations] = useState([]);
 
   useEffect(() => {
     if (!chat?._id) {
@@ -120,8 +127,26 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
+  const fetchConversations = async () => {
+    try {
+      const response = await getMyConversations();
+      const data = response.data || [];
+      const mappedConversations = data.map((convo) => ({
+        _id: convo._id,
+        name: convo.type === "group" ? convo.name : convo.participants.find(p => p._id !== userId)?.fullName || "Unknown",
+        avatar: convo.type === "group" ? convo.avatar : convo.participants.find(p => p._id !== userId)?.avatar || "https://i.pravatar.cc/150",
+        type: convo.type,
+      }));
+      setConversations(mappedConversations);
+    } catch (error) {
+      console.error("Lỗi lấy danh sách cuộc trò chuyện:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
+    }
+  };
+
   useEffect(() => {
     inputRef.current?.focus();
+    fetchConversations();
   }, []);
 
   useEffect(() => {
@@ -201,6 +226,7 @@ const ChatScreen = ({ navigation, route }) => {
           type: msg.type,
           fileMeta: msg.fileMeta || [],
           replyTo: msg.replyTo,
+          isRevoke: msg.isRevoke || false,
         };
 
         setMessages((prev) => [...prev, newMessage]);
@@ -221,6 +247,16 @@ const ChatScreen = ({ navigation, route }) => {
             console.error("Lỗi phát âm thanh thông báo:", err);
           }
         }
+      });
+
+      socketConnection.on("message-recalled", (updatedMessage) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === updatedMessage._id
+              ? { ...msg, content: updatedMessage.content, isRevoke: true, fileMeta: [], type: "text" }
+              : msg
+          )
+        );
       });
 
       socketConnection.on("typing", (userIdTyping) => {
@@ -273,6 +309,7 @@ const ChatScreen = ({ navigation, route }) => {
             type: msg.type || "text",
             fileMeta: msg.fileMeta || [],
             replyTo: msg.replyTo,
+            isRevoke: msg.isRevoke || false,
           };
         });
         setMessages(formattedMessages);
@@ -302,6 +339,97 @@ const ChatScreen = ({ navigation, route }) => {
 
   const cancelReply = () => {
     setReplyingTo(null);
+  };
+
+  const handleForward = (message) => {
+    setForwardMessageData(message);
+    setShowForwardModal(true);
+  };
+
+  const handleRecall = async (messageId) => {
+    try {
+      await recallMessage(messageId);
+      if (socket) {
+        socket.emit("message-recalled", { conversationId: chat._id, messageId });
+      }
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === messageId
+            ? { ...msg, content: "Tin nhắn đã bị thu hồi", isRevoke: true, fileMeta: [], type: "text" }
+            : msg
+        )
+      );
+      Alert.alert("Thành công", "Tin nhắn đã được thu hồi.");
+    } catch (error) {
+      console.error("Lỗi thu hồi tin nhắn:", error);
+      Alert.alert("Lỗi", error.message || "Không thể thu hồi tin nhắn.");
+    }
+  };
+
+  const handleHideChat = async () => {
+    Alert.alert(
+      "Xác nhận ẩn cuộc trò chuyện",
+      "Bạn có chắc chắn muốn ẩn cuộc trò chuyện này?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Ẩn",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await hideConversation(chat._id);
+              Alert.alert("Thành công", "Cuộc trò chuyện đã được ẩn.", [
+                { text: "OK", onPress: () => navigation.goBack() },
+              ]);
+            } catch (error) {
+              console.error("Lỗi ẩn cuộc trò chuyện:", error);
+              Alert.alert("Lỗi", error.message || "Không thể ẩn cuộc trò chuyện.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleSelectConversation = (conversationId) => {
+    setSelectedConversations((prev) =>
+      prev.includes(conversationId)
+        ? prev.filter((id) => id !== conversationId)
+        : [...prev, conversationId]
+    );
+  };
+
+  const handleForwardMessage = async () => {
+    if (selectedConversations.length === 0) {
+      Alert.alert("Lỗi", "Vui lòng chọn ít nhất một cuộc trò chuyện để chuyển tiếp.");
+      return;
+    }
+
+    try {
+      setIsSending(true);
+      if (selectedConversations.length === 1) {
+        await forwardMessage({
+          messageId: forwardMessageData._id,
+          targetConversationIds: selectedConversations,
+        });
+        Alert.alert("Thành công", "Tin nhắn đã được chuyển tiếp.");
+      } else {
+        await forwardManyMessage({
+          messageId: forwardMessageData._id,
+          targetConversationIds: selectedConversations,
+        });
+        Alert.alert("Thành công", "Tin nhắn đã được chuyển tiếp đến nhiều cuộc trò chuyện.");
+      }
+      setShowForwardModal(false);
+      setSelectedConversations([]);
+      setForwardMessageData(null);
+    } catch (error) {
+      console.error("Lỗi chuyển tiếp tin nhắn:", error);
+      Alert.alert("Lỗi", error.message || "Không thể chuyển tiếp tin nhắn.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const focusMessage = (messageId, isImage = false) => {
@@ -419,7 +547,7 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true, // Cho phép chọn nhiều ảnh
+        allowsMultipleSelection: true,
         quality: 0.8,
       });
 
@@ -790,9 +918,7 @@ const ChatScreen = ({ navigation, route }) => {
 
   const handleToggleRequireApproval = async () => {
     try {
-      console.log(chat.requireApproval);
       const result = await toggleRequireApproval(chat._id);
-      console.log(result);
       Alert.alert(
         "Thành công",
         `Đã ${result.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
@@ -840,6 +966,22 @@ const ChatScreen = ({ navigation, route }) => {
     }, 750);
   };
 
+  const renderConversationItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.conversationItem,
+        selectedConversations.includes(item._id) && styles.selectedConversation,
+      ]}
+      onPress={() => handleSelectConversation(item._id)}
+    >
+      <Avatar.Image size={40} source={{ uri: item.avatar }} />
+      <View style={styles.conversationInfo}>
+        <Text style={styles.conversationName}>{item.name}</Text>
+        <Text style={styles.conversationType}>{item.type === "group" ? "Nhóm" : "Cá nhân"}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -873,6 +1015,8 @@ const ChatScreen = ({ navigation, route }) => {
                 user={user}
                 userId={userId}
                 onReply={handleReply}
+                onForward={handleForward}
+                onRecall={handleRecall}
                 onFocus={focusMessage}
                 viewRefs={viewRefs}
                 playAudio={playAudio}
@@ -907,16 +1051,13 @@ const ChatScreen = ({ navigation, route }) => {
         <ImagePreviewModal
           visible={showImagePreview}
           imageUrl={previewImage}
-          onDismiss={() =>{
+          onDismiss={() => {
             setShowImagePreview(false);
             if (returnToChatInfo) {
-              setShowChatInfoModal(true); 
+              setShowChatInfoModal(true);
               setReturnToChatInfo(false);
             }
-          } 
-            
-          }
-          
+          }}
         />
         <ChatInfoModal
           visible={showChatInfoModal}
@@ -944,6 +1085,7 @@ const ChatScreen = ({ navigation, route }) => {
           onRemoveMember={handleRemoveMember}
           onChangeMemberRole={handleChangeMemberRole}
           onFetchAvailableFriends={fetchAvailableFriends}
+          onHideChat={handleHideChat}
           onOpenImagePreview={(url) => {
             setPreviewImage(url);
             setReturnToChatInfo(true);
@@ -951,6 +1093,34 @@ const ChatScreen = ({ navigation, route }) => {
             setShowImagePreview(true);
           }}
         />
+        {/* Forward Modal */}
+        <Modal
+          visible={showForwardModal}
+          animationType="slide"
+          onRequestClose={() => setShowForwardModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chuyển tiếp tin nhắn</Text>
+              <TouchableOpacity onPress={() => setShowForwardModal(false)}>
+                <Text style={styles.cancelButton}>Hủy</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={conversations}
+              renderItem={renderConversationItem}
+              keyExtractor={(item) => item._id}
+              style={styles.conversationList}
+            />
+            <TouchableOpacity
+              style={[styles.forwardButton, isSending && styles.disabledButton]}
+              onPress={handleForwardMessage}
+              disabled={isSending}
+            >
+              <Text style={styles.forwardButtonText}>Chuyển tiếp</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
       </View>
     </KeyboardAvoidingView>
   );
@@ -992,6 +1162,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
   },
+  modalContainer: { flex: 1, backgroundColor: '#fff', paddingTop: 40 },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  cancelButton: { fontSize: 16, color: '#007AFF' },
+  conversationList: { flex: 1, paddingHorizontal: 16 },
+  conversationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  selectedConversation: { backgroundColor: '#e6f3ff' },
+  conversationInfo: { marginLeft: 12, flex: 1 },
+  conversationName: { fontSize: 16, fontWeight: '500' },
+  conversationType: { fontSize: 14, color: '#666' },
+  forwardButton: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    margin: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  forwardButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  disabledButton: { backgroundColor: '#aaa' },
 });
 
 export default ChatScreen;
