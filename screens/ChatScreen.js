@@ -14,34 +14,27 @@ import {
   Text as RNText,
   FlatList,
 } from "react-native";
-import { Avatar, Text, useTheme, Portal, Modal, Button } from "react-native-paper";
+import { Avatar, Text, useTheme, Portal, Modal, Button, IconButton } from "react-native-paper";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import EmojiSelector from "react-native-emoji-selector";
 import { getMessages } from "../apis/message.api";
-import { leaveGroup } from "../apis/conversationGroup.api"; 
+import {
+  leaveGroup,
+  getGroupMembersWithRoles,
+  addGroupMember,
+  removeGroupMember,
+  updateGroupInfo,
+  toggleRequireApproval,
+  deleteGroup,
+  changeMemberRole,
+  getFriendsNotInGroup,
+} from "../apis/conversationGroup.api";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import mime from "mime";
-
-// Giả định API lấy chi tiết đoạn chat
-const getConversationDetails = async (conversationId) => {
-  try {
-    const token = await AsyncStorage.getItem("token");
-    const response = await fetch(`https://be.haudev.io.vn/api/conversation/${conversationId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
-    console.error("Lỗi lấy chi tiết đoạn chat:", error);
-    throw error;
-  }
-};
 
 const ChatScreen = ({ navigation, route }) => {
   // Guard against undefined route.params
@@ -81,31 +74,58 @@ const ChatScreen = ({ navigation, route }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [showChatInfoModal, setShowChatInfoModal] = useState(false);
   const [conversationDetails, setConversationDetails] = useState(null);
+  const [groupMembers, setGroupMembers] = useState([]);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupAvatar, setNewGroupAvatar] = useState(null);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [availableFriends, setAvailableFriends] = useState([]);
+  const [isOwner, setIsOwner] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // Validate conversationId
+  // Validate conversationId and fetch group details
   useEffect(() => {
     if (!chat?._id) {
       console.warn("ChatScreen: conversationId không hợp lệ", { chatId: chat?._id });
       Alert.alert("Lỗi", "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
+    } else if (chat.type === "group") {
+      fetchGroupDetails();
     }
   }, [chat?._id, navigation]);
 
-  useEffect(() => {
-    const fetchDetails = async () => {
-      if (chat.type === "group" && chat._id) {
-        try {
-          const details = await getConversationDetails(chat._id);
-          setConversationDetails(details);
-        } catch (error) {
-          console.error("Không thể tải chi tiết nhóm:", error);
-        }
-      }
-    };
-    fetchDetails();
-  }, [chat._id, chat.type]);
+  const fetchGroupDetails = async () => {
+    try {
+      setIsLoading(true);
+      setConversationDetails(chat);
+      console.log("details:",chat);
 
+      const members = await getGroupMembersWithRoles(chat._id);
+      console.log("members:",members);
+      setGroupMembers(members.data);
+      const currentMember = members.data.find((member) => member._id === user._id);
+      setIsOwner(currentMember?.role === "owner");
+      setIsAdmin(currentMember?.role === "admin" || currentMember?.role === "owner");
+    } catch (error) {
+      console.error("Không thể tải chi tiết nhóm:", error);
+      Alert.alert("Lỗi", "Không thể tải chi tiết nhóm.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch available friends for adding members
+  const fetchAvailableFriends = async () => {
+    try {
+      const friends = await getFriendsNotInGroup(chat._id);
+      setAvailableFriends(friends.data);
+    } catch (error) {
+      console.error("Lỗi lấy danh sách bạn bè:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
+    }
+  };
+
+  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -154,7 +174,7 @@ const ChatScreen = ({ navigation, route }) => {
     })();
   }, []);
 
-  // Setup socket connection with reconnection
+  // Setup socket connection
   useEffect(() => {
     const setupSocket = async () => {
       if (!userId || !chat._id) return;
@@ -178,7 +198,6 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on("new-message", async (msg) => {
-        console.log("Nhận tin nhắn mới:", msg);
         const isCurrentUser = String(msg.sender._id) === String(userId);
         const newMessage = {
           _id: msg._id,
@@ -226,6 +245,13 @@ const ChatScreen = ({ navigation, route }) => {
         }
       });
 
+      socketConnection.on("group-update", ({ groupId, action, userId: actionUserId }) => {
+        if (groupId === chat._id) {
+          fetchGroupDetails(); // Refresh group data on update
+          console.log(`Group updated: ${action} by user ${actionUserId}`);
+        }
+      });
+
       setSocket(socketConnection);
 
       return () => {
@@ -236,7 +262,7 @@ const ChatScreen = ({ navigation, route }) => {
     setupSocket();
   }, [chat._id, userId]);
 
-  // Fetch messages and scroll to end
+  // Fetch messages
   useEffect(() => {
     const fetchMessages = async () => {
       if (!chat._id || !userId) return;
@@ -274,7 +300,7 @@ const ChatScreen = ({ navigation, route }) => {
     fetchMessages();
   }, [chat._id, userId, navigation]);
 
-  // Scroll to end when messages load or update
+  // Scroll to end when messages update
   useEffect(() => {
     if (messages.length > 0) {
       scrollRef.current?.scrollToEnd({ animated: false });
@@ -313,16 +339,12 @@ const ChatScreen = ({ navigation, route }) => {
   const startRecording = async () => {
     try {
       if (Platform.OS === "ios") {
-        try {
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: true,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: false,
-          });
-        } catch (modeErr) {
-          console.warn("setAudioModeAsync không khả dụng, tiếp tục ghi âm:", modeErr);
-        }
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: false,
+        });
       }
 
       const { recording } = await Audio.Recording.createAsync(
@@ -367,7 +389,7 @@ const ChatScreen = ({ navigation, route }) => {
       const isWebm = fileExt === "webm";
 
       if (Platform.OS === "ios" && isWebm) {
-        Alert.alert("Thông báo", "iOS không hỗ trợ phát file WEBM trực tiếp. Vui lòng chuyển đổi sang MP3/M4A");
+        Alert.alert("Thông báo", "iOS không hỗ trợ phát file WEBM trực tiếp.");
         return;
       }
 
@@ -377,19 +399,12 @@ const ChatScreen = ({ navigation, route }) => {
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
       });
 
-      console.log("Đang phát âm thanh từ:", uri);
       const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-
       sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) {
-          sound.unloadAsync();
-        }
+        if (status.didJustFinish) sound.unloadAsync();
       });
-
       await sound.playAsync();
     } catch (err) {
       console.error("Lỗi phát âm thanh:", err);
@@ -499,15 +514,13 @@ const ChatScreen = ({ navigation, route }) => {
   const uploadMedia = async () => {
     if (!chat._id) {
       console.error("uploadMedia: conversationId không hợp lệ", { chatId: chat._id });
-      Alert.alert("Lỗi", "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.");
+      Alert.alert("Lỗi", "Hội thoại không tồn tại.");
       return;
     }
 
     try {
       setIsSending(true);
       const token = await AsyncStorage.getItem("token");
-
-      console.log("Gửi yêu cầu uploadMedia", { conversationId: chat._id, type: selectedMedia ? "image" : "audio" });
 
       let payload = {
         conversationId: chat._id,
@@ -557,19 +570,11 @@ const ChatScreen = ({ navigation, route }) => {
         setSelectedFile(null);
         setReplyingTo(null);
       } else {
-        console.error("Lỗi server:", responseData, { conversationId: chat._id });
-        if (responseData.message === "Conversation not found") {
-          Alert.alert(
-            "Lỗi",
-            "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại để chọn một hội thoại khác.",
-            [{ text: "OK", onPress: () => navigation.goBack() }],
-          );
-        } else {
-          Alert.alert("Lỗi", responseData.message || "Không thể gửi tệp");
-        }
+        console.error("Lỗi server:", responseData);
+        Alert.alert("Lỗi", responseData.message || "Không thể gửi tệp");
       }
     } catch (error) {
-      console.error("Lỗi tải lên tệp:", error, { conversationId: chat._id });
+      console.error("Lỗi tải lên tệp:", error);
       Alert.alert("Lỗi", "Không thể gửi tệp, vui lòng thử lại.");
     } finally {
       setIsSending(false);
@@ -588,15 +593,13 @@ const ChatScreen = ({ navigation, route }) => {
 
     if (!chat._id) {
       console.error("handleSend: conversationId không hợp lệ", { chatId: chat._id });
-      Alert.alert("Lỗi", "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.");
+      Alert.alert("Lỗi", "Hội thoại không tồn tại.");
       return;
     }
 
     try {
       setIsSending(true);
       const token = await AsyncStorage.getItem("token");
-
-      console.log("Gửi yêu cầu handleSend", { conversationId: chat._id });
 
       const payload = {
         conversationId: chat._id,
@@ -624,7 +627,6 @@ const ChatScreen = ({ navigation, route }) => {
         setMessage("");
         setShowEmojiPicker(false);
         setReplyingTo(null);
-        // Emit Socket.IO để đảm bảo ConversationList nhận new-message
         if (socket) {
           socket.emit("send-message", {
             conversationId: chat._id,
@@ -636,19 +638,11 @@ const ChatScreen = ({ navigation, route }) => {
           });
         }
       } else {
-        console.error("Lỗi gửi tin nhắn:", responseData, { conversationId: chat._id });
-        if (responseData.message === "Conversation not found") {
-          Alert.alert(
-            "Lỗi",
-            "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại để chọn một hội thoại khác.",
-            [{ text: "OK", onPress: () => navigation.goBack() }],
-          );
-        } else {
-          Alert.alert("Lỗi", responseData.message || "Không thể gửi tin nhắn");
-        }
+        console.error("Lỗi gửi tin nhắn:", responseData);
+        Alert.alert("Lỗi", responseData.message || "Không thể gửi tin nhắn");
       }
     } catch (error) {
-      console.error("Lỗi gửi tin nhắn:", error, { conversationId: chat._id });
+      console.error("Lỗi gửi tin nhắn:", error);
       Alert.alert("Lỗi", "Không thể gửi tin nhắn, vui lòng thử lại.");
     } finally {
       setIsSending(false);
@@ -676,11 +670,8 @@ const ChatScreen = ({ navigation, route }) => {
               Alert.alert("Thành công", "Bạn đã rời nhóm thành công.", [
                 { text: "OK", onPress: () => navigation.goBack() },
               ]);
-              // Optionally emit a socket event to notify other users
               if (socket) {
                 socket.emit("group-update", { groupId: chat._id, action: "leave", userId });
-                Alert.alert("Bạn đã rời khỏi nhóm chat");
-
               }
             } catch (error) {
               console.error("Lỗi khi rời nhóm:", error);
@@ -691,6 +682,169 @@ const ChatScreen = ({ navigation, route }) => {
       ],
       { cancelable: true }
     );
+  };
+
+  // Handle delete group
+  const handleDeleteGroup = async () => {
+    if (!chat._id) {
+      Alert.alert("Lỗi", "Không thể giải tán nhóm: ID nhóm không hợp lệ.");
+      return;
+    }
+
+    Alert.alert(
+      "Xác nhận giải tán nhóm",
+      "Bạn có chắc chắn muốn giải tán nhóm này? Hành động này không thể hoàn tác.",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Giải tán",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteGroup(chat._id);
+              Alert.alert("Thành công", "Nhóm đã được giải tán.", [
+                { text: "OK", onPress: () => navigation.goBack() },
+              ]);
+              if (socket) {
+                socket.emit("group-update", { groupId: chat._id, action: "delete", userId });
+              }
+            } catch (error) {
+              console.error("Lỗi khi giải tán nhóm:", error);
+              Alert.alert("Lỗi", error.message || "Không thể giải tán nhóm.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // Handle update group info
+  const handleUpdateGroupInfo = async () => {
+    if (!newGroupName && !newGroupAvatar) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên nhóm hoặc chọn ảnh mới.");
+      return;
+    }
+
+    try {
+      const payload = {};
+      if (newGroupName) payload.name = newGroupName;
+      if (newGroupAvatar) {
+        const url = await uploadToS3(newGroupAvatar);
+        payload.avatar = url;
+      }
+
+      const updatedGroup = await updateGroupInfo(chat._id, payload.name, payload.avatar);
+      setConversationDetails(updatedGroup.data);
+      setNewGroupName("");
+      setNewGroupAvatar(null);
+      Alert.alert("Thành công", "Cập nhật thông tin nhóm thành công.");
+      if (socket) {
+        socket.emit("group-update", { groupId: chat._id, action: "update", userId });
+      }
+    } catch (error) {
+      console.error("Lỗi cập nhật thông tin nhóm:", error);
+      Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
+    }
+  };
+
+  // Handle add member
+  const handleAddMember = async (friendId) => {
+    try {
+      await addGroupMember(chat._id, friendId);
+      Alert.alert("Thành công", "Thêm thành viên thành công.");
+      await fetchGroupDetails();
+      setShowAddMemberModal(false);
+      if (socket) {
+        socket.emit("group-update", { groupId: chat._id, action: "add-member", userId });
+      }
+    } catch (error) {
+      console.error("Lỗi thêm thành viên:", error);
+      Alert.alert("Lỗi", error.message || "Không thể thêm thành viên.");
+    }
+  };
+
+  // Handle remove member
+  const handleRemoveMember = async (memberId) => {
+    Alert.alert(
+      "Xác nhận xóa thành viên",
+      "Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeGroupMember(chat._id, memberId);
+              Alert.alert("Thành công", "Xóa thành viên thành công.");
+              await fetchGroupDetails();
+              if (socket) {
+                socket.emit("group-update", { groupId: chat._id, action: "remove-member", userId });
+              }
+            } catch (error) {
+              console.error("Lỗi xóa thành viên:", error);
+              Alert.alert("Lỗi", error.message || "Không thể xóa thành viên.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // Handle change member role
+  const handleChangeMemberRole = async (memberId, newRole) => {
+    try {
+      await changeMemberRole(chat._id, memberId, newRole);
+      Alert.alert("Thành công", "Cập nhật quyền thành viên thành công.");
+      await fetchGroupDetails();
+      if (socket) {
+        socket.emit("group-update", { groupId: chat._id, action: "change-role", userId });
+      }
+    } catch (error) {
+      console.error("Lỗi thay đổi quyền:", error);
+      Alert.alert("Lỗi", error.message || "Không thể thay đổi quyền.");
+    }
+  };
+
+  // Handle toggle require approval
+  const handleToggleRequireApproval = async () => {
+    try {
+      const result = await toggleRequireApproval(chat._id);
+      Alert.alert(
+        "Thành công",
+        `Đã ${result.data.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
+      );
+      await fetchGroupDetails();
+    } catch (error) {
+      console.error("Lỗi bật/tắt yêu cầu duyệt:", error);
+      Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
+    }
+  };
+
+  // Pick group avatar
+  const pickGroupAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedAsset = result.assets[0];
+        setNewGroupAvatar({
+          uri: selectedAsset.uri,
+          type: "image",
+          name: selectedAsset.uri.split("/").pop(),
+        });
+      }
+    } catch (error) {
+      console.error("Lỗi chọn ảnh nhóm:", error);
+      Alert.alert("Lỗi", "Không thể chọn ảnh, vui lòng thử lại.");
+    }
   };
 
   // Handle typing status
@@ -830,104 +984,234 @@ const ChatScreen = ({ navigation, route }) => {
     );
   };
 
+  // Render chat info modal
   const renderChatInfoModal = () => {
     const isGroup = chat.type === "group";
     const images = messages.filter((msg) => msg.type === "image" && msg.fileMeta?.length > 0);
 
     return (
-      <Portal>
+      <Portal style={{paddingHorizontal:50}}>
         <Modal
           visible={showChatInfoModal}
           onDismiss={() => setShowChatInfoModal(false)}
           contentContainerStyle={styles.modalContainer}
         >
           <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {isGroup ? "Thông tin nhóm" : "Thông tin đoạn chat"}
+            </Text>
             <TouchableOpacity onPress={() => setShowChatInfoModal(false)}>
-              <Text>Đóng</Text>
+              <Text style={styles.modalCloseText}>Đóng</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Avatar và tên */}
-          <View style={styles.modalAvatarContainer}>
-            <Avatar.Image
-              size={80}
-              source={{
-                uri:
-                  isGroup && conversationDetails?.avatar
-                    ? conversationDetails.avatar
-                    : chat?.user?.avatar || "https://i.pravatar.cc/150",
-              }}
-            />
-            <Text style={styles.modalChatName}>
-              {isGroup ? conversationDetails?.name || "Nhóm không tên" : chat?.user?.fullName || "Không có tên"}
-            </Text>
-          </View>
-
-          {/* Thành viên (nếu là nhóm) */}
-          {isGroup && conversationDetails?.participants && (
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>
-                Thành viên ({conversationDetails.participants.length || 0})
-              </Text>
-              <FlatList
-                data={conversationDetails.participants}
-                keyExtractor={(item) => item._id}
-                renderItem={({ item }) => (
-                  <View style={styles.participantItem}>
-                    <Avatar.Image
-                      size={40}
-                      source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                    />
-                    <Text style={styles.participantName}>{item.fullName}</Text>
+          <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+            {/* Avatar và tên */}
+            <View style={styles.modalAvatarContainer}>
+              <TouchableOpacity onPress={isOwner || isAdmin ? pickGroupAvatar : null} disabled={!isOwner && !isAdmin}>
+                <Avatar.Image
+                  size={100}
+                  source={{
+                    uri:
+                      isGroup && conversationDetails?.avatar
+                        ? conversationDetails.avatar
+                        : chat?.user?.avatar || "https://i.pravatar.cc/150",
+                  }}
+                />
+                {(isOwner || isAdmin) && (
+                  <View style={styles.editAvatarIcon}>
+                    <MaterialIcons name="edit" size={20} color="white" />
                   </View>
                 )}
-                style={styles.participantList}
-              />
+              </TouchableOpacity>
+              {isGroup && (isOwner || isAdmin) && (
+                <View style={styles.groupInfoEdit}>
+                  <TextInput
+                    style={styles.groupNameInput}
+                    placeholder={chat.user.fullName}
+                    value={newGroupName}
+                    onChangeText={setNewGroupName}
+                  />
+                  {newGroupAvatar && (
+                    <Image source={{ uri: newGroupAvatar.uri }} style={styles.avatarPreview} />
+                  )}
+                  <Button
+                    mode="contained"
+                    onPress={handleUpdateGroupInfo}
+                    style={styles.updateButton}
+                    disabled={!newGroupName && !newGroupAvatar}
+                  >
+                    Cập nhật
+                  </Button>
+                </View>
+              )}
+             
             </View>
-          )}
 
-          {/* Ảnh đã gửi */}
-          {images.length > 0 && (
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Ảnh đã gửi ({images.length})</Text>
-              <FlatList
-                data={images}
-                keyExtractor={(item) => item._id}
-                horizontal
-                renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => openImagePreview(item.fileMeta[0].url)}>
-                    <Image
-                      source={{ uri: item.fileMeta[0].url }}
-                      style={styles.sentImage}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-                )}
-                style={styles.imageList}
-              />
-            </View>
-          )}
-
-          {/* Tùy chọn */}
-          <View style={styles.modalSection}>
-            <Button
-              mode="outlined"
-              onPress={() => Alert.alert("Xóa đoạn chat", "Tính năng đang phát triển!")}
-              style={styles.modalButton}
-            >
-              Xóa đoạn chat
-            </Button>
+            {/* Thành viên (nếu là nhóm) */}
             {isGroup && (
-              <Button
-                mode="outlined"
-                onPress={handleLeaveGroup}
-                style={[styles.modalButton, { borderColor: "#ff4444" }]}
-                labelStyle={{ color: "#ff4444" }}
-              >
-                Rời nhóm
-              </Button>
+              <View style={styles.modalSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.modalSectionTitle}>
+                    Thành viên ({groupMembers.length || 0})
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      fetchAvailableFriends();
+                      setShowAddMemberModal(true);
+                    }}
+                  >
+                    <Text style={styles.addMemberText}>+ Thêm thành viên</Text>
+                  </TouchableOpacity>
+                </View>
+                <FlatList
+                  data={groupMembers}
+                  keyExtractor={(item) => item._id}
+                  renderItem={({ item }) => (
+                    <View style={styles.participantItem}>
+                      <Avatar.Image
+                        size={40}
+                        source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                      />
+                      <View style={styles.participantInfo}>
+                        <Text style={styles.participantName}>{item.fullName}</Text>
+                        <Text style={styles.participantRole}>
+                          {item.role === "owner" ? "Chủ nhóm" : item.role === "admin" ? "Quản trị viên" : "Thành viên"}
+                        </Text>
+                      </View>
+                      {isOwner && item._id !== user._id && (
+                        <View style={styles.memberActions}>
+                          <IconButton
+                            icon="account-edit"
+                            size={20}
+                            onPress={() =>
+                              Alert.alert(
+                                "Thay đổi quyền",
+                                "Chọn vai trò mới:",
+                                [
+                                  {
+                                    text: "Thành viên",
+                                    onPress: () => handleChangeMemberRole(item._id, "member"),
+                                  },
+                                  {
+                                    text: "Quản trị viên",
+                                    onPress: () => handleChangeMemberRole(item._id, "admin"),
+                                  },
+                                  {
+                                    text: "Chủ nhóm",
+                                    onPress: () => handleChangeMemberRole(item._id, "owner"),
+                                  },
+                                  { text: "Hủy", style: "cancel" },
+                                ],
+                                { cancelable: true }
+                              )
+                            }
+                          />
+                          <IconButton
+                            icon="delete"
+                            size={20}
+                            onPress={() => handleRemoveMember(item._id)}
+                            iconColor="#ff4444"
+                          />
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  style={styles.participantList}
+                />
+              </View>
             )}
+
+            {/* Ảnh đã gửi */}
+            {images.length > 0 && (
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Ảnh đã gửi ({images.length})</Text>
+                <FlatList
+                  data={images}
+                  keyExtractor={(item) => item._id}
+                  horizontal
+                  renderItem={({ item }) => (
+                    <TouchableOpacity onPress={() => openImagePreview(item.fileMeta[0].url)}>
+                      <Image
+                        source={{ uri: item.fileMeta[0].url }}
+                        style={styles.sentImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  )}
+                  style={styles.imageList}
+                />
+              </View>
+            )}
+
+            {/* Cài đặt nhóm (nếu là nhóm) */}
+            {isGroup && (
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Cài đặt nhóm</Text>
+                {isOwner && (
+                  <Button
+                    mode="outlined"
+                    onPress={handleToggleRequireApproval}
+                    style={styles.modalButton}
+                  >
+                    {conversationDetails?.requireApproval
+                      ? "Tắt yêu cầu duyệt thành viên"
+                      : "Bật yêu cầu duyệt thành viên"}
+                  </Button>
+                )}
+                <Button
+                  mode="outlined"
+                  onPress={handleLeaveGroup}
+                  style={[styles.modalButton, { borderColor: "#ff4444" }]}
+                  labelStyle={{ color: "#ff4444" }}
+                >
+                  Rời nhóm
+                </Button>
+                {isOwner && (
+                  <Button
+                    mode="outlined"
+                    onPress={handleDeleteGroup}
+                    style={[styles.modalButton, { borderColor: "#ff4444" }]}
+                    labelStyle={{ color: "#ff4444" }}
+                  >
+                    Giải tán nhóm
+                  </Button>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </Modal>
+
+        {/* Add Member Modal */}
+        <Modal
+          visible={showAddMemberModal}
+          onDismiss={() => setShowAddMemberModal(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Thêm thành viên</Text>
+            <TouchableOpacity onPress={() => setShowAddMemberModal(false)}>
+              <Text style={styles.modalCloseText}>Đóng</Text>
+            </TouchableOpacity>
           </View>
+          <FlatList
+            data={availableFriends}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.participantItem}
+                onPress={() => handleAddMember(item._id)}
+              >
+                <Avatar.Image
+                  size={40}
+                  source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                />
+                <Text style={styles.participantName}>{item.username}</Text>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text>Không có bạn bè nào để thêm.</Text>}
+            style={styles.participantList}
+          />
         </Modal>
       </Portal>
     );
@@ -951,14 +1235,25 @@ const ChatScreen = ({ navigation, route }) => {
           >
             <Avatar.Image
               size={40}
-              source={{ uri: chat?.user?.avatar || "https://i.pravatar.cc/150" }}
+              source={{
+                uri:
+                  chat.type === "group" && conversationDetails?.avatar
+                    ? conversationDetails.avatar
+                    : chat?.user?.avatar || "https://i.pravatar.cc/150",
+              }}
             />
             <View style={styles.headerContent}>
-              <Text style={styles.chatName}>{chat?.user?.fullName || "Không có tên"}</Text>
+              <Text style={styles.chatName}>
+                {chat.type === "group"
+                  ? chat?.user?.fullName || "Nhóm không tên"
+                  : chat?.user?.fullName || "Không có tên"}
+              </Text>
               {isTyping ? (
                 <Text style={styles.statusText}>Đang nhập...</Text>
               ) : (
-                <Text style={styles.statusText}>Trực tuyến</Text>
+                <Text style={styles.statusText}>
+                  {chat.type === "group" ? `${groupMembers.length} thành viên` : "Trực tuyến"}
+                </Text>
               )}
             </View>
           </TouchableOpacity>
@@ -976,7 +1271,7 @@ const ChatScreen = ({ navigation, route }) => {
               <Text style={styles.loadingText}>Đang tải tin nhắn...</Text>
             </View>
           ) : (
-            messages.map((msg, index) => (
+            messages.map((msg) => (
               <View
                 key={msg._id}
                 ref={(ref) => (viewRefs.current[msg._id] = ref)}
@@ -1004,7 +1299,7 @@ const ChatScreen = ({ navigation, route }) => {
                     activeOpacity={0.7}
                     onPress={() => msg.replyTo && focusMessage(msg.replyTo._id)}
                     onLongPress={() => handleReply(msg)}
-                    delayLongPress={2000}
+                    delayLongPress={200}
                   >
                     {renderReplyToMessage(msg)}
                     {renderMessage(msg)}
@@ -1163,7 +1458,7 @@ const ChatScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5", paddingTop: 40, paddingBottom: 20 },
+  container: { flex: 1, backgroundColor: "#f5f5f5",paddingTop:30,paddingBottom:10 },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -1374,8 +1669,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.9)",
-    width: "100%",
-    height: "100%",
   },
   imagePreviewContainer: {
     width: "100%",
@@ -1465,8 +1758,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: "white",
     margin: 20,
-    paddingVertical: 50,
-    paddingHorizontal: 30,
+    padding: 20,
     borderRadius: 10,
     maxHeight: "100%",
   },
@@ -1479,6 +1771,10 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: "#0098f9",
   },
   modalAvatarContainer: {
     alignItems: "center",
@@ -1497,17 +1793,37 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 10,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  addMemberText: {
+    fontSize: 14,
+    color: "#0098f9",
+  },
   participantList: {
-    maxHeight: 150,
+    maxHeight: 200,
   },
   participantItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 8,
   },
-  participantName: {
+  participantInfo: {
+    flex: 1,
     marginLeft: 10,
+  },
+  participantName: {
     fontSize: 16,
+    fontWeight: "500",
+  },
+  participantRole: {
+    fontSize: 14,
+    color: "#666",
+  },
+  memberActions: {
+    flexDirection: "row",
   },
   imageList: {
     maxHeight: 100,
@@ -1520,6 +1836,37 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     marginTop: 10,
+  },
+  editAvatarIcon: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    padding: 4,
+  },
+  groupInfoEdit: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  groupNameInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    textAlign:"center"
+  },
+  avatarPreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  updateButton: {
+    width: "100%",
   },
 });
 
