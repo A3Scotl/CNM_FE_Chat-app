@@ -25,7 +25,10 @@ export const getMyConversations = async () => {
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi lấy danh sách cuộc trò chuyện:", error?.response?.data || error.message || error);
+    console.error(
+      "❌ Lỗi khi lấy danh sách cuộc trò chuyện:",
+      error?.response?.data || error.message || error
+    );
     throw error;
   }
 };
@@ -43,7 +46,10 @@ export const getConversationDetail = async (id) => {
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi lấy chi tiết cuộc trò chuyện:", error?.response?.data || error.message || error);
+    console.error(
+      "❌ Lỗi khi lấy chi tiết cuộc trò chuyện:",
+      error?.response?.data || error.message || error
+    );
     throw error;
   }
 };
@@ -54,14 +60,21 @@ export const getOrCreateConversationDetail = async (to) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.post("/conversation/detail", { to }, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await axiosInstance.post(
+      "/conversation/detail",
+      { to },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi lấy hoặc tạo chi tiết cuộc trò chuyện:", error?.response?.data || error.message || error);
+    console.error(
+      "❌ Lỗi khi lấy hoặc tạo chi tiết cuộc trò chuyện:",
+      error?.response?.data || error.message || error
+    );
     throw error;
   }
 };

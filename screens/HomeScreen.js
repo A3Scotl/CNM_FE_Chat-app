@@ -12,7 +12,14 @@ import {
   Modal,
   TextInput,
 } from "react-native";
-import { Appbar, Avatar, useTheme, BottomNavigation, Portal, Button } from "react-native-paper";
+import {
+  Appbar,
+  Avatar,
+  useTheme,
+  BottomNavigation,
+  Portal,
+  Button,
+} from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import ConversationList from "../components/ConversationList";
 import ProfileModal from "../components/Modal/ProfileModal";
@@ -51,6 +58,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [groupSearchResults, setGroupSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [groupInvites, setGroupInvites] = useState([]);
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
@@ -62,7 +70,8 @@ const HomeScreen = ({ navigation, route }) => {
       const profile = await getMyProfile();
       setCurrentUser({
         ...profile,
-        token: route.params?.user?.token || (await AsyncStorage.getItem("token")),
+        token:
+          route.params?.user?.token || (await AsyncStorage.getItem("token")),
       });
     } catch (error) {
       console.error("Failed to fetch profile:", error);
@@ -204,14 +213,19 @@ const HomeScreen = ({ navigation, route }) => {
         conversationId: response.data.group._id,
         chat: {
           _id: response.data.group._id,
-          user: { fullName: response.data.group.name, avatar: response.data.group.avatar },
+          user: {
+            fullName: response.data.group.name,
+            avatar: response.data.group.avatar,
+          },
           type: "group",
         },
         user: currentUser,
       });
     } catch (error) {
       console.error("Error creating group:", error?.response?.data || error);
-      const errorMsg = error?.response?.data?.message || "Không thể tạo nhóm, vui lòng thử lại.";
+      const errorMsg =
+        error?.response?.data?.message ||
+        "Không thể tạo nhóm, vui lòng thử lại.";
       Alert.alert("Lỗi", errorMsg);
     }
   };
@@ -310,7 +324,11 @@ const HomeScreen = ({ navigation, route }) => {
                   <Text style={styles.userPhone}>{item.phoneNumber}</Text>
                 </View>
                 <MaterialCommunityIcons
-                  name={selectedMembers.includes(item._id) ? "checkbox-marked" : "checkbox-blank-outline"}
+                  name={
+                    selectedMembers.includes(item._id)
+                      ? "checkbox-marked"
+                      : "checkbox-blank-outline"
+                  }
                   size={24}
                   color={colors.primary}
                 />
@@ -337,7 +355,11 @@ const HomeScreen = ({ navigation, route }) => {
                 <Text style={styles.userPhone}>{item.phoneNumber}</Text>
               </View>
               <MaterialCommunityIcons
-                name={selectedMembers.includes(item._id) ? "checkbox-marked" : "checkbox-blank-outline"}
+                name={
+                  selectedMembers.includes(item._id)
+                    ? "checkbox-marked"
+                    : "checkbox-blank-outline"
+                }
                 size={24}
                 color={colors.primary}
               />
@@ -508,8 +530,6 @@ const HomeScreen = ({ navigation, route }) => {
   );
 };
 
-
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -520,7 +540,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   groupIcon: {
-    marginLeft:10
+    marginLeft: 10,
   },
   loadingContainer: {
     flex: 1,
@@ -596,14 +616,14 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
   },
   modalTitle: {
-    paddingTop:70,
-    textAlign:'center',
+    paddingTop: 70,
+    textAlign: "center",
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 15,
   },
   modalInput: {
-    marginHorizontal:20,
+    marginHorizontal: 20,
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 5,
@@ -614,17 +634,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     marginVertical: 10,
-    paddingHorizontal:30,
-    paddingVertical:5
+    paddingHorizontal: 30,
+    paddingVertical: 5,
   },
   searchResults: {
     maxHeight: 150,
     marginBottom: 10,
-    paddingHorizontal:30
-
+    paddingHorizontal: 30,
   },
   friendsList: {
-    paddingHorizontal:30
+    paddingHorizontal: 30,
   },
   modalButtons: {
     flexDirection: "row",
@@ -634,7 +653,7 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     marginHorizontal: 20,
-    marginBottom:50
+    marginBottom: 50,
   },
 });
 

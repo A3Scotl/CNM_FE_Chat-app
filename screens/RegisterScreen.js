@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
@@ -6,31 +6,31 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-} from 'react-native';
-import { Button, Text, useTheme } from 'react-native-paper';
-import FormInput from '../components/FormInput';
-import GenderRadioGroup from '../components/GenderRadioGroup';
-import ErrorDialog from '../components/Error/ErrorDialog';
-import { requestOtpSignup } from '../apis/auth.api';
-import { validateField } from '../utils/validation';
+} from "react-native";
+import { Button, Text, useTheme } from "react-native-paper";
+import FormInput from "../components/FormInput";
+import GenderRadioGroup from "../components/GenderRadioGroup";
+import ErrorDialog from "../components/Error/ErrorDialog";
+import { requestOtpSignup } from "../apis/auth.api";
+import { validateField } from "../utils/validation";
 
 const RegisterScreen = ({ navigation }) => {
   const theme = useTheme();
 
   const [form, setForm] = useState({
-    fullName: '',
-    userName: '',
-    phoneNumber: '',
-    email: '',
-    passWord: '',
-    confirmPassword: '',
-    gender: 'male',
+    fullName: "",
+    userName: "",
+    phoneNumber: "",
+    email: "",
+    passWord: "",
+    confirmPassword: "",
+    gender: "male",
   });
 
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [dialogVisible, setDialogVisible] = useState(false);
-  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogMessage, setDialogMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleChange = (name, value) => {
@@ -65,12 +65,12 @@ const RegisterScreen = ({ navigation }) => {
       const { confirmPassword, ...formData } = form;
       await requestOtpSignup(formData);
 
-      navigation.navigate('OTPScreen', {
+      navigation.navigate("OTPScreen", {
         phoneNumber: form.phoneNumber,
         isSignup: true,
       });
     } catch (err) {
-      setDialogMessage(err.message || 'Đã xảy ra lỗi');
+      setDialogMessage(err.message || "Đã xảy ra lỗi");
       setDialogVisible(true);
     } finally {
       setLoading(false);
@@ -79,8 +79,8 @@ const RegisterScreen = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: 'white' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1, backgroundColor: "white" }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Đăng ký</Text>
@@ -88,8 +88,8 @@ const RegisterScreen = ({ navigation }) => {
         <FormInput
           label="Họ và tên"
           value={form.fullName}
-          onChangeText={(text) => handleChange('fullName', text)}
-          onBlur={() => handleBlur('fullName')}
+          onChangeText={(text) => handleChange("fullName", text)}
+          onBlur={() => handleBlur("fullName")}
           error={errors.fullName}
           touched={touched.fullName}
         />
@@ -97,8 +97,8 @@ const RegisterScreen = ({ navigation }) => {
         <FormInput
           label="Tên người dùng"
           value={form.userName}
-          onChangeText={(text) => handleChange('userName', text)}
-          onBlur={() => handleBlur('userName')}
+          onChangeText={(text) => handleChange("userName", text)}
+          onBlur={() => handleBlur("userName")}
           error={errors.userName}
           touched={touched.userName}
         />
@@ -107,8 +107,8 @@ const RegisterScreen = ({ navigation }) => {
           label="Số điện thoại"
           value={form.phoneNumber}
           keyboardType="phone-pad"
-          onChangeText={(text) => handleChange('phoneNumber', text)}
-          onBlur={() => handleBlur('phoneNumber')}
+          onChangeText={(text) => handleChange("phoneNumber", text)}
+          onBlur={() => handleBlur("phoneNumber")}
           error={errors.phoneNumber}
           touched={touched.phoneNumber}
         />
@@ -117,8 +117,8 @@ const RegisterScreen = ({ navigation }) => {
           label="Email"
           value={form.email}
           keyboardType="email-address"
-          onChangeText={(text) => handleChange('email', text)}
-          onBlur={() => handleBlur('email')}
+          onChangeText={(text) => handleChange("email", text)}
+          onBlur={() => handleBlur("email")}
           error={errors.email}
           touched={touched.email}
         />
@@ -127,8 +127,8 @@ const RegisterScreen = ({ navigation }) => {
           label="Mật khẩu"
           value={form.passWord}
           secureTextEntry
-          onChangeText={(text) => handleChange('passWord', text)}
-          onBlur={() => handleBlur('passWord')}
+          onChangeText={(text) => handleChange("passWord", text)}
+          onBlur={() => handleBlur("passWord")}
           error={errors.passWord}
           touched={touched.passWord}
         />
@@ -137,15 +137,15 @@ const RegisterScreen = ({ navigation }) => {
           label="Xác nhận mật khẩu"
           value={form.confirmPassword}
           secureTextEntry
-          onChangeText={(text) => handleChange('confirmPassword', text)}
-          onBlur={() => handleBlur('confirmPassword')}
+          onChangeText={(text) => handleChange("confirmPassword", text)}
+          onBlur={() => handleBlur("confirmPassword")}
           error={errors.confirmPassword}
           touched={touched.confirmPassword}
         />
 
         <GenderRadioGroup
           value={form.gender}
-          onValueChange={(value) => handleChange('gender', value)}
+          onValueChange={(value) => handleChange("gender", value)}
         />
 
         <Button
@@ -155,11 +155,11 @@ const RegisterScreen = ({ navigation }) => {
           buttonColor={theme.colors.primary}
           disabled={loading}
         >
-          {loading ? <ActivityIndicator color="white" /> : 'Đăng ký'}
+          {loading ? <ActivityIndicator color="white" /> : "Đăng ký"}
         </Button>
 
         <Button
-          onPress={() => navigation.navigate('Login')}
+          onPress={() => navigation.navigate("Login")}
           style={{ marginTop: 8 }}
         >
           Đã có tài khoản? Đăng nhập
@@ -178,13 +178,13 @@ const RegisterScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    paddingVertical:45
+    paddingVertical: 45,
   },
   title: {
     fontSize: 24,
     marginBottom: 16,
-    alignSelf: 'center',
-    fontWeight: 'bold',
+    alignSelf: "center",
+    fontWeight: "bold",
   },
   button: {
     marginTop: 12,

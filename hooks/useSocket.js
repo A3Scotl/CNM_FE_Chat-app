@@ -6,7 +6,15 @@ import { SOCKET_URL } from "@env";
 
 export const useSocket = (
   userId,
-  { onFriendRequest, onFriendRequestAccepted, onNewMessage, onTyping, onStopTyping } = {}
+  {
+    onFriendRequest,
+    onFriendRequestAccepted,
+    onNewMessage,
+    onTyping,
+    onStopTyping,
+    onNewGroupInvite,
+    onGroupInviteAccepted,
+  } = {}
 ) => {
   const socketRef = useRef(null);
 
@@ -49,13 +57,19 @@ export const useSocket = (
           Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ.");
         });
 
-        socketRef.current.on("friend-request", ({ message, from, requestId }) => {
-          console.log("Nhận yêu cầu kết bạn:", { message, from, requestId });
-          Alert.alert("Yêu cầu kết bạn mới", `${message} từ ${from.fullName}`);
-          if (onFriendRequest) {
-            onFriendRequest({ message, from, requestId });
+        socketRef.current.on(
+          "friend-request",
+          ({ message, from, requestId }) => {
+            console.log("Nhận yêu cầu kết bạn:", { message, from, requestId });
+            Alert.alert(
+              "Yêu cầu kết bạn mới",
+              `${message} từ ${from.fullName}`
+            );
+            if (onFriendRequest) {
+              onFriendRequest({ message, from, requestId });
+            }
           }
-        });
+        );
 
         socketRef.current.on("friend-request-accepted", ({ message, user }) => {
           console.log("Yêu cầu kết bạn đã được chấp nhận:", { message, user });
@@ -70,22 +84,41 @@ export const useSocket = (
             console.warn("Tin nhắn không hợp lệ từ socket:", msg);
             return;
           }
-          // console.log("Nhận tin nhắn mới:", msg);
           if (onNewMessage) {
             onNewMessage(msg);
           }
         });
 
-        socketRef.current.on("typing", ({ conversationId, userId: typingUserId, fullName }) => {
-          if (onTyping && conversationId && typingUserId && fullName) {
-            onTyping({ conversationId, userId: typingUserId, fullName });
+        socketRef.current.on(
+          "typing",
+          ({ conversationId, userId: typingUserId, fullName }) => {
+            if (onTyping && conversationId && typingUserId && fullName) {
+              onTyping({ conversationId, userId: typingUserId, fullName });
+            }
           }
+        );
+
+        socketRef.current.on(
+          "stop-typing",
+          ({ conversationId, userId: typingUserId }) => {
+            if (onStopTyping && conversationId && typingUserId) {
+              onStopTyping({ conversationId, userId: typingUserId });
+            }
+          }
+        );
+
+        socketRef.current.on("new-group-invite", (invite) => {
+          console.log("📨 Nhận lời mời nhóm:", invite);
+          Alert.alert(
+            "Lời mời nhóm mới",
+            `Bạn được mời vào nhóm ${invite.groupId} bởi ${invite.invitedBy.name}`
+          );
+          if (onNewGroupInvite) onNewGroupInvite(invite);
         });
 
-        socketRef.current.on("stop-typing", ({ conversationId, userId: typingUserId }) => {
-          if (onStopTyping && conversationId && typingUserId) {
-            onStopTyping({ conversationId, userId: typingUserId });
-          }
+        socketRef.current.on("group-invite-accepted", ({ user, groupId }) => {
+          console.log("✅ Ai đó đã tham gia nhóm:", user, groupId);
+          if (onGroupInviteAccepted) onGroupInviteAccepted({ user, groupId });
         });
 
         socketRef.current.on("disconnect", (reason) => {
@@ -108,7 +141,16 @@ export const useSocket = (
         socketRef.current = null;
       }
     };
-  }, [userId, onFriendRequest, onFriendRequestAccepted, onNewMessage, onTyping, onStopTyping]);
+  }, [
+    userId,
+    onFriendRequest,
+    onFriendRequestAccepted,
+    onNewMessage,
+    onTyping,
+    onStopTyping,
+    onNewGroupInvite,
+    onGroupInviteAccepted,
+  ]);
 
   const joinRoom = (conversationId) => {
     if (socketRef.current && conversationId) {
@@ -129,5 +171,27 @@ export const useSocket = (
     }
   };
 
-  return { socket: socketRef.current, joinRoom, emitTyping, emitStopTyping };
+  const emitGroupInvite = (toUserId, invite) => {
+    if (socketRef.current) {
+      socketRef.current.emit("send-group-invite", { toUserId, invite });
+    }
+  };
+
+  const emitGroupInviteAccepted = (groupId, user) => {
+    if (socketRef.current) {
+      socketRef.current.emit("accept-group-invite", {
+        groupId,
+        user,
+      });
+    }
+  };
+
+  return {
+    socket: socketRef.current,
+    joinRoom,
+    emitTyping,
+    emitStopTyping,
+    emitGroupInvite,
+    emitGroupInviteAccepted,
+  };
 };
