@@ -27,7 +27,7 @@ export const useSocket = (
           return;
         }
 
-        socketRef.current = io(SOCKET_URL, {
+        socketRef.current = io(SOCKET_URL || "https://be.haudev.io.vn", {
           auth: { userId, token },
           reconnection: true,
           reconnectionAttempts: 20,
@@ -70,7 +70,6 @@ export const useSocket = (
             console.warn("Tin nhắn không hợp lệ từ socket:", msg);
             return;
           }
-          // console.log("Nhận tin nhắn mới:", msg);
           if (onNewMessage) {
             onNewMessage(msg);
           }

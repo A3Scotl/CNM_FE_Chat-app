@@ -200,7 +200,7 @@ const HomeScreen = ({ navigation, route }) => {
       setGroupSearchQuery("");
       setGroupSearchResults([]);
       Alert.alert("Thành công", "Nhóm đã được tạo!");
-      navigation.navigate("ChatDetail", {
+      navigation.navigate("Chat", {
         conversationId: response.data.group._id,
         chat: {
           _id: response.data.group._id,

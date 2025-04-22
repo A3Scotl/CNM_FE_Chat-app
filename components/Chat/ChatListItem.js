@@ -10,62 +10,50 @@ const ChatListItem = ({ item, onPress, userId }) => {
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const conversationId = item._id;
 
-  // Play notification sound
   const playNotificationSound = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require("../../assets/sounds/message-notification.mp3")
-      );
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) sound.unloadAsync();
-      });
-    } catch (err) {
-      console.error("Lỗi phát âm thanh thông báo:", err);
-    }
+    // try {
+    //   // const { sound } = await Audio.Sound.createAsync(
+    //   //   require("../../assets/sounds/message-notification.mp3")
+    //   // );
+    //   // await sound.playAsync();
+    //   // sound.setOnPlaybackStatusUpdate((status) => {
+    //   //   if (status.didJustFinish) sound.unloadAsync();
+    //   // });
+    // } catch (err) {
+    //   console.error("Lỗi phát âm thanh thông báo:", err);
+    // }
   };
 
-  // Handle new messages
   const handleNewMessage = async (message) => {
-    console.log("ChatListItem received message:", message, "for conversation:", conversationId);
-    
-    // Only update if the message belongs to this conversation
     if (message.conversationId === conversationId) {
-      console.log("Message matches this conversation, updating UI");
-      
-      // Get sender ID in a consistent way
       const senderId = typeof message.sender === "object" ? message.sender._id : message.sender;
-      console.log("Sender ID:", senderId, "Current user ID:", userId);
-      
-      // Play sound for messages from others
       if (senderId !== userId) {
         await playNotificationSound();
-        // Increment unread count
         setUnreadCount((prev) => (prev || 0) + 1);
       }
-      
-      // Update the last message
+
       setLastMessage({
         _id: message._id,
         content: message.content || (
           message.type === "image" ? "Hình ảnh" : 
           message.type === "audio" ? "Tin nhắn âm thanh" : "Tệp"
         ),
-        sender: senderId,
+        sender: message.sender,
         createdAt: message.createdAt || new Date().toISOString(),
+        type: message.type,
+        fileMeta: message.fileMeta || [],
+        replyTo: message.replyTo,
+        isRevoke: message.isRevoke || false,
       });
     }
   };
 
-  // Use the socket hook properly
   const { socket, joinRoom } = useSocket(userId, {
-    onNewMessage: handleNewMessage
+    onNewMessage: handleNewMessage,
   });
 
-  // Join the conversation room when component mounts
   useEffect(() => {
     if (conversationId && joinRoom) {
-      console.log(`Joining room for conversation: ${conversationId}`);
       joinRoom(conversationId);
     }
   }, [conversationId, joinRoom]);
