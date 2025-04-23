@@ -31,7 +31,7 @@ const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
 
-  const [currentUser, setCurrentUser] = useState(null); // Ban đầu là null
+  const [currentUser, setCurrentUser] = useState(null); 
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
@@ -199,7 +199,7 @@ const HomeScreen = ({ navigation, route }) => {
       setSelectedMembers([]);
       setGroupSearchQuery("");
       setGroupSearchResults([]);
-      Alert.alert("Thành công", "Nhóm đã được tạo!");
+      // Alert.alert("Thành công", "Nhóm đã được tạo!");
       navigation.navigate("Chat", {
         conversationId: response.data.group._id,
         chat: {

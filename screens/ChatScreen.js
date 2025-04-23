@@ -303,21 +303,40 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on("group:member-removed", ({ groupId, removedUserId, removedBy }) => {
+        console.log("Nhận sự kiện group:member-removed:", { groupId, removedUserId, removedBy });
         if (groupId === chat._id) {
-          fetchMemberInGroupDetails();
-          if (removedBy !== userId && removedUserId !== userId) {
-            Alert.alert("Thành viên bị xóa", `Một người dùng đã bị xóa khỏi nhóm.`);
-            try {
-              Audio.Sound.createAsync(
-                require("../assets/sounds/invite-group.mp3")
-              ).then(({ sound }) => {
-                sound.playAsync();
-                sound.setOnPlaybackStatusUpdate((status) => {
-                  if (status.didJustFinish) sound.unloadAsync();
+          if (removedUserId === userId) {
+            // User bị xóa (không mong đợi sự kiện này từ backend, nhưng giữ logic phòng hờ)
+            Alert.alert("Thông báo", "Bạn đã bị xóa khỏi nhóm.", [
+              {
+                text: "OK",
+                onPress: () => {
+                  socketConnection.emit("leave-room", chat._id);
+                  navigation.replace("Home");
+                },
+              },
+            ]);
+            setTimeout(() => {
+              socketConnection.emit("leave-room", chat._id);
+              navigation.replace("Home");
+            }, 1000);
+          } else {
+            // Thành viên khác bị xóa
+            fetchMemberInGroupDetails();
+            if (removedBy !== userId) {
+              // Alert.alert("Thành viên bị xóa", `Một người dùng đã bị xóa khỏi nhóm.`);
+              try {
+                Audio.Sound.createAsync(
+                  require("../assets/sounds/invite-group.mp3")
+                ).then(({ sound }) => {
+                  sound.playAsync();
+                  sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.didJustFinish) sound.unloadAsync();
+                  });
                 });
-              });
-            } catch (err) {
-              console.error("Lỗi phát âm thanh thông báo:", err);
+              } catch (err) {
+                console.error("Lỗi phát âm thanh thông báo:", err);
+              }
             }
           }
         }
@@ -349,10 +368,21 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on("group:deleted", ({ groupId }) => {
+        console.log("Nhận sự kiện group:deleted:", { groupId });
         if (groupId === chat._id) {
-          Alert.alert("Nhóm đã giải tán", "Nhóm đã bị giải tán.", [
-            { text: "OK", onPress: () => navigation.goBack() },
+          Alert.alert("Thông báo", "Nhóm đã giải tán.", [
+            {
+              text: "OK",
+              onPress: () => {
+                socketConnection.emit("leave-room", chat._id);
+                navigation.replace("Home");
+              },
+            },
           ]);
+          setTimeout(() => {
+            socketConnection.emit("leave-room", chat._id);
+            navigation.replace("Home");
+          }, 1000);
         }
       });
 
@@ -363,7 +393,7 @@ const ChatScreen = ({ navigation, route }) => {
             name: name || prev.name,
             avatar: avatar || prev.avatar,
           }));
-          Alert.alert("Cập nhật nhóm", "Thông tin nhóm đã được cập nhật.");
+          // Alert.alert("Cập nhật nhóm", "Thông tin nhóm đã được cập nhật.");
           try {
             Audio.Sound.createAsync(
               require("../assets/sounds/invite-group.mp3")
@@ -384,7 +414,7 @@ const ChatScreen = ({ navigation, route }) => {
           fetchMemberInGroupDetails();
           if (affectedUserId !== userId) {
             const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-            Alert.alert("Thay đổi quyền", `Quyền của một thành viên đã được thay đổi thành ${roleText}.`);
+            // Alert.alert("Thay đổi quyền", `Quyền của một thành viên đã được thay đổi thành ${roleText}.`);
             try {
               Audio.Sound.createAsync(
                 require("../assets/sounds/invite-group.mp3")
@@ -418,7 +448,7 @@ const ChatScreen = ({ navigation, route }) => {
       setIsLoading(true);
       try {
         const data = await getMessages(chat._id, userId);
-        const formattedMessages = data.map((msg) => {
+        const formattedMessages = data.messages.map((msg) => {
           const isCurrentUser = String(msg.sender._id) === String(userId);
           return {
             _id: msg._id,
@@ -957,9 +987,6 @@ const ChatScreen = ({ navigation, route }) => {
           onPress: async () => {
             try {
               await deleteGroup(chat._id);
-              Alert.alert("Thành công", "Nhóm đã được giải tán.", [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
               if (socket) {
                 socket.emit("group:deleted", { groupId: chat._id });
               }
@@ -979,25 +1006,54 @@ const ChatScreen = ({ navigation, route }) => {
       Alert.alert("Lỗi", "Vui lòng nhập tên nhóm hoặc chọn ảnh mới.");
       return;
     }
-
+  
     try {
+      // Cập nhật conversationDetails.user ngay lập tức
+      setConversationDetails((prev) => {
+        const newDetails = {
+          ...prev,
+          user: {
+            ...prev.user,
+            fullName: newGroupName || prev.user.fullName,
+            avatar: newGroupAvatar ? newGroupAvatar.uri : prev.user.avatar,
+          },
+        };
+        console.log("Updating conversationDetails:", newDetails);
+        return newDetails;
+      });
+  
       const payload = {};
       if (newGroupName) payload.name = newGroupName;
       if (newGroupAvatar) {
         const url = await uploadToS3(newGroupAvatar);
         payload.avatar = url;
       }
-
+  
       const updatedGroup = await updateGroupInfo(chat._id, payload.name, payload.avatar);
-      setConversationDetails(updatedGroup.data);
+      console.log("updatedGroup.data:", updatedGroup.data);
+      setConversationDetails((prev) => ({
+        ...prev,
+        ...updatedGroup.data,
+        user: {
+          ...prev.user,
+          fullName: updatedGroup.data.user?.fullName || newGroupName || prev.user.fullName,
+          avatar: updatedGroup.data.user?.avatar || payload.avatar || prev.user.avatar,
+        },
+      }));
       setNewGroupName("");
       setNewGroupAvatar(null);
       Alert.alert("Thành công", "Cập nhật thông tin nhóm thành công.");
+  
       if (socket) {
-        socket.emit("group:infoUpdated", { groupId: chat._id, name: payload.name, avatar: payload.avatar });
+        socket.emit("group:infoUpdated", {
+          groupId: chat._id,
+          name: payload.name,
+          avatar: payload.avatar,
+        });
       }
     } catch (error) {
       console.error("Lỗi cập nhật thông tin nhóm:", error);
+      setConversationDetails(chat);
       Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
     }
   };

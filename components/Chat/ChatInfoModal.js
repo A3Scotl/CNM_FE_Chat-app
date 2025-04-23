@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, StyleSheet, TouchableOpacity, TextInput, Image, FlatList, Alert, Animated } from "react-native";
+import { View, StyleSheet, TouchableOpacity, TextInput, Image, FlatList, Alert, Animated, Platform, ActivityIndicator } from "react-native";
 import { Portal, Modal, Avatar, Text, Button, IconButton, Switch } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import AddMemberModal from "./AddMemberModal";
@@ -37,7 +37,16 @@ const ChatInfoModal = ({
   const [fadeAnim] = useState(new Animated.Value(0));
   const [error, setError] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const inputRef = useRef(null);
+
+  const displayName = conversationDetails?.user?.fullName || chat?.user?.fullName || "Nhóm không tên";
+  const displayAvatar = Platform.OS === "ios"
+    ? (conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150").replace("file://", "")
+    : conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150";
+  useEffect(() => {
+    console.log("ChatInfoModal: conversationDetails:", conversationDetails);
+  }, [conversationDetails]);
 
   useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin) && isEditingName) {
@@ -56,16 +65,23 @@ const ChatInfoModal = ({
     }
   }, [visible, isGroup, isOwner, isAdmin, isEditingName]);
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!newGroupName.trim() && !newGroupAvatar) {
       setError("Vui lòng nhập tên nhóm hoặc chọn ảnh mới");
       return;
     }
     setError("");
-    setIsEditingName(false);
-    setNewGroupName("");
-    setNewGroupAvatar(null);
-    onUpdateGroupInfo();
+    setIsUpdating(true);
+    try {
+      await onUpdateGroupInfo();
+      setIsEditingName(false);
+      setNewGroupName("");
+      setNewGroupAvatar(null);
+    } catch (error) {
+      setError(error.message || "Không thể cập nhật thông tin nhóm");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleRemoveAvatar = () => {
@@ -93,12 +109,7 @@ const ChatInfoModal = ({
           >
             <Avatar.Image
               size={100}
-              source={{
-                uri:
-                  isGroup && conversationDetails?.avatar
-                    ? chat.user.avatar
-                    : chat?.user?.avatar || "https://i.pravatar.cc/150",
-              }}
+              source={{ uri: displayAvatar, cache: "reload" }} 
               style={styles.avatarImage}
             />
             {(isOwner || isAdmin) && (
@@ -108,11 +119,7 @@ const ChatInfoModal = ({
             )}
           </TouchableOpacity>
           <View style={styles.nameContainer}>
-            <Text style={styles.modalChatName}>
-              {isGroup
-                ? chat.user?.fullName || "Nhóm không tên"
-                : chat?.user?.fullName || "Không có tên"}
-            </Text>
+            <Text style={styles.modalChatName}>{displayName}</Text>
             {isGroup && (isOwner || isAdmin) && (
               <TouchableOpacity onPress={toggleEditName} style={styles.editNameIcon}>
                 <MaterialIcons
@@ -129,7 +136,7 @@ const ChatInfoModal = ({
                 <TextInput
                   ref={inputRef}
                   style={styles.groupNameInput}
-                  placeholder={conversationDetails?.name || "Nhập tên nhóm"}
+                  placeholder={displayName || "Nhập tên nhóm"}
                   placeholderTextColor="#999"
                   value={newGroupName}
                   onChangeText={setNewGroupName}
@@ -152,9 +159,9 @@ const ChatInfoModal = ({
                 style={styles.updateButton}
                 contentStyle={styles.updateButtonContent}
                 labelStyle={styles.updateButtonLabel}
-                disabled={!newGroupName.trim() && !newGroupAvatar}
+                disabled={(!newGroupName.trim() && !newGroupAvatar) || isUpdating}
               >
-                Cập nhật
+                {isUpdating ? <ActivityIndicator size="small" color="white" /> : "Cập nhật"}
               </Button>
             </Animated.View>
           )}
@@ -399,7 +406,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   modalSection: {
-    marginBottom: 20,
+   maxHeight:800,
+
+   marginBottom:60
   },
   modalSectionTitle: {
     fontSize: 16,
