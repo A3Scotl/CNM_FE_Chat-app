@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useRef, memo, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  memo,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   View,
   StyleSheet,
@@ -27,7 +34,7 @@ import {
   rejectGroupInvite,
   sendGroupInvite,
 } from "../../apis/pendingGroupInvite.api";
-import { getFriends } from "../../apis/contact.api";
+import { getFriendsNotInGroup } from "../../apis/conversationGroup.api";
 
 // Tính toán kích thước dựa trên Dimensions
 const { width, height } = Dimensions.get("window");
@@ -40,6 +47,58 @@ const normalize = (size, isHeight = false) => {
   const scale = isHeight ? scaleHeight : scaleWidth;
   return Math.round(size * scale);
 };
+
+// Component for rendering each pending invite item
+const PendingInviteItem = memo(
+  ({ item, isOwner, isAdmin, onAccept, onReject, loading }) => {
+    const invitedUser = item.invitedUser || {};
+    const invitedBy = item.invitedBy || {};
+
+    // Debug log to verify item data
+    console.log("PendingInviteItem item:", JSON.stringify(item, null, 2));
+
+    return (
+      <View style={styles.participantItem}>
+        <Avatar.Image
+          size={normalize(40)}
+          source={{ uri: invitedUser.avatar || "https://i.pravatar.cc/150" }}
+        />
+        <View style={styles.participantInfo}>
+          <Text style={styles.participantName}>
+            {invitedUser.fullName || invitedUser._id || "Không rõ"}
+          </Text>
+          <Text style={styles.participantRole}>
+            Mời bởi: {invitedBy.fullName || invitedBy._id || "Không rõ"} (Đang
+            chờ)
+          </Text>
+        </View>
+        {(isOwner || isAdmin) && (
+          <View style={styles.memberActions}>
+            <IconButton
+              icon="check"
+              size={normalize(20)}
+              onPress={() => onAccept(item._id, invitedUser)}
+              iconColor="#0098f9"
+              containerColor="transparent"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={loading[item._id]}
+              loading={loading[item._id]}
+            />
+            <IconButton
+              icon="close"
+              size={normalize(20)}
+              onPress={() => onReject(item._id)}
+              iconColor="#ff4444"
+              containerColor="transparent"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={loading[item._id]}
+            />
+          </View>
+        )}
+      </View>
+    );
+  }
+);
 
 const ChatInfoModal = ({
   visible,
@@ -64,6 +123,7 @@ const ChatInfoModal = ({
   onRemoveMember,
   onChangeMemberRole,
   onFetchAvailableFriends,
+  onFetchGroupMembers,
   onOpenImagePreview,
 }) => {
   const isGroup = chat.type === "group";
@@ -78,65 +138,111 @@ const ChatInfoModal = ({
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [loadingInvite, setLoadingInvite] = useState(false);
-  const [friends, setFriends] = useState(propFriends);
+  const [friends, setFriends] = useState(
+    Array.isArray(propFriends) ? propFriends : []
+  );
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState({}); // Track loading state per invite
   const inputRef = useRef(null);
-
-  // Lọc bạn bè không có trong nhóm
-  const filteredFriends = useMemo(() => {
-    const memberIds = groupMembers.map((member) => member._id);
-    return friends.filter((friend) => !memberIds.includes(friend._id));
-  }, [friends, groupMembers]);
 
   // Tích hợp useSocket để xử lý lời mời nhóm realtime
   const { socket, emitGroupInvite, emitGroupInviteAccepted } = useSocket(
     user._id,
     {
-      onNewGroupInvite: (invite) => {
-        if (invite.groupId._id === chat._id && (isOwner || isAdmin)) {
-          setPendingInvites((prev) => [...prev, invite]);
-          Alert.alert(
-            "Lời mời nhóm mới",
-            `${
-              invite.invitedBy.fullName || invite.invitedBy._id || "Không rõ"
-            } đã mời ${
-              invite.invitedUser.fullName ||
-              invite.invitedUser._id ||
-              "Không rõ"
-            } vào nhóm`
-          );
-        }
-      },
-      onGroupInviteAccepted: ({ user, groupId }) => {
-        if (groupId === chat._id) {
-          onFetchAvailableFriends();
-          setPendingInvites((prev) =>
-            prev.filter((invite) => invite.invitedUser._id !== user._id)
-          );
-        }
-      },
+      onNewGroupInvite: useCallback(
+        (invite) => {
+          if (invite.groupId === chat._id && (isOwner || isAdmin)) {
+            // Refetch pending invites to get populated data
+            fetchPendingInvites();
+          }
+        },
+        [chat._id, isOwner, isAdmin, fetchPendingInvites]
+      ),
+      onGroupInviteAccepted: useCallback(
+        ({ user: acceptedUser, groupId }) => {
+          if (groupId === chat._id) {
+            setPendingInvites((prev) =>
+              prev.filter(
+                (invite) => invite.invitedUser._id !== acceptedUser._id
+              )
+            );
+            setFriends((prev) =>
+              prev.filter((friend) => friend._id !== acceptedUser._id)
+            );
+            // Update groupMembers locally if user data is available
+            if (acceptedUser._id && acceptedUser.fullName) {
+              setLocalGroupMembers((prev) => {
+                if (prev.some((member) => member._id === acceptedUser._id))
+                  return prev;
+                return [...prev, { ...acceptedUser, role: "member" }];
+              });
+            } else if (typeof onFetchGroupMembers === "function") {
+              onFetchGroupMembers();
+            }
+          }
+        },
+        [chat._id, onFetchGroupMembers]
+      ),
+      onGroupInviteRejected: useCallback(
+        ({ inviteId, groupId }) => {
+          if (groupId === chat._id) {
+            setPendingInvites((prev) =>
+              prev.filter((invite) => invite._id !== inviteId)
+            );
+          }
+        },
+        [chat._id]
+      ),
     }
   );
 
-  // Lấy danh sách bạn bè nếu propFriends rỗng
+  // Local state for groupMembers to allow updates without parent
+  const [localGroupMembers, setLocalGroupMembers] = useState(groupMembers);
+
+  // Sync localGroupMembers with prop groupMembers
   useEffect(() => {
-    const fetchFriends = async () => {
+    setLocalGroupMembers(groupMembers);
+  }, [groupMembers]);
+
+  // Lấy danh sách bạn bè không có trong nhóm
+  useEffect(() => {
+    const fetchFriendsNotInGroupData = async () => {
       try {
-        const data = await getFriends();
-        console.log("Friends data:", JSON.stringify(data, null, 2));
-        setFriends(data || []);
+        setLoadingFriends(true);
+        const response = await getFriendsNotInGroup(chat._id);
+        console.log(
+          "Friends not in group response:",
+          JSON.stringify(response, null, 2)
+        );
+        const data = response?.data || [];
+        setFriends(Array.isArray(data) ? data : []);
+        setFriendsLoaded(true);
       } catch (error) {
-        console.error("Lỗi lấy danh sách bạn bè:", error);
+        console.error("Lỗi lấy danh sách bạn bè không có trong nhóm:", error);
+        setFriends([]);
+      } finally {
+        setLoadingFriends(false);
       }
     };
 
-    if (visible && isGroup && (isOwner || isAdmin)) {
+    if (visible && isGroup && (isOwner || isAdmin) && !friendsLoaded) {
       if (propFriends.length === 0) {
-        fetchFriends();
+        fetchFriendsNotInGroupData();
       } else if (JSON.stringify(friends) !== JSON.stringify(propFriends)) {
-        setFriends(propFriends);
+        setFriends(Array.isArray(propFriends) ? propFriends : []);
+        setFriendsLoaded(true);
       }
     }
-  }, [visible, isGroup, isOwner, isAdmin, propFriends, friends]);
+  }, [
+    visible,
+    isGroup,
+    isOwner,
+    isAdmin,
+    propFriends,
+    friendsLoaded,
+    chat._id,
+  ]);
 
   useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin) && isEditingName) {
@@ -172,56 +278,88 @@ const ChatInfoModal = ({
       }
       const invites = await getPendingGroupInvitesByGroup(chat._id);
       console.log("Pending invites fetched:", JSON.stringify(invites, null, 2));
-      setPendingInvites(invites || []);
+      // Filter only pending invites and ensure _id exists
+      const pendingOnly = Array.isArray(invites)
+        ? invites.filter((invite) => invite.status === "pending" && invite._id)
+        : [];
+      setPendingInvites(pendingOnly);
     } catch (error) {
       console.error("Lỗi lấy danh sách lời mời:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách lời mời nhóm.");
     } finally {
       setLoadingInvites(false);
     }
   };
 
-  const handleAcceptInvite = async (inviteId) => {
+  const handleAcceptInvite = async (inviteId, invitedUser) => {
     try {
+      setInviteLoading((prev) => ({ ...prev, [inviteId]: true }));
       await acceptGroupInvite(inviteId);
+      // Immediately reject/delete the invite to remove it from the database
+      await rejectGroupInvite(inviteId);
       setPendingInvites((prev) =>
         prev.filter((invite) => invite._id !== inviteId)
       );
-      onFetchAvailableFriends();
+      // Update friends locally
+      setFriends((prev) =>
+        prev.filter((friend) => friend._id !== invitedUser._id)
+      );
+      // Update groupMembers locally
+      setLocalGroupMembers((prev) => {
+        if (prev.some((member) => member._id === invitedUser._id)) return prev;
+        return [...prev, { ...invitedUser, role: "member" }];
+      });
       if (socket) {
         socket.emit("accept-group-invite", {
           groupId: chat._id,
-          user: { _id: user._id },
+          user: invitedUser, // Send full user data
         });
       }
-      Alert.alert("Thành công", "Lời mời đã được chấp nhận.");
+      setFriendsLoaded(false); // Trigger reload of friends if needed
+      Alert.alert("Thành công", "Lời mời đã được chấp nhận và xóa.");
     } catch (error) {
       console.error("Lỗi chấp nhận lời mời:", error);
-      Alert.alert("Lỗi", error.message || "Không thể chấp nhận lời mời.");
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Không thể chấp nhận lời mời.";
+      Alert.alert("Lỗi", errorMessage);
+    } finally {
+      setInviteLoading((prev) => ({ ...prev, [inviteId]: false }));
     }
   };
 
   const handleRejectInvite = async (inviteId) => {
     try {
+      setInviteLoading((prev) => ({ ...prev, [inviteId]: true }));
       await rejectGroupInvite(inviteId);
       setPendingInvites((prev) =>
         prev.filter((invite) => invite._id !== inviteId)
       );
+      if (socket) {
+        socket.emit("reject-group-invite", {
+          groupId: chat._id,
+          inviteId,
+        });
+      }
       Alert.alert("Thành công", "Lời mời đã bị từ chối.");
     } catch (error) {
       console.error("Lỗi từ chối lời mời:", error);
       Alert.alert("Lỗi", error.message || "Không thể từ chối lời mời.");
+    } finally {
+      setInviteLoading((prev) => ({ ...prev, [inviteId]: false }));
     }
   };
 
-  const toggleMember = (userId) => {
+  const toggleMember = useCallback((userId) => {
     setSelectedMembers((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
         : [...prev, userId]
     );
-  };
+  }, []);
 
-  const handleSendInvites = async () => {
+  const handleSendInvites = useCallback(async () => {
     if (selectedMembers.length === 0) {
       Alert.alert("Lỗi", "Vui lòng chọn ít nhất một người để mời.");
       return;
@@ -247,7 +385,7 @@ const ChatInfoModal = ({
     } finally {
       setLoadingInvite(false);
     }
-  };
+  }, [selectedMembers, chat._id, user._id, socket, emitGroupInvite]);
 
   const handleUpdate = () => {
     if (!newGroupName.trim() && !newGroupAvatar) {
@@ -275,434 +413,435 @@ const ChatInfoModal = ({
   };
 
   // Modal con để mời thành viên
-  const InviteMemberModal = memo(() => (
-    <Portal>
-      <Modal
-        visible={showInviteModal}
-        onDismiss={() => {
-          setShowInviteModal(false);
-          setSelectedMembers([]);
-        }}
-        contentContainerStyle={styles.inviteModalContainer}
-      >
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Mời thành viên vào nhóm</Text>
-          <TouchableOpacity
-            onPress={() => {
-              setShowInviteModal(false);
-              setSelectedMembers([]);
-            }}
-            style={styles.closeButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.modalCloseText}>Đóng</Text>
-          </TouchableOpacity>
-        </View>
-        {!filteredFriends || filteredFriends.length === 0 ? (
-          <Text style={styles.emptyText}>Không có bạn bè nào để mời.</Text>
-        ) : (
-          <>
-            <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
-            <FlatList
-              data={filteredFriends}
-              keyExtractor={(item) => item._id}
-              initialNumToRender={10}
-              getItemLayout={(data, index) => ({
-                length: normalize(64, true),
-                offset: normalize(64, true) * index,
-                index,
-              })}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.userItem}
-                  onPress={() => toggleMember(item._id)}
-                  activeOpacity={0.7}
-                >
-                  <Avatar.Image
-                    size={normalize(48)}
-                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                  />
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>
-                      {item.fullName || "Không rõ"}
-                    </Text>
-                    <Text style={styles.userPhone}>
-                      {item.phoneNumber || "Không có số"}
-                    </Text>
-                  </View>
-                  <View style={styles.checkboxContainer}>
-                    <MaterialCommunityIcons
-                      name={
-                        selectedMembers.includes(item._id)
-                          ? "checkbox-marked"
-                          : "checkbox-blank-outline"
-                      }
-                      size={normalize(28)}
-                      color="#0098f9"
-                    />
-                  </View>
-                </TouchableOpacity>
-              )}
-              style={styles.friendsList}
-            />
-            <Button
-              mode="contained"
-              onPress={handleSendInvites}
-              style={styles.sendInviteButton}
-              contentStyle={styles.sendInviteButtonContent}
-              labelStyle={styles.sendInviteText}
-              disabled={loadingInvite}
-              loading={loadingInvite}
-            >
-              Gửi lời mời vào nhóm
-            </Button>
-          </>
-        )}
-      </Modal>
-    </Portal>
-  ));
-
-  const sections = [
-    {
-      key: "groupInfo",
-      render: () => (
-        <View style={styles.modalAvatarContainer}>
-          <TouchableOpacity
-            onPress={isOwner || isAdmin ? onPickAvatar : null}
-            disabled={!isOwner && !isAdmin}
-            style={styles.avatarTouchable}
-          >
-            <Avatar.Image
-              size={normalize(100)}
-              source={{
-                uri:
-                  isGroup && conversationDetails?.avatar
-                    ? conversationDetails.avatar
-                    : chat?.user?.avatar || "https://i.pravatar.cc/150",
+  const InviteMemberModal = memo(() => {
+    console.log("InviteMemberModal friends:", JSON.stringify(friends, null, 2));
+    return (
+      <Portal>
+        <Modal
+          visible={showInviteModal}
+          onDismiss={() => {
+            setShowInviteModal(false);
+            setSelectedMembers([]);
+          }}
+          contentContainerStyle={styles.inviteModalContainer}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Mời thành viên vào nhóm</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowInviteModal(false);
+                setSelectedMembers([]);
               }}
-              style={styles.avatarImage}
-            />
-            {(isOwner || isAdmin) && (
-              <View style={styles.editAvatarIcon}>
-                <MaterialIcons
-                  name="camera-alt"
-                  size={normalize(20)}
-                  color="white"
-                />
-              </View>
-            )}
-          </TouchableOpacity>
-          <View style={styles.nameContainer}>
-            <Text style={styles.modalChatName}>
-              {isGroup
-                ? conversationDetails?.name || "Nhóm không tên"
-                : chat?.user?.fullName || "Không có tên"}
-            </Text>
-            {isGroup && (isOwner || isAdmin) && (
-              <TouchableOpacity
-                onPress={toggleEditName}
-                style={styles.editNameIcon}
-              >
-                <MaterialIcons
-                  name={isEditingName ? "close" : "edit"}
-                  size={normalize(20)}
-                  color="#0098f9"
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-          {isGroup && (isOwner || isAdmin) && isEditingName && (
-            <Animated.View
-              style={[styles.groupInfoEdit, { opacity: fadeAnim }]}
+              style={styles.closeButton}
+              activeOpacity={0.7}
             >
-              <View style={styles.inputContainer}>
-                <TextInput
-                  ref={inputRef}
-                  style={styles.groupNameInput}
-                  placeholder={conversationDetails?.name || "Nhập tên nhóm"}
-                  placeholderTextColor="#999"
-                  value={newGroupName}
-                  onChangeText={setNewGroupName}
-                />
-                {error ? <Text style={styles.errorText}>{error}</Text> : null}
-              </View>
-              {newGroupAvatar && (
-                <View style={styles.avatarPreviewContainer}>
-                  <TouchableOpacity
-                    onPress={() => onOpenImagePreview(newGroupAvatar.uri)}
-                  >
-                    <Image
-                      source={{ uri: newGroupAvatar.uri }}
-                      style={styles.avatarPreview}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.removeAvatarButton}
-                    onPress={handleRemoveAvatar}
-                  >
-                    <MaterialIcons
-                      name="close"
-                      size={normalize(16)}
-                      color="white"
-                    />
-                  </TouchableOpacity>
-                </View>
-              )}
-              <Button
-                mode="contained"
-                onPress={handleUpdate}
-                style={styles.updateButton}
-                contentStyle={styles.updateButtonContent}
-                labelStyle={styles.updateButtonLabel}
-                disabled={!newGroupName.trim() && !newGroupAvatar}
-              >
-                Cập nhật
-              </Button>
-            </Animated.View>
-          )}
-        </View>
-      ),
-    },
-    ...(isGroup
-      ? [
-          {
-            key: "members",
-            render: () => (
-              <View style={styles.modalSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.modalSectionTitle}>
-                    Thành viên ({groupMembers.length || 0})
-                  </Text>
-                  <TouchableOpacity onPress={() => setShowInviteModal(true)}>
-                    <Text style={styles.addMemberText}>+ Thêm thành viên</Text>
-                  </TouchableOpacity>
-                </View>
-                <FlatList
-                  data={groupMembers}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item }) => (
-                    <View style={styles.participantItem}>
+              <Text style={styles.modalCloseText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+          {loadingFriends ? (
+            <Text style={styles.loadingText}>Đang tải danh sách bạn bè...</Text>
+          ) : !Array.isArray(friends) || friends.length === 0 ? (
+            <Text style={styles.emptyText}>Không có bạn bè nào để mời.</Text>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
+              <FlatList
+                data={friends}
+                keyExtractor={(item) =>
+                  item._id?.toString() || Math.random().toString()
+                }
+                initialNumToRender={10}
+                getItemLayout={(data, index) => ({
+                  length: normalize(64, true),
+                  offset: normalize(64, true) * index,
+                  index,
+                })}
+                renderItem={useCallback(
+                  ({ item }) => (
+                    <TouchableOpacity
+                      style={styles.userItem}
+                      onPress={() => toggleMember(item._id)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
                       <Avatar.Image
-                        size={normalize(40)}
+                        size={normalize(48)}
                         source={{
                           uri: item.avatar || "https://i.pravatar.cc/150",
                         }}
                       />
-                      <View style={styles.participantInfo}>
-                        <Text style={styles.participantName}>
-                          {item.fullName}
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userName}>
+                          {item.username || item.fullName || "Không rõ"}
                         </Text>
-                        <Text style={styles.participantRole}>
-                          {item.role === "owner"
-                            ? "Chủ nhóm"
-                            : item.role === "admin"
-                            ? "Quản trị viên"
-                            : "Thành viên"}
+                        <Text style={styles.userPhone}>
+                          {item.phoneNumber || "Không có số"}
                         </Text>
                       </View>
-                      {isOwner && item._id !== user._id && (
-                        <View style={styles.memberActions}>
-                          <IconButton
-                            icon="account-edit"
-                            size={normalize(20)}
-                            onPress={() =>
-                              Alert.alert(
-                                "Thay đổi quyền",
-                                "Chọn vai trò mới:",
-                                [
-                                  {
-                                    text: "Thành viên",
-                                    onPress: () =>
-                                      onChangeMemberRole(item._id, "member"),
-                                  },
-                                  {
-                                    text: "Quản trị viên",
-                                    onPress: () =>
-                                      onChangeMemberRole(item._id, "admin"),
-                                  },
-                                  {
-                                    text: "Chủ nhóm",
-                                    onPress: () =>
-                                      onChangeMemberRole(item._id, "owner"),
-                                  },
-                                  { text: "Hủy", style: "cancel" },
-                                ],
-                                { cancelable: true }
-                              )
-                            }
-                          />
-                          <IconButton
-                            icon="delete"
-                            size={normalize(20)}
-                            onPress={() => onRemoveMember(item._id)}
-                            iconColor="#ff4444"
-                          />
-                        </View>
-                      )}
-                    </View>
-                  )}
-                  style={styles.participantList}
-                  nestedScrollEnabled={true}
-                />
-              </View>
-            ),
-          },
-          {
-            key: "pendingInvites",
-            render: () => (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>
-                  Lời mời nhóm ({pendingInvites.length || 0})
-                </Text>
-                {loadingInvites ? (
-                  <Text style={styles.loadingText}>Đang tải...</Text>
-                ) : pendingInvites.length === 0 ? (
-                  <Text style={styles.emptyText}>Không có lời mời nào.</Text>
-                ) : (
-                  <FlatList
-                    data={pendingInvites}
-                    keyExtractor={(item) => item._id}
-                    renderItem={({ item }) => {
-                      // Ánh xạ thông tin từ friends
-                      const invitedUserId =
-                        typeof item.invitedUser === "string"
-                          ? item.invitedUser
-                          : item.invitedUser?._id;
-                      const invitedById =
-                        typeof item.invitedBy === "string"
-                          ? item.invitedBy
-                          : item.invitedBy?._id;
-                      const invitedUser =
-                        friends.find((f) => f._id === invitedUserId) || {};
-                      const invitedBy =
-                        friends.find((f) => f._id === invitedById) || {};
-                      console.log("Pending invite item:", item);
-                      console.log("Mapped invitedUser:", invitedUser);
-                      console.log("Mapped invitedBy:", invitedBy);
-                      return (
-                        <View style={styles.participantItem}>
-                          <Avatar.Image
-                            size={normalize(40)}
-                            source={{
-                              uri:
-                                invitedUser.avatar ||
-                                "https://i.pravatar.cc/150",
-                            }}
-                          />
-                          <View style={styles.participantInfo}>
-                            <Text style={styles.participantName}>
-                              {invitedUser.fullName ||
-                                invitedUserId ||
-                                "Không rõ"}
-                            </Text>
-                            <Text style={styles.participantRole}>
-                              Mời bởi:{" "}
-                              {invitedBy.fullName || invitedById || "Không rõ"}{" "}
-                              (Đang chờ)
-                            </Text>
-                          </View>
-                          {(isOwner || isAdmin) && (
-                            <View style={styles.memberActions}>
-                              <IconButton
-                                icon="check"
-                                size={normalize(20)}
-                                onPress={() => handleAcceptInvite(item._id)}
-                                iconColor="#0098f9"
-                              />
-                              <IconButton
-                                icon="close"
-                                size={normalize(20)}
-                                onPress={() => handleRejectInvite(item._id)}
-                                iconColor="#ff4444"
-                              />
-                            </View>
-                          )}
-                        </View>
-                      );
-                    }}
-                    style={styles.participantList}
-                    nestedScrollEnabled={true}
-                  />
+                      <View style={styles.checkboxContainer}>
+                        <MaterialCommunityIcons
+                          name={
+                            selectedMembers.includes(item._id)
+                              ? "checkbox-marked"
+                              : "checkbox-blank-outline"
+                          }
+                          size={normalize(28)}
+                          color="#0098f9"
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  ),
+                  [selectedMembers, toggleMember]
                 )}
-              </View>
-            ),
-          },
-        ]
-      : []),
-    ...(images.length > 0
-      ? [
-          {
-            key: "images",
-            render: () => (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>
-                  Ảnh đã gửi ({images.length})
-                </Text>
-                <FlatList
-                  data={images}
-                  keyExtractor={(item) => item._id}
-                  horizontal
-                  renderItem={({ item }) => (
+                style={styles.friendsList}
+                nestedScrollEnabled={true}
+                scrollEnabled={friends.length > 5}
+              />
+              <Button
+                mode="contained"
+                onPress={handleSendInvites}
+                style={styles.sendInviteButton}
+                contentStyle={styles.sendInviteButtonContent}
+                labelStyle={styles.sendInviteText}
+                disabled={loadingInvite}
+                loading={loadingInvite}
+              >
+                Gửi lời mời vào nhóm
+              </Button>
+            </>
+          )}
+        </Modal>
+      </Portal>
+    );
+  });
+
+  const sections = useMemo(
+    () => [
+      {
+        key: "groupInfo",
+        render: () => (
+          <View style={styles.modalAvatarContainer}>
+            <TouchableOpacity
+              onPress={isOwner || isAdmin ? onPickAvatar : null}
+              disabled={!isOwner && !isAdmin}
+              style={styles.avatarTouchable}
+            >
+              <Avatar.Image
+                size={normalize(100)}
+                source={{
+                  uri:
+                    isGroup && conversationDetails?.avatar
+                      ? conversationDetails.avatar
+                      : chat?.user?.avatar || "https://i.pravatar.cc/150",
+                }}
+                style={styles.avatarImage}
+              />
+              {(isOwner || isAdmin) && (
+                <View style={styles.editAvatarIcon}>
+                  <MaterialIcons
+                    name="camera-alt"
+                    size={normalize(20)}
+                    color="white"
+                  />
+                </View>
+              )}
+            </TouchableOpacity>
+            <View style={styles.nameContainer}>
+              <Text style={styles.modalChatName}>
+                {isGroup
+                  ? conversationDetails?.name || "Nhóm không tên"
+                  : chat?.user?.fullName || "Không có tên"}
+              </Text>
+              {isGroup && (isOwner || isAdmin) && (
+                <TouchableOpacity
+                  onPress={toggleEditName}
+                  style={styles.editNameIcon}
+                >
+                  <MaterialIcons
+                    name={isEditingName ? "close" : "edit"}
+                    size={normalize(20)}
+                    color="#0098f9"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+            {isGroup && (isOwner || isAdmin) && isEditingName && (
+              <Animated.View
+                style={[styles.groupInfoEdit, { opacity: fadeAnim }]}
+              >
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    ref={inputRef}
+                    style={styles.groupNameInput}
+                    placeholder={conversationDetails?.name || "Nhập tên nhóm"}
+                    placeholderTextColor="#999"
+                    value={newGroupName}
+                    onChangeText={setNewGroupName}
+                  />
+                  {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                </View>
+                {newGroupAvatar && (
+                  <View style={styles.avatarPreviewContainer}>
                     <TouchableOpacity
-                      onPress={() => onOpenImagePreview(item.fileMeta[0].url)}
+                      onPress={() => onOpenImagePreview(newGroupAvatar.uri)}
                     >
                       <Image
-                        source={{ uri: item.fileMeta[0].url }}
-                        style={styles.sentImage}
-                        resizeMode="cover"
+                        source={{ uri: newGroupAvatar.uri }}
+                        style={styles.avatarPreview}
                       />
                     </TouchableOpacity>
-                  )}
-                  style={styles.imageList}
-                />
-              </View>
-            ),
-          },
-        ]
-      : []),
-    ...(isGroup
-      ? [
-          {
-            key: "settings",
-            render: () => (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>Cài đặt nhóm</Text>
-                {isOwner && (
-                  <View style={styles.switchContainer}>
-                    <Text style={styles.switchLabel}>
-                      Yêu cầu duyệt thành viên
-                    </Text>
-                    <Switch
-                      value={conversationDetails?.requireApproval}
-                      onValueChange={onToggleRequireApproval}
-                      color="#0098f9"
-                    />
+                    <TouchableOpacity
+                      style={styles.removeAvatarButton}
+                      onPress={handleRemoveAvatar}
+                    >
+                      <MaterialIcons
+                        name="close"
+                        size={normalize(16)}
+                        color="white"
+                      />
+                    </TouchableOpacity>
                   </View>
                 )}
                 <Button
-                  mode="outlined"
-                  onPress={onLeaveGroup}
-                  style={[styles.modalButton, { borderColor: "#ff4444" }]}
-                  labelStyle={{ color: "#ff4444" }}
+                  mode="contained"
+                  onPress={handleUpdate}
+                  style={styles.updateButton}
+                  contentStyle={styles.updateButtonContent}
+                  labelStyle={styles.updateButtonLabel}
+                  disabled={!newGroupName.trim() && !newGroupAvatar}
                 >
-                  Rời nhóm
+                  Cập nhật
                 </Button>
-                {isOwner && (
+              </Animated.View>
+            )}
+          </View>
+        ),
+      },
+      ...(isGroup
+        ? [
+            {
+              key: "members",
+              render: () => (
+                <View style={styles.modalSection}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.modalSectionTitle}>
+                      Thành viên ({localGroupMembers.length || 0})
+                    </Text>
+                    <TouchableOpacity onPress={() => setShowInviteModal(true)}>
+                      <Text style={styles.addMemberText}>
+                        + Thêm thành viên
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <FlatList
+                    data={localGroupMembers}
+                    keyExtractor={(item) =>
+                      item._id?.toString() || Math.random().toString()
+                    }
+                    renderItem={({ item }) => (
+                      <View style={styles.participantItem}>
+                        <Avatar.Image
+                          size={normalize(40)}
+                          source={{
+                            uri: item.avatar || "https://i.pravatar.cc/150",
+                          }}
+                        />
+                        <View style={styles.participantInfo}>
+                          <Text style={styles.participantName}>
+                            {item.fullName}
+                          </Text>
+                          <Text style={styles.participantRole}>
+                            {item.role === "owner"
+                              ? "Chủ nhóm"
+                              : item.role === "admin"
+                              ? "Quản trị viên"
+                              : "Thành viên"}
+                          </Text>
+                        </View>
+                        {isOwner && item._id !== user._id && (
+                          <View style={styles.memberActions}>
+                            <IconButton
+                              icon="account-edit"
+                              size={normalize(20)}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Thay đổi quyền",
+                                  "Chọn vai trò mới:",
+                                  [
+                                    {
+                                      text: "Thành viên",
+                                      onPress: () =>
+                                        onChangeMemberRole(item._id, "member"),
+                                    },
+                                    {
+                                      text: "Quản trị viên",
+                                      onPress: () =>
+                                        onChangeMemberRole(item._id, "admin"),
+                                    },
+                                    {
+                                      text: "Chủ nhóm",
+                                      onPress: () =>
+                                        onChangeMemberRole(item._id, "owner"),
+                                    },
+                                    { text: "Hủy", style: "cancel" },
+                                  ],
+                                  { cancelable: true }
+                                )
+                              }
+                              containerColor="transparent"
+                              hitSlop={{
+                                top: 10,
+                                bottom: 10,
+                                left: 10,
+                                right: 10,
+                              }}
+                            />
+                            <IconButton
+                              icon="delete"
+                              size={normalize(20)}
+                              onPress={() => onRemoveMember(item._id)}
+                              iconColor="#ff4444"
+                              containerColor="transparent"
+                              hitSlop={{
+                                top: 10,
+                                bottom: 10,
+                                left: 10,
+                                right: 10,
+                              }}
+                            />
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    style={styles.participantList}
+                    nestedScrollEnabled={true}
+                  />
+                </View>
+              ),
+            },
+            {
+              key: "pendingInvites",
+              render: () => (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>
+                    Lời mời nhóm ({pendingInvites.length || 0})
+                  </Text>
+                  {loadingInvites ? (
+                    <Text style={styles.loadingText}>Đang tải...</Text>
+                  ) : pendingInvites.length === 0 ? (
+                    <Text style={styles.emptyText}>Không có lời mời nào.</Text>
+                  ) : (
+                    <FlatList
+                      data={pendingInvites}
+                      keyExtractor={(item) =>
+                        item._id?.toString() || Math.random().toString()
+                      }
+                      renderItem={({ item }) => (
+                        <PendingInviteItem
+                          item={item}
+                          isOwner={isOwner}
+                          isAdmin={isAdmin}
+                          onAccept={handleAcceptInvite}
+                          onReject={handleRejectInvite}
+                          loading={inviteLoading}
+                        />
+                      )}
+                      style={styles.participantList}
+                      nestedScrollEnabled={true}
+                    />
+                  )}
+                </View>
+              ),
+            },
+          ]
+        : []),
+      ...(images.length > 0
+        ? [
+            {
+              key: "images",
+              render: () => (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>
+                    Ảnh đã gửi ({images.length})
+                  </Text>
+                  <FlatList
+                    data={images}
+                    keyExtractor={(item) =>
+                      item._id?.toString() || Math.random().toString()
+                    }
+                    horizontal
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        onPress={() => onOpenImagePreview(item.fileMeta[0].url)}
+                      >
+                        <Image
+                          source={{ uri: item.fileMeta[0].url }}
+                          style={styles.sentImage}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    )}
+                    style={styles.imageList}
+                  />
+                </View>
+              ),
+            },
+          ]
+        : []),
+      ...(isGroup
+        ? [
+            {
+              key: "settings",
+              render: () => (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Cài đặt nhóm</Text>
+                  {isOwner && (
+                    <View style={styles.switchContainer}>
+                      <Text style={styles.switchLabel}>
+                        Yêu cầu duyệt thành viên
+                      </Text>
+                      <Switch
+                        value={conversationDetails?.requireApproval}
+                        onValueChange={onToggleRequireApproval}
+                        color="#0098f9"
+                      />
+                    </View>
+                  )}
                   <Button
                     mode="outlined"
-                    onPress={onDeleteGroup}
+                    onPress={onLeaveGroup}
                     style={[styles.modalButton, { borderColor: "#ff4444" }]}
                     labelStyle={{ color: "#ff4444" }}
                   >
-                    Giải tán nhóm
+                    Rời nhóm
                   </Button>
-                )}
-              </View>
-            ),
-          },
-        ]
-      : []),
-  ];
+                  {isOwner && (
+                    <Button
+                      mode="outlined"
+                      onPress={onDeleteGroup}
+                      style={[styles.modalButton, { borderColor: "#ff4444" }]}
+                      labelStyle={{ color: "#ff4444" }}
+                    >
+                      Giải tán nhóm
+                    </Button>
+                  )}
+                </View>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [
+      isGroup,
+      images,
+      pendingInvites,
+      friends,
+      isOwner,
+      isAdmin,
+      localGroupMembers,
+      conversationDetails,
+    ]
+  );
 
   return (
     <Portal>
@@ -857,6 +996,7 @@ const styles = StyleSheet.create({
   },
   memberActions: {
     flexDirection: "row",
+    zIndex: 1,
   },
   imageList: {
     maxHeight: normalize(100, true),
@@ -992,6 +1132,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
     minHeight: normalize(64, true),
+    zIndex: 1,
   },
   userInfo: {
     flex: 1,

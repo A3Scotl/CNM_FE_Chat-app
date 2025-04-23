@@ -14,8 +14,12 @@ const ConversationList = ({ currentUser }) => {
 
   const sortConversations = (convoList) => {
     return convoList.sort((a, b) => {
-      const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
-      const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      const aTime = a.lastMessage?.createdAt
+        ? new Date(a.lastMessage.createdAt).getTime()
+        : 0;
+      const bTime = b.lastMessage?.createdAt
+        ? new Date(b.lastMessage.createdAt).getTime()
+        : 0;
       return bTime - aTime; // Cuộc trò chuyện có tin nhắn mới nhất (thời gian lớn hơn) lên đầu
     });
   };
@@ -33,7 +37,10 @@ const ConversationList = ({ currentUser }) => {
           console.log("convo", convo);
           return {
             _id: convo._id,
-            user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
+            user: {
+              fullName: convo.name,
+              avatar: convo.avatar || "https://i.pravatar.cc/150",
+            },
             lastMessage: convo.lastMessage || null,
             type: "group",
             unreadCount: convo.unreadCount || 0,
@@ -72,7 +79,9 @@ const ConversationList = ({ currentUser }) => {
       const token = await AsyncStorage.getItem("token");
       const userId = await AsyncStorage.getItem("userId");
       if (!token || !userId) {
-        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        console.warn(
+          "Token hoặc userId không tồn tại, không thể kết nối socket"
+        );
         return;
       }
 
@@ -97,7 +106,10 @@ const ConversationList = ({ currentUser }) => {
           sound.setOnPlaybackStatusUpdate((status) => {
             if (status.didJustFinish) sound.unloadAsync();
           });
-          Alert.alert("Lời mời tham gia nhóm", `Bạn nhận được lời mời tham gia nhóm ${groupId}`);
+          Alert.alert(
+            "Lời mời tham gia nhóm",
+            `Bạn nhận được lời mời tham gia nhóm ${groupId}`
+          );
           fetchConversations(); // Tải lại danh sách khi nhận lời mời nhóm
         } catch (err) {
           console.error("Lỗi phát âm thanh lời mời nhóm:", err);
@@ -122,7 +134,9 @@ const ConversationList = ({ currentUser }) => {
                   replyTo: msg.replyTo,
                   isRevoke: msg.isRevoke || false,
                 },
-                unreadCount: isCurrentUser ? convo.unreadCount : (convo.unreadCount || 0) + 1,
+                unreadCount: isCurrentUser
+                  ? convo.unreadCount
+                  : (convo.unreadCount || 0) + 1,
               };
             }
             return convo;
@@ -134,40 +148,51 @@ const ConversationList = ({ currentUser }) => {
       });
 
       // Lắng nghe tin nhắn bị thu hồi
-      socketConnection.on("message-recalled", ({ conversationId, messageId, updatedMessage }) => {
-        setConversations((prev) => {
-          const updatedConversations = prev.map((convo) => {
-            if (convo._id === conversationId && convo.lastMessage?._id === messageId) {
-              return {
-                ...convo,
-                lastMessage: {
-                  ...convo.lastMessage,
-                  content: updatedMessage.content,
-                  isRevoke: true,
-                  fileMeta: [],
-                  type: "text",
-                },
-              };
-            }
-            return convo;
-          });
+      socketConnection.on(
+        "message-recalled",
+        ({ conversationId, messageId, updatedMessage }) => {
+          setConversations((prev) => {
+            const updatedConversations = prev.map((convo) => {
+              if (
+                convo._id === conversationId &&
+                convo.lastMessage?._id === messageId
+              ) {
+                return {
+                  ...convo,
+                  lastMessage: {
+                    ...convo.lastMessage,
+                    content: updatedMessage.content,
+                    isRevoke: true,
+                    fileMeta: [],
+                    type: "text",
+                  },
+                };
+              }
+              return convo;
+            });
 
-          // Sắp xếp lại danh sách sau khi cập nhật
-          return sortConversations([...updatedConversations]);
-        });
-      });
+            // Sắp xếp lại danh sách sau khi cập nhật
+            return sortConversations([...updatedConversations]);
+          });
+        }
+      );
 
       // Lắng nghe sự kiện ẩn cuộc trò chuyện
       socketConnection.on("conversation-hidden", ({ conversationId }) => {
         setConversations((prev) => {
-          const updatedConversations = prev.filter((convo) => convo._id !== conversationId);
+          const updatedConversations = prev.filter(
+            (convo) => convo._id !== conversationId
+          );
           // Sắp xếp lại danh sách sau khi xóa
           return sortConversations([...updatedConversations]);
         });
       });
 
       socketConnection.on("disconnect", (reason) => {
-        console.log("Ngắt kết nối Socket.IO trong ConversationList. Lý do:", reason);
+        console.log(
+          "Ngắt kết nối Socket.IO trong ConversationList. Lý do:",
+          reason
+        );
       });
 
       socketConnection.on("connect_error", (error) => {
@@ -188,9 +213,7 @@ const ConversationList = ({ currentUser }) => {
   const handleChatSelect = (chat) => {
     setConversations((prev) =>
       sortConversations(
-        prev.map((c) =>
-          c._id === chat._id ? { ...c, unreadCount: 0 } : c
-        )
+        prev.map((c) => (c._id === chat._id ? { ...c, unreadCount: 0 } : c))
       )
     );
     navigation.navigate("Chat", {

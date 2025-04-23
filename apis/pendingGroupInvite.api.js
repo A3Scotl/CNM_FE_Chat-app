@@ -22,7 +22,7 @@ export const sendGroupInvite = async (groupId, userId, currentUserId) => {
       {
         groupId,
         invitedUser: userId,
-        invitedBy: currentUserId, // 👈 phải truyền thêm user gửi lời mời (nếu BE không lấy từ token)
+        invitedBy: currentUserId,
       },
       {
         headers: {
@@ -94,11 +94,17 @@ export const rejectGroupInvite = async (inviteId) => {
 export const getPendingGroupInvitesByGroup = async (groupId) => {
   try {
     const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
     const res = await axiosInstance.get(`/pendingGroupInvite/${groupId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     console.log("API response:", JSON.stringify(res.data, null, 2));
-    return res.data || [];
+    // Filter only pending invites on the client side
+    const pendingInvites = Array.isArray(res.data)
+      ? res.data.filter((invite) => invite.status === "pending")
+      : [];
+    return pendingInvites;
   } catch (error) {
     console.error("Lỗi lấy danh sách lời mời:", error?.response?.data || error);
     throw error;
