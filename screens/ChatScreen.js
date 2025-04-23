@@ -104,7 +104,8 @@ const ChatScreen = ({ navigation, route }) => {
   const [filteredConversations, setFilteredConversations] = useState([]);
   const [selectedConversations, setSelectedConversations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [additionalContent, setAdditionalContent] = useState(""); // Nội dung bổ sung khi chuyển tiếp
+  const [additionalContent, setAdditionalContent] = useState("");
+  const [isTogglingApproval, setIsTogglingApproval] = useState(false);
 
   useEffect(() => {
     if (!chat?._id) {
@@ -252,6 +253,7 @@ const ChatScreen = ({ navigation, route }) => {
       socketConnection.on("connect", () => {
         console.log("✅ Socket kết nối thành công");
         socketConnection.emit("join-room", chat._id);
+        socketConnection.emit("register", userId); // Thêm đăng ký userId để nhận sự kiện cá nhân
       });
 
       socketConnection.on("connect_error", (err) => {
@@ -327,15 +329,209 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on(
-        "group-update",
-        ({ groupId, action, userId: actionUserId }) => {
+        "group:member-added",
+        ({ groupId, addedUserId, addedBy }) => {
           if (groupId === chat._id) {
             fetchMemberInGroupDetails();
-            console.log(`Group updated: ${action} by user ${actionUserId}`);
+            if (addedBy !== userId) {
+              Alert.alert(
+                "Thành viên mới",
+                `Một người dùng đã được thêm vào nhóm.`
+              );
+              try {
+                Audio.Sound.createAsync(
+                  require("../assets/sounds/invite-group.mp3")
+                ).then(({ sound }) => {
+                  sound.playAsync();
+                  sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.didJustFinish) sound.unloadAsync();
+                  });
+                });
+              } catch (err) {
+                console.error("Lỗi phát âm thanh thông báo:", err);
+              }
+            }
           }
         }
       );
 
+      socketConnection.on(
+        "group:member-removed",
+        ({ groupId, removedUserId, removedBy }) => {
+          console.log("Nhận sự kiện group:member-removed:", {
+            groupId,
+            removedUserId,
+            removedBy,
+          });
+          if (groupId === chat._id) {
+            if (removedUserId === userId) {
+              // User bị xóa (không mong đợi sự kiện này từ backend, nhưng giữ logic phòng hờ)
+              Alert.alert("Thông báo", "Bạn đã bị xóa khỏi nhóm.", [
+                {
+                  text: "OK",
+                  onPress: () => {
+                    socketConnection.emit("leave-room", chat._id);
+                    navigation.replace("Home");
+                  },
+                },
+              ]);
+              setTimeout(() => {
+                socketConnection.emit("leave-room", chat._id);
+                navigation.replace("Home");
+              }, 1000);
+            } else {
+              // Thành viên khác bị xóa
+              fetchMemberInGroupDetails();
+              if (removedBy !== userId) {
+                // Alert.alert("Thành viên bị xóa", `Một người dùng đã bị xóa khỏi nhóm.`);
+                try {
+                  Audio.Sound.createAsync(
+                    require("../assets/sounds/invite-group.mp3")
+                  ).then(({ sound }) => {
+                    sound.playAsync();
+                    sound.setOnPlaybackStatusUpdate((status) => {
+                      if (status.didJustFinish) sound.unloadAsync();
+                    });
+                  });
+                } catch (err) {
+                  console.error("Lỗi phát âm thanh thông báo:", err);
+                }
+              }
+            }
+          }
+        }
+      );
+
+      socketConnection.on("group:memberLeft", ({ groupId, leftUserId }) => {
+        if (groupId === chat._id) {
+          fetchMemberInGroupDetails();
+          if (leftUserId === userId) {
+            Alert.alert("Rời nhóm", "Bạn đã rời khỏi nhóm.", [
+              { text: "OK", onPress: () => navigation.goBack() },
+            ]);
+          } else {
+            Alert.alert(
+              "Thành viên rời nhóm",
+              `Một thành viên đã rời khỏi nhóm.`
+            );
+            try {
+              Audio.Sound.createAsync(
+                require("../assets/sounds/invite-group.mp3")
+              ).then(({ sound }) => {
+                sound.playAsync();
+                sound.setOnPlaybackStatusUpdate((status) => {
+                  if (status.didJustFinish) sound.unloadAsync();
+                });
+              });
+            } catch (err) {
+              console.error("Lỗi phát âm thanh thông báo:", err);
+            }
+          }
+        }
+      });
+
+      socketConnection.on("group:deleted", ({ groupId }) => {
+        console.log("Nhận sự kiện group:deleted:", { groupId });
+        if (groupId === chat._id) {
+          Alert.alert("Thông báo", "Nhóm đã giải tán.", [
+            {
+              text: "OK",
+              onPress: () => {
+                socketConnection.emit("leave-room", chat._id);
+                navigation.replace("Home");
+              },
+            },
+          ]);
+          setTimeout(() => {
+            socketConnection.emit("leave-room", chat._id);
+            navigation.replace("Home");
+          }, 1000);
+        }
+      });
+
+      socketConnection.on("group:infoUpdated", ({ groupId, name, avatar }) => {
+        if (groupId === chat._id) {
+          setConversationDetails((prev) => ({
+            ...prev,
+            name: name || prev.name,
+            avatar: avatar || prev.avatar,
+          }));
+          // Alert.alert("Cập nhật nhóm", "Thông tin nhóm đã được cập nhật.");
+          try {
+            Audio.Sound.createAsync(
+              require("../assets/sounds/invite-group.mp3")
+            ).then(({ sound }) => {
+              sound.playAsync();
+              sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.didJustFinish) sound.unloadAsync();
+              });
+            });
+          } catch (err) {
+            console.error("Lỗi phát âm thanh thông báo:", err);
+          }
+        }
+      });
+
+      socketConnection.on(
+        "group:memberRoleChanged",
+        ({ groupId, userId: affectedUserId, newRole }) => {
+          if (groupId === chat._id) {
+            fetchMemberInGroupDetails();
+            if (affectedUserId !== userId) {
+              const roleText =
+                newRole === "owner"
+                  ? "chủ nhóm"
+                  : newRole === "admin"
+                  ? "quản trị viên"
+                  : "thành viên";
+              // Alert.alert("Thay đổi quyền", `Quyền của một thành viên đã được thay đổi thành ${roleText}.`);
+              try {
+                Audio.Sound.createAsync(
+                  require("../assets/sounds/invite-group.mp3")
+                ).then(({ sound }) => {
+                  sound.playAsync();
+                  sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.didJustFinish) sound.unloadAsync();
+                  });
+                });
+              } catch (err) {
+                console.error("Lỗi phát âm thanh thông báo:", err);
+              }
+            }
+          }
+        }
+      );
+      socketConnection.on(
+        "group:requireApprovalChanged",
+        ({ groupId, requireApproval }) => {
+          console.log("Nhận sự kiện group:requireApprovalChanged:", {
+            groupId,
+            requireApproval,
+          });
+          if (groupId === chat._id) {
+            setConversationDetails((prev) => ({
+              ...prev,
+              requireApproval,
+            }));
+
+            // if (!isTogglingApproval) {
+            //   Alert.alert("Cập nhật cài đặt", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
+            //   try {
+            //     Audio.Sound.createAsync(
+            //       require("../assets/sounds/invite-group.mp3")
+            //     ).then(({ sound }) => {
+            //       sound.playAsync();
+            //       sound.setOnPlaybackStatusUpdate((status) => {
+            //         if (status.didJustFinish) sound.unloadAsync();
+            //       });
+            //     });
+            //   } catch (err) {
+            //     console.error("Lỗi phát âm thanh thông báo:", err);
+            //   }
+            // }
+          }
+        }
+      );
       setSocket(socketConnection);
 
       return () => {
@@ -344,7 +540,7 @@ const ChatScreen = ({ navigation, route }) => {
     };
 
     setupSocket();
-  }, [chat._id, userId]);
+  }, [chat._id, userId, isTogglingApproval]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -399,16 +595,12 @@ const ChatScreen = ({ navigation, route }) => {
     inputRef.current?.focus();
   };
 
-  const cancelReply = () => {
-    setReplyingTo(null);
-  };
-
   const handleForward = (message) => {
     setForwardMessageData(message);
     setShowForwardModal(true);
     setSelectedConversations([]);
     setSearchQuery("");
-    setAdditionalContent(""); // Đặt lại nội dung bổ sung
+    setAdditionalContent("");
     setFilteredConversations(conversations);
   };
 
@@ -498,7 +690,7 @@ const ChatScreen = ({ navigation, route }) => {
       const payload = {
         messageId: forwardMessageData._id,
         targetConversationIds: selectedConversations,
-        additionalContent: additionalContent.trim(), // Nội dung bổ sung
+        additionalContent: additionalContent.trim(),
       };
 
       if (selectedConversations.length === 1) {
@@ -902,10 +1094,9 @@ const ChatScreen = ({ navigation, route }) => {
                 { text: "OK", onPress: () => navigation.goBack() },
               ]);
               if (socket) {
-                socket.emit("group-update", {
+                socket.emit("group:memberLeft", {
                   groupId: chat._id,
-                  action: "leave",
-                  userId,
+                  leftUserId: userId,
                 });
               }
             } catch (error) {
@@ -939,15 +1130,8 @@ const ChatScreen = ({ navigation, route }) => {
           onPress: async () => {
             try {
               await deleteGroup(chat._id);
-              Alert.alert("Thành công", "Nhóm đã được giải tán.", [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
               if (socket) {
-                socket.emit("group-update", {
-                  groupId: chat._id,
-                  action: "delete",
-                  userId,
-                });
+                socket.emit("group:deleted", { groupId: chat._id });
               }
             } catch (error) {
               console.error("Lỗi khi giải tán nhóm:", error);
@@ -967,6 +1151,20 @@ const ChatScreen = ({ navigation, route }) => {
     }
 
     try {
+      // Cập nhật conversationDetails.user ngay lập tức
+      setConversationDetails((prev) => {
+        const newDetails = {
+          ...prev,
+          user: {
+            ...prev.user,
+            fullName: newGroupName || prev.user.fullName,
+            avatar: newGroupAvatar ? newGroupAvatar.uri : prev.user.avatar,
+          },
+        };
+        console.log("Updating conversationDetails:", newDetails);
+        return newDetails;
+      });
+
       const payload = {};
       if (newGroupName) payload.name = newGroupName;
       if (newGroupAvatar) {
@@ -979,23 +1177,42 @@ const ChatScreen = ({ navigation, route }) => {
         payload.name,
         payload.avatar
       );
-      setConversationDetails(updatedGroup.data);
+      console.log("updatedGroup.data:", updatedGroup.data);
+      setConversationDetails((prev) => ({
+        ...prev,
+        ...updatedGroup.data,
+        user: {
+          ...prev.user,
+          fullName:
+            updatedGroup.data.user?.fullName ||
+            newGroupName ||
+            prev.user.fullName,
+          avatar:
+            updatedGroup.data.user?.avatar ||
+            payload.avatar ||
+            prev.user.avatar,
+        },
+      }));
       setNewGroupName("");
       setNewGroupAvatar(null);
       Alert.alert("Thành công", "Cập nhật thông tin nhóm thành công.");
+
       if (socket) {
-        socket.emit("group-update", {
+        socket.emit("group:infoUpdated", {
           groupId: chat._id,
-          action: "update",
-          userId,
+          name: payload.name,
+          avatar: payload.avatar,
         });
       }
     } catch (error) {
       console.error("Lỗi cập nhật thông tin nhóm:", error);
+      setConversationDetails(chat);
       Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
     }
   };
-
+  const cancelReply = () => {
+    setReplyingTo(null);
+  };
   const handleAddMember = async (friendId) => {
     try {
       await addGroupMember(chat._id, friendId);
@@ -1003,10 +1220,10 @@ const ChatScreen = ({ navigation, route }) => {
       await fetchMemberInGroupDetails();
       setShowAddMemberModal(false);
       if (socket) {
-        socket.emit("group-update", {
+        socket.emit("group:member-added", {
           groupId: chat._id,
-          action: "add-member",
-          userId,
+          addedUserId: friendId,
+          addedBy: userId,
         });
       }
     } catch (error) {
@@ -1030,10 +1247,10 @@ const ChatScreen = ({ navigation, route }) => {
               Alert.alert("Thành công", "Xóa thành viên thành công.");
               await fetchMemberInGroupDetails();
               if (socket) {
-                socket.emit("group-update", {
+                socket.emit("group:member-removed", {
                   groupId: chat._id,
-                  action: "remove-member",
-                  userId,
+                  removedUserId: memberId,
+                  removedBy: userId,
                 });
               }
             } catch (error) {
@@ -1053,10 +1270,10 @@ const ChatScreen = ({ navigation, route }) => {
       Alert.alert("Thành công", "Cập nhật quyền thành viên thành công.");
       await fetchMemberInGroupDetails();
       if (socket) {
-        socket.emit("group-update", {
+        socket.emit("group:memberRoleChanged", {
           groupId: chat._id,
-          action: "change-role",
-          userId,
+          userId: memberId,
+          newRole,
         });
       }
     } catch (error) {
@@ -1067,14 +1284,39 @@ const ChatScreen = ({ navigation, route }) => {
 
   const handleToggleRequireApproval = async () => {
     try {
+      setIsTogglingApproval(true);
+      // Cập nhật giao diện ngay lập tức
+      setConversationDetails((prev) => ({
+        ...prev,
+        requireApproval: !prev.requireApproval, // Toggle trước khi gọi API
+      }));
       const result = await toggleRequireApproval(chat._id);
+      console.log("toggleRequireApproval result:", result);
+      // Cập nhật lại với dữ liệu từ server
+      setConversationDetails((prev) => ({
+        ...prev,
+        requireApproval: result.requireApproval,
+      }));
       Alert.alert(
         "Thành công",
         `Đã ${result.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
       );
+      if (socket) {
+        socket.emit("group:requireApprovalChanged", {
+          groupId: chat._id,
+          requireApproval: result.requireApproval,
+        });
+      }
     } catch (error) {
       console.error("Lỗi bật/tắt yêu cầu duyệt:", error);
+
+      setConversationDetails((prev) => ({
+        ...prev,
+        requireApproval: !prev.requireApproval,
+      }));
       Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
+    } finally {
+      setIsTogglingApproval(false);
     }
   };
 
@@ -1248,8 +1490,8 @@ const ChatScreen = ({ navigation, route }) => {
             setShowChatInfoModal(false);
             setShowImagePreview(true);
           }}
+          isTogglingApproval={isTogglingApproval}
         />
-        {/* Forward Modal */}
         <Modal
           visible={showForwardModal}
           animationType="slide"

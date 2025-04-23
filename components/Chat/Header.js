@@ -1,10 +1,21 @@
-import React from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useEffect } from "react";
+import { View, StyleSheet, TouchableOpacity, Platform } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 
 const Header = ({ navigation, chat, conversationDetails, groupMembers, isTyping, onInfoPress }) => {
   const { colors } = useTheme();
+  
+  const displayName = conversationDetails?.user?.fullName || chat?.user?.fullName || "Nhóm không tên";
+  const displayAvatar = Platform.OS === "ios"
+    ? (conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150").replace("file://", "")
+    : conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150";
+
+  // Debug re-render
+  useEffect(() => {
+    console.log("Header: conversationDetails:", conversationDetails);
+  }, [conversationDetails]);
+
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -16,19 +27,10 @@ const Header = ({ navigation, chat, conversationDetails, groupMembers, isTyping,
       >
         <Avatar.Image
           size={40}
-          source={{
-            uri:
-              chat.type === "group" && conversationDetails?.avatar
-                ? chat.user.avatar
-                : chat?.user?.avatar || "https://i.pravatar.cc/150",
-          }}
+          source={{ uri: displayAvatar, cache: "reload" }} 
         />
         <View style={styles.headerContent}>
-          <Text style={styles.chatName}>
-            {chat.type === "group"
-              ? chat.user?.fullName || "Nhóm không tên"
-              : chat?.user?.fullName || "Không có tên"}
-          </Text>
+          <Text style={styles.chatName}>{displayName}</Text>
           {isTyping ? (
             <Text style={styles.statusText}>Đang nhập...</Text>
           ) : (

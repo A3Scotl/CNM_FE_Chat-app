@@ -35,7 +35,7 @@ export const useSocket = (
           return;
         }
 
-        socketRef.current = io(SOCKET_URL, {
+        socketRef.current = io(SOCKET_URL || "https://be.haudev.io.vn", {
           auth: { userId, token },
           reconnection: true,
           reconnectionAttempts: 20,
@@ -109,10 +109,6 @@ export const useSocket = (
 
         socketRef.current.on("new-group-invite", (invite) => {
           console.log("📨 Nhận lời mời nhóm:", invite);
-          Alert.alert(
-            "Lời mời nhóm mới",
-            `Bạn được mời vào nhóm ${invite.groupId} bởi ${invite.invitedBy.name}`
-          );
           if (onNewGroupInvite) onNewGroupInvite(invite);
         });
 

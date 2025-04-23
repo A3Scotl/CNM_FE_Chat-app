@@ -16,6 +16,8 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import {
   Portal,
@@ -35,6 +37,7 @@ import {
   sendGroupInvite,
 } from "../../apis/pendingGroupInvite.api";
 import { getFriendsNotInGroup } from "../../apis/conversationGroup.api";
+import AddMemberModal from "./AddMemberModal";
 
 // Tính toán kích thước dựa trên Dimensions
 const { width, height } = Dimensions.get("window");
@@ -125,6 +128,7 @@ const ChatInfoModal = ({
   onFetchAvailableFriends,
   onFetchGroupMembers,
   onOpenImagePreview,
+  isTogglingApproval, // Thêm prop mới
 }) => {
   const isGroup = chat.type === "group";
   const images = messages.filter(
@@ -133,11 +137,10 @@ const ChatInfoModal = ({
   const [fadeAnim] = useState(new Animated.Value(0));
   const [error, setError] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingInvites, setPendingInvites] = useState([]);
   const [loadingInvites, setLoadingInvites] = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [selectedMembers, setSelectedMembers] = useState([]);
-  const [loadingInvite, setLoadingInvite] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [friends, setFriends] = useState(
     Array.isArray(propFriends) ? propFriends : []
   );
@@ -145,6 +148,25 @@ const ChatInfoModal = ({
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [inviteLoading, setInviteLoading] = useState({}); // Track loading state per invite
   const inputRef = useRef(null);
+
+  // Platform-specific handling for avatar URLs
+  const displayName =
+    conversationDetails?.name ||
+    conversationDetails?.user?.fullName ||
+    chat?.user?.fullName ||
+    "Nhóm không tên";
+  const displayAvatar =
+    Platform.OS === "ios"
+      ? (
+          conversationDetails?.avatar ||
+          conversationDetails?.user?.avatar ||
+          chat?.user?.avatar ||
+          "https://i.pravatar.cc/150"
+        ).replace("file://", "")
+      : conversationDetails?.avatar ||
+        conversationDetails?.user?.avatar ||
+        chat?.user?.avatar ||
+        "https://i.pravatar.cc/150";
 
   // Tích hợp useSocket để xử lý lời mời nhóm realtime
   const { socket, emitGroupInvite, emitGroupInviteAccepted } = useSocket(
@@ -226,7 +248,7 @@ const ChatInfoModal = ({
       }
     };
 
-    if (visible && isGroup && (isOwner || isAdmin) && !friendsLoaded) {
+    if (visible && isGroup && !friendsLoaded) {
       if (propFriends.length === 0) {
         fetchFriendsNotInGroupData();
       } else if (JSON.stringify(friends) !== JSON.stringify(propFriends)) {
@@ -264,6 +286,9 @@ const ChatInfoModal = ({
   useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin)) {
       fetchPendingInvites();
+    } else {
+      setPendingInvites([]);
+      setLoadingInvites(false);
     }
   }, [visible, isGroup, isOwner, isAdmin, chat._id]);
 
@@ -351,52 +376,23 @@ const ChatInfoModal = ({
     }
   };
 
-  const toggleMember = useCallback((userId) => {
-    setSelectedMembers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
-  }, []);
-
-  const handleSendInvites = useCallback(async () => {
-    if (selectedMembers.length === 0) {
-      Alert.alert("Lỗi", "Vui lòng chọn ít nhất một người để mời.");
-      return;
-    }
-
-    setLoadingInvite(true);
-    try {
-      const newInvites = [];
-      for (const invitedUserId of selectedMembers) {
-        const invite = await sendGroupInvite(chat._id, invitedUserId, user._id);
-        if (socket) {
-          emitGroupInvite(invitedUserId, invite);
-        }
-        newInvites.push(invite);
-      }
-      setPendingInvites((prev) => [...prev, ...newInvites]);
-      setShowInviteModal(false);
-      setSelectedMembers([]);
-      Alert.alert("Thành công", "Đã gửi lời mời đến các thành viên được chọn.");
-    } catch (error) {
-      console.error("Lỗi gửi lời mời nhóm:", error);
-      Alert.alert("Lỗi", error.message || "Không thể gửi lời mời nhóm.");
-    } finally {
-      setLoadingInvite(false);
-    }
-  }, [selectedMembers, chat._id, user._id, socket, emitGroupInvite]);
-
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!newGroupName.trim() && !newGroupAvatar) {
       setError("Vui lòng nhập tên nhóm hoặc chọn ảnh mới");
       return;
     }
     setError("");
-    setIsEditingName(false);
-    setNewGroupName("");
-    setNewGroupAvatar(null);
-    onUpdateGroupInfo();
+    setIsUpdating(true);
+    try {
+      await onUpdateGroupInfo();
+      setIsEditingName(false);
+      setNewGroupName("");
+      setNewGroupAvatar(null);
+    } catch (error) {
+      setError(error.message || "Không thể cập nhật thông tin nhóm");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleRemoveAvatar = () => {
@@ -412,109 +408,6 @@ const ChatInfoModal = ({
     }
   };
 
-  // Modal con để mời thành viên
-  const InviteMemberModal = memo(() => {
-    console.log("InviteMemberModal friends:", JSON.stringify(friends, null, 2));
-    return (
-      <Portal>
-        <Modal
-          visible={showInviteModal}
-          onDismiss={() => {
-            setShowInviteModal(false);
-            setSelectedMembers([]);
-          }}
-          contentContainerStyle={styles.inviteModalContainer}
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Mời thành viên vào nhóm</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setShowInviteModal(false);
-                setSelectedMembers([]);
-              }}
-              style={styles.closeButton}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.modalCloseText}>Đóng</Text>
-            </TouchableOpacity>
-          </View>
-          {loadingFriends ? (
-            <Text style={styles.loadingText}>Đang tải danh sách bạn bè...</Text>
-          ) : !Array.isArray(friends) || friends.length === 0 ? (
-            <Text style={styles.emptyText}>Không có bạn bè nào để mời.</Text>
-          ) : (
-            <>
-              <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
-              <FlatList
-                data={friends}
-                keyExtractor={(item) =>
-                  item._id?.toString() || Math.random().toString()
-                }
-                initialNumToRender={10}
-                getItemLayout={(data, index) => ({
-                  length: normalize(64, true),
-                  offset: normalize(64, true) * index,
-                  index,
-                })}
-                renderItem={useCallback(
-                  ({ item }) => (
-                    <TouchableOpacity
-                      style={styles.userItem}
-                      onPress={() => toggleMember(item._id)}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Avatar.Image
-                        size={normalize(48)}
-                        source={{
-                          uri: item.avatar || "https://i.pravatar.cc/150",
-                        }}
-                      />
-                      <View style={styles.userInfo}>
-                        <Text style={styles.userName}>
-                          {item.username || item.fullName || "Không rõ"}
-                        </Text>
-                        <Text style={styles.userPhone}>
-                          {item.phoneNumber || "Không có số"}
-                        </Text>
-                      </View>
-                      <View style={styles.checkboxContainer}>
-                        <MaterialCommunityIcons
-                          name={
-                            selectedMembers.includes(item._id)
-                              ? "checkbox-marked"
-                              : "checkbox-blank-outline"
-                          }
-                          size={normalize(28)}
-                          color="#0098f9"
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  ),
-                  [selectedMembers, toggleMember]
-                )}
-                style={styles.friendsList}
-                nestedScrollEnabled={true}
-                scrollEnabled={friends.length > 5}
-              />
-              <Button
-                mode="contained"
-                onPress={handleSendInvites}
-                style={styles.sendInviteButton}
-                contentStyle={styles.sendInviteButtonContent}
-                labelStyle={styles.sendInviteText}
-                disabled={loadingInvite}
-                loading={loadingInvite}
-              >
-                Gửi lời mời vào nhóm
-              </Button>
-            </>
-          )}
-        </Modal>
-      </Portal>
-    );
-  });
-
   const sections = useMemo(
     () => [
       {
@@ -528,12 +421,7 @@ const ChatInfoModal = ({
             >
               <Avatar.Image
                 size={normalize(100)}
-                source={{
-                  uri:
-                    isGroup && conversationDetails?.avatar
-                      ? conversationDetails.avatar
-                      : chat?.user?.avatar || "https://i.pravatar.cc/150",
-                }}
+                source={{ uri: displayAvatar, cache: "reload" }}
                 style={styles.avatarImage}
               />
               {(isOwner || isAdmin) && (
@@ -547,11 +435,7 @@ const ChatInfoModal = ({
               )}
             </TouchableOpacity>
             <View style={styles.nameContainer}>
-              <Text style={styles.modalChatName}>
-                {isGroup
-                  ? conversationDetails?.name || "Nhóm không tên"
-                  : chat?.user?.fullName || "Không có tên"}
-              </Text>
+              <Text style={styles.modalChatName}>{displayName}</Text>
               {isGroup && (isOwner || isAdmin) && (
                 <TouchableOpacity
                   onPress={toggleEditName}
@@ -573,7 +457,7 @@ const ChatInfoModal = ({
                   <TextInput
                     ref={inputRef}
                     style={styles.groupNameInput}
-                    placeholder={conversationDetails?.name || "Nhập tên nhóm"}
+                    placeholder={displayName || "Nhập tên nhóm"}
                     placeholderTextColor="#999"
                     value={newGroupName}
                     onChangeText={setNewGroupName}
@@ -608,9 +492,15 @@ const ChatInfoModal = ({
                   style={styles.updateButton}
                   contentStyle={styles.updateButtonContent}
                   labelStyle={styles.updateButtonLabel}
-                  disabled={!newGroupName.trim() && !newGroupAvatar}
+                  disabled={
+                    (!newGroupName.trim() && !newGroupAvatar) || isUpdating
+                  }
                 >
-                  Cập nhật
+                  {isUpdating ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    "Cập nhật"
+                  )}
                 </Button>
               </Animated.View>
             )}
@@ -627,7 +517,12 @@ const ChatInfoModal = ({
                     <Text style={styles.modalSectionTitle}>
                       Thành viên ({localGroupMembers.length || 0})
                     </Text>
-                    <TouchableOpacity onPress={() => setShowInviteModal(true)}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        onFetchAvailableFriends();
+                        setShowAddMemberModal(true);
+                      }}
+                    >
                       <Text style={styles.addMemberText}>
                         + Thêm thành viên
                       </Text>
@@ -719,40 +614,46 @@ const ChatInfoModal = ({
                 </View>
               ),
             },
-            {
-              key: "pendingInvites",
-              render: () => (
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>
-                    Lời mời nhóm ({pendingInvites.length || 0})
-                  </Text>
-                  {loadingInvites ? (
-                    <Text style={styles.loadingText}>Đang tải...</Text>
-                  ) : pendingInvites.length === 0 ? (
-                    <Text style={styles.emptyText}>Không có lời mời nào.</Text>
-                  ) : (
-                    <FlatList
-                      data={pendingInvites}
-                      keyExtractor={(item) =>
-                        item._id?.toString() || Math.random().toString()
-                      }
-                      renderItem={({ item }) => (
-                        <PendingInviteItem
-                          item={item}
-                          isOwner={isOwner}
-                          isAdmin={isAdmin}
-                          onAccept={handleAcceptInvite}
-                          onReject={handleRejectInvite}
-                          loading={inviteLoading}
-                        />
-                      )}
-                      style={styles.participantList}
-                      nestedScrollEnabled={true}
-                    />
-                  )}
-                </View>
-              ),
-            },
+            ...(isOwner || isAdmin
+              ? [
+                  {
+                    key: "pendingInvites",
+                    render: () => (
+                      <View style={styles.modalSection}>
+                        <Text style={styles.modalSectionTitle}>
+                          Lời mời nhóm ({pendingInvites.length || 0})
+                        </Text>
+                        {loadingInvites ? (
+                          <Text style={styles.loadingText}>Đang tải...</Text>
+                        ) : pendingInvites.length === 0 ? (
+                          <Text style={styles.emptyText}>
+                            Không có lời mời nào.
+                          </Text>
+                        ) : (
+                          <FlatList
+                            data={pendingInvites}
+                            keyExtractor={(item) =>
+                              item._id?.toString() || Math.random().toString()
+                            }
+                            renderItem={({ item }) => (
+                              <PendingInviteItem
+                                item={item}
+                                isOwner={isOwner}
+                                isAdmin={isAdmin}
+                                onAccept={handleAcceptInvite}
+                                onReject={handleRejectInvite}
+                                loading={inviteLoading}
+                              />
+                            )}
+                            style={styles.participantList}
+                            nestedScrollEnabled={true}
+                          />
+                        )}
+                      </View>
+                    ),
+                  },
+                ]
+              : []),
           ]
         : []),
       ...(images.length > 0
@@ -804,6 +705,7 @@ const ChatInfoModal = ({
                         value={conversationDetails?.requireApproval}
                         onValueChange={onToggleRequireApproval}
                         color="#0098f9"
+                        disabled={isTogglingApproval} // Vô hiệu hóa khi đang toggle
                       />
                     </View>
                   )}
@@ -840,6 +742,8 @@ const ChatInfoModal = ({
       isAdmin,
       localGroupMembers,
       conversationDetails,
+      displayName,
+      displayAvatar,
     ]
   );
 
@@ -865,7 +769,18 @@ const ChatInfoModal = ({
           contentContainerStyle={{ paddingBottom: normalize(20) }}
         />
       </Modal>
-      <InviteMemberModal />
+      <AddMemberModal
+        visible={showAddMemberModal}
+        onDismiss={() => setShowAddMemberModal(false)}
+        chatId={chat._id}
+        userId={user._id}
+        friends={friends}
+        onFetchFriends={onFetchAvailableFriends}
+        onSendInvites={(newInvites) =>
+          setPendingInvites((prev) => [...prev, ...newInvites])
+        }
+        emitGroupInvite={emitGroupInvite} // Add this
+      />
     </Portal>
   );
 };
@@ -884,14 +799,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
-  inviteModalContainer: {
-    backgroundColor: "white",
-    margin: normalize(20),
-    padding: normalize(15),
-    borderRadius: 12,
-    maxHeight: height * 0.8,
-    elevation: 5,
-  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -907,14 +814,6 @@ const styles = StyleSheet.create({
     fontSize: normalize(16),
     color: "#0098f9",
     fontWeight: "500",
-  },
-  closeButton: {
-    padding: normalize(10),
-    borderRadius: 8,
-    minWidth: normalize(60),
-    minHeight: normalize(44, true),
-    justifyContent: "center",
-    alignItems: "center",
   },
   modalAvatarContainer: {
     alignItems: "center",
@@ -956,22 +855,6 @@ const styles = StyleSheet.create({
     fontSize: normalize(14),
     color: "#0098f9",
     fontWeight: "500",
-  },
-  sendInviteButton: {
-    margin: normalize(15),
-    borderRadius: 8,
-    backgroundColor: "#0098f9",
-    elevation: 3,
-  },
-  sendInviteButtonContent: {
-    paddingVertical: normalize(8, true),
-    paddingHorizontal: normalize(16),
-    minHeight: normalize(48, true),
-  },
-  sendInviteText: {
-    fontSize: normalize(16),
-    fontWeight: "500",
-    color: "white",
   },
   participantList: {
     maxHeight: normalize(200, true),
@@ -1117,44 +1000,6 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
     marginVertical: normalize(10, true),
-  },
-  sectionTitle: {
-    fontSize: normalize(16),
-    fontWeight: "bold",
-    marginVertical: normalize(10, true),
-    paddingHorizontal: normalize(15),
-  },
-  userItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: normalize(12, true),
-    paddingHorizontal: normalize(10),
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    minHeight: normalize(64, true),
-    zIndex: 1,
-  },
-  userInfo: {
-    flex: 1,
-    marginLeft: normalize(12),
-  },
-  userName: {
-    fontSize: normalize(16),
-    fontWeight: "500",
-    color: "#333",
-  },
-  userPhone: {
-    fontSize: normalize(14),
-    color: "#666",
-  },
-  checkboxContainer: {
-    padding: normalize(8),
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  friendsList: {
-    maxHeight: normalize(300, true),
-    paddingHorizontal: normalize(15),
   },
 });
 

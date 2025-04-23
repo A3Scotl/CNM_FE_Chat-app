@@ -3,69 +3,103 @@ import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { Avatar, Text, Badge } from "react-native-paper";
 import { useSocket } from "../../hooks/useSocket";
 import { Audio } from "expo-av";
+import ActionSheet from "react-native-actionsheet";
+import { hideConversation } from "../../apis/message.api";
+import { Animated } from "react-native";
 
 const ChatListItem = ({ item, onPress, userId }) => {
-  const { user, lastMessage: initialLastMessage, type, unreadCount: initialUnreadCount } = item;
+  const {
+    user,
+    lastMessage: initialLastMessage,
+    type,
+    unreadCount: initialUnreadCount,
+  } = item;
+  const actionSheetRef = React.createRef();
+
   const [lastMessage, setLastMessage] = useState(initialLastMessage);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const conversationId = item._id;
 
-  // Play notification sound
-  const playNotificationSound = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require("../../assets/sounds/message-notification.mp3")
-      );
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) sound.unloadAsync();
-      });
-    } catch (err) {
-      console.error("Lỗi phát âm thanh thông báo:", err);
+  const handleLongPress = () => {
+    actionSheetRef.current.show();
+  };
+
+  // Handle ActionSheet và thực hiện hành động
+  const handleActionSheet = async (index) => {
+    switch (index) {
+      case 0:
+        const conversationId = lastMessage?.conversationId;
+
+        if (!conversationId) {
+          console.error(
+            "❌ Không thể ẩn cuộc trò chuyện, conversationId không hợp lệ."
+          );
+          return;
+        }
+
+        try {
+          const response = await hideConversation(conversationId);
+          console.log(response.message);
+        } catch (error) {
+          console.error("❌ Lỗi khi ẩn cuộc trò chuyện:", error);
+        }
+        break;
+      default:
+        console.log("Hủy");
+        break;
     }
   };
 
-  // Handle new messages
+  const playNotificationSound = async () => {
+    // try {
+    //   // const { sound } = await Audio.Sound.createAsync(
+    //   //   require("../../assets/sounds/message-notification.mp3")
+    //   // );
+    //   // await sound.playAsync();
+    //   // sound.setOnPlaybackStatusUpdate((status) => {
+    //   //   if (status.didJustFinish) sound.unloadAsync();
+    //   // });
+    // } catch (err) {
+    //   console.error("Lỗi phát âm thanh thông báo:", err);
+    // }
+  };
+
   const handleNewMessage = async (message) => {
-    console.log("ChatListItem received message:", message, "for conversation:", conversationId);
-    
-    // Only update if the message belongs to this conversation
     if (message.conversationId === conversationId) {
-      console.log("Message matches this conversation, updating UI");
-      
-      // Get sender ID in a consistent way
-      const senderId = typeof message.sender === "object" ? message.sender._id : message.sender;
-      console.log("Sender ID:", senderId, "Current user ID:", userId);
-      
-      // Play sound for messages from others
+      const senderId =
+        typeof message.sender === "object"
+          ? message.sender._id
+          : message.sender;
       if (senderId !== userId) {
         await playNotificationSound();
-        // Increment unread count
         setUnreadCount((prev) => (prev || 0) + 1);
       }
-      
-      // Update the last message
+
       setLastMessage({
         _id: message._id,
-        content: message.content || (
-          message.type === "image" ? "Hình ảnh" : 
-          message.type === "audio" ? "Tin nhắn âm thanh" : "Tệp"
-        ),
-        sender: senderId,
+        content:
+          message.content ||
+          (message.type === "image"
+            ? "Hình ảnh"
+            : message.type === "audio"
+            ? "Tin nhắn âm thanh"
+            : "Tệp"),
+        sender: message.sender,
         createdAt: message.createdAt || new Date().toISOString(),
+        type: message.type,
+        fileMeta: message.fileMeta || [],
+        replyTo: message.replyTo,
+        isRevoke: message.isRevoke || false,
       });
     }
   };
 
-  // Use the socket hook properly
   const { socket, joinRoom } = useSocket(userId, {
-    onNewMessage: handleNewMessage
+    onNewMessage: handleNewMessage,
   });
 
-  // Join the conversation room when component mounts
   useEffect(() => {
     if (conversationId && joinRoom) {
-      console.log(`Joining room for conversation: ${conversationId}`);
       joinRoom(conversationId);
     }
   }, [conversationId, joinRoom]);
@@ -82,7 +116,11 @@ const ChatListItem = ({ item, onPress, userId }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.container} onPress={() => onPress(item)}>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={() => onPress(item)}
+      onLongPress={handleLongPress}
+    >
       <Avatar.Image
         size={48}
         source={{ uri: user?.avatar || "https://i.pravatar.cc/150" }}
@@ -103,6 +141,17 @@ const ChatListItem = ({ item, onPress, userId }) => {
           </Badge>
         )}
       </View>
+      {/* ActionSheet */}
+      <ActionSheet
+        ref={actionSheetRef}
+        options={[
+          "Xóa cuộc trò chuyện",
+          "Hủy", // Hủy sẽ là nút đóng
+        ]}
+        cancelButtonIndex={1} // Hủy là nút cuối cùng
+        destructiveButtonIndex={0} // Xóa là nút đỏ
+        onPress={handleActionSheet} // Xử lý hành động khi chọn
+      />
     </TouchableOpacity>
   );
 };
