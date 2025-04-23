@@ -208,8 +208,8 @@ const HomeScreen = ({ navigation, route }) => {
       setSelectedMembers([]);
       setGroupSearchQuery("");
       setGroupSearchResults([]);
-      Alert.alert("Thành công", "Nhóm đã được tạo!");
-      navigation.navigate("ChatDetail", {
+      // Alert.alert("Thành công", "Nhóm đã được tạo!");
+      navigation.navigate("Chat", {
         conversationId: response.data.group._id,
         chat: {
           _id: response.data.group._id,
