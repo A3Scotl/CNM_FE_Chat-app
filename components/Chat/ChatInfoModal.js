@@ -31,6 +31,7 @@ const ChatInfoModal = ({
   onChangeMemberRole,
   onFetchAvailableFriends,
   onOpenImagePreview,
+  isTogglingApproval, // Thêm prop mới
 }) => {
   const isGroup = chat.type === "group";
   const images = messages.filter((msg) => msg.type === "image" && msg.fileMeta?.length > 0);
@@ -44,6 +45,7 @@ const ChatInfoModal = ({
   const displayAvatar = Platform.OS === "ios"
     ? (conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150").replace("file://", "")
     : conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150";
+
   useEffect(() => {
     console.log("ChatInfoModal: conversationDetails:", conversationDetails);
   }, [conversationDetails]);
@@ -109,7 +111,7 @@ const ChatInfoModal = ({
           >
             <Avatar.Image
               size={100}
-              source={{ uri: displayAvatar, cache: "reload" }} 
+              source={{ uri: displayAvatar, cache: "reload" }}
               style={styles.avatarImage}
             />
             {(isOwner || isAdmin) && (
@@ -293,6 +295,7 @@ const ChatInfoModal = ({
                       value={conversationDetails?.requireApproval}
                       onValueChange={onToggleRequireApproval}
                       color="#0098f9"
+                      disabled={isTogglingApproval} // Vô hiệu hóa khi đang toggle
                     />
                   </View>
                 )}
@@ -352,7 +355,6 @@ const ChatInfoModal = ({
     </Portal>
   );
 };
-
 const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: "white",

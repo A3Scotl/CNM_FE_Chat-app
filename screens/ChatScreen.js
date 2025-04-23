@@ -92,6 +92,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [selectedConversations, setSelectedConversations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [additionalContent, setAdditionalContent] = useState("");
+  const [isTogglingApproval, setIsTogglingApproval] = useState(false);
 
   useEffect(() => {
     if (!chat?._id) {
@@ -430,7 +431,31 @@ const ChatScreen = ({ navigation, route }) => {
           }
         }
       });
+      socketConnection.on("group:requireApprovalChanged", ({ groupId, requireApproval }) => {
+        console.log("Nhận sự kiện group:requireApprovalChanged:", { groupId, requireApproval });
+        if (groupId === chat._id) {
+          setConversationDetails((prev) => ({
+            ...prev,
+            requireApproval,
+          }));
 
+          // if (!isTogglingApproval) {
+          //   Alert.alert("Cập nhật cài đặt", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
+          //   try {
+          //     Audio.Sound.createAsync(
+          //       require("../assets/sounds/invite-group.mp3")
+          //     ).then(({ sound }) => {
+          //       sound.playAsync();
+          //       sound.setOnPlaybackStatusUpdate((status) => {
+          //         if (status.didJustFinish) sound.unloadAsync();
+          //       });
+          //     });
+          //   } catch (err) {
+          //     console.error("Lỗi phát âm thanh thông báo:", err);
+          //   }
+          // }
+        }
+      });
       setSocket(socketConnection);
 
       return () => {
@@ -439,7 +464,7 @@ const ChatScreen = ({ navigation, route }) => {
     };
 
     setupSocket();
-  }, [chat._id, userId]);
+  }, [chat._id, userId,isTogglingApproval]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -1119,7 +1144,19 @@ const ChatScreen = ({ navigation, route }) => {
 
   const handleToggleRequireApproval = async () => {
     try {
+      setIsTogglingApproval(true);
+      // Cập nhật giao diện ngay lập tức
+      setConversationDetails((prev) => ({
+        ...prev,
+        requireApproval: !prev.requireApproval, // Toggle trước khi gọi API
+      }));
       const result = await toggleRequireApproval(chat._id);
+      console.log("toggleRequireApproval result:", result);
+      // Cập nhật lại với dữ liệu từ server
+      setConversationDetails((prev) => ({
+        ...prev,
+        requireApproval: result.requireApproval,
+      }));
       Alert.alert(
         "Thành công",
         `Đã ${result.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
@@ -1129,7 +1166,14 @@ const ChatScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error("Lỗi bật/tắt yêu cầu duyệt:", error);
+
+      setConversationDetails((prev) => ({
+        ...prev,
+        requireApproval: !prev.requireApproval, 
+      }));
       Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
+    } finally {
+      setIsTogglingApproval(false);
     }
   };
 
@@ -1301,6 +1345,7 @@ const ChatScreen = ({ navigation, route }) => {
             setShowChatInfoModal(false);
             setShowImagePreview(true);
           }}
+          isTogglingApproval={isTogglingApproval}
         />
         <Modal
           visible={showForwardModal}
