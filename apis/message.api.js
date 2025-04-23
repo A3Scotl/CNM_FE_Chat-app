@@ -56,14 +56,21 @@ export const hideConversation = async (conversationId) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.patch(`/message/hide/${conversationId}`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await axiosInstance.patch(
+      `/message/hide/${conversationId}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi ẩn cuộc trò chuyện:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi ẩn cuộc trò chuyện:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -74,14 +81,21 @@ export const recallMessage = async (messageId) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.put(`/message/recall/${messageId}`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await axiosInstance.put(
+      `/message/recall/${messageId}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi thu hồi tin nhắn:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi thu hồi tin nhắn:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -99,7 +113,10 @@ export const forwardMessage = async (messageData) => {
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi chuyển tiếp tin nhắn:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi chuyển tiếp tin nhắn:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -117,7 +134,10 @@ export const forwardManyMessage = async (messageData) => {
     });
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi chuyển tiếp tin nhắn đến nhiều cuộc trò chuyện:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi chuyển tiếp tin nhắn đến nhiều cuộc trò chuyện:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };

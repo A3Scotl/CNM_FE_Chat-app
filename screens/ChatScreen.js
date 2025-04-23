@@ -710,8 +710,7 @@ const ChatScreen = ({ navigation, route }) => {
       setAdditionalContent("");
       setFilteredConversations(conversations);
     } catch (error) {
-      console.error("Lỗi chuyển tiếp tin nhắn:", error);
-      Alert.alert("Lỗi", error.message || "Không thể chuyển tiếp tin nhắn.");
+      console.error("Lỗi chuyển tiếp tin nhắn:", error.message);
     } finally {
       setIsSending(false);
     }
