@@ -115,7 +115,7 @@ const ChatScreen = ({ navigation, route }) => {
       Alert.alert(
         "Lỗi",
         "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
+        [{ text: "OK", onPress: () => navigation.replace("Home") }]
       );
     } else if (chat.type === "group") {
       fetchMemberInGroupDetails();
@@ -137,7 +137,7 @@ const ChatScreen = ({ navigation, route }) => {
       );
     } catch (error) {
       console.error("Không thể tải chi tiết nhóm:", error);
-      Alert.alert("Lỗi", "Không thể tải chi tiết nhóm.");
+      // Alert.alert("Lỗi", "Không thể tải chi tiết nhóm.");
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +149,7 @@ const ChatScreen = ({ navigation, route }) => {
       setAvailableFriends(friends.data);
     } catch (error) {
       console.error("Lỗi lấy danh sách bạn bè:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
+      // Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
     }
   };
 
@@ -406,14 +406,12 @@ const ChatScreen = ({ navigation, route }) => {
         if (groupId === chat._id) {
           fetchMemberInGroupDetails();
           if (leftUserId === userId) {
-            Alert.alert("Rời nhóm", "Bạn đã rời khỏi nhóm.", [
-              { text: "OK", onPress: () => navigation.goBack() },
-            ]);
+            // Alert.alert("Rời nhóm", "Bạn đã rời khỏi nhóm.", [{ text: "OK" }]);
           } else {
-            Alert.alert(
-              "Thành viên rời nhóm",
-              `Một thành viên đã rời khỏi nhóm.`
-            );
+            // Alert.alert(
+            //   "Thành viên rời nhóm",
+            //   `Một thành viên đã rời khỏi nhóm.`
+            // );
             try {
               Audio.Sound.createAsync(
                 require("../assets/sounds/invite-group.mp3")
@@ -1089,9 +1087,10 @@ const ChatScreen = ({ navigation, route }) => {
           onPress: async () => {
             try {
               await leaveGroup(chat._id);
-              Alert.alert("Thành công", "Bạn đã rời nhóm thành công.", [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
+              navigation.replace("Home");
+              // Alert.alert("Thành công", "Bạn đã rời nhóm thành công.", [
+              //   { text: "OK", onPress: () => navigation.replace("Home") },
+              // ]);
               if (socket) {
                 socket.emit("group:memberLeft", {
                   groupId: chat._id,
@@ -1294,11 +1293,13 @@ const ChatScreen = ({ navigation, route }) => {
       // Cập nhật lại với dữ liệu từ server
       setConversationDetails((prev) => ({
         ...prev,
-        requireApproval: result.requireApproval,
+        requireApproval: result.data.requireApproval,
       }));
       Alert.alert(
         "Thành công",
-        `Đã ${result.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
+        `Đã ${
+          result.data.requireApproval ? "bật" : "tắt"
+        } yêu cầu duyệt thành viên.`
       );
       if (socket) {
         socket.emit("group:requireApprovalChanged", {

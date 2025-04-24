@@ -245,10 +245,10 @@ const ConversationList = ({ currentUser }) => {
                 if (status.didJustFinish) sound.unloadAsync();
               });
             });
-            Alert.alert(
-              "Thành viên rời nhóm",
-              `Một thành viên đã rời khỏi nhóm.`
-            );
+            // Alert.alert(
+            //   "Thành viên rời nhóm",
+            //   `Một thành viên đã rời khỏi nhóm.`
+            // );
           } catch (err) {
             console.error("Lỗi phát âm thanh thông báo:", err);
           }
