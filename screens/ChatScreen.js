@@ -333,6 +333,7 @@ const ChatScreen = ({ navigation, route }) => {
         ({ groupId, addedUserId, addedBy }) => {
           if (groupId === chat._id) {
             fetchMemberInGroupDetails();
+
             if (addedBy !== userId) {
               Alert.alert(
                 "Thành viên mới",
@@ -354,6 +355,28 @@ const ChatScreen = ({ navigation, route }) => {
           }
         }
       );
+
+      socketConnection.on("new-group-invite", (invite) => {
+        if (invite.groupId === chat._id) {
+          Alert.alert(
+            "Lời mời mới",
+            `Người dùng ${invite.invitedBy.fullName} đã mời một thành viên vào nhóm.`
+          );
+
+          try {
+            Audio.Sound.createAsync(
+              require("../assets/sounds/invite-group.mp3")
+            ).then(({ sound }) => {
+              sound.playAsync();
+              sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.didJustFinish) sound.unloadAsync();
+              });
+            });
+          } catch (err) {
+            console.error("Lỗi phát âm thanh thông báo:", err);
+          }
+        }
+      });
 
       socketConnection.on(
         "group:member-removed",
@@ -406,12 +429,8 @@ const ChatScreen = ({ navigation, route }) => {
         if (groupId === chat._id) {
           fetchMemberInGroupDetails();
           if (leftUserId === userId) {
-            // Alert.alert("Rời nhóm", "Bạn đã rời khỏi nhóm.", [{ text: "OK" }]);
+            Alert.alert("Rời nhóm", "Bạn đã rời khỏi nhóm.", [{ text: "OK" }]);
           } else {
-            // Alert.alert(
-            //   "Thành viên rời nhóm",
-            //   `Một thành viên đã rời khỏi nhóm.`
-            // );
             try {
               Audio.Sound.createAsync(
                 require("../assets/sounds/invite-group.mp3")
@@ -1242,7 +1261,7 @@ const ChatScreen = ({ navigation, route }) => {
           onPress: async () => {
             try {
               await removeGroupMember(chat._id, memberId);
-              Alert.alert("Thành công", "Xóa thành viên thành công.");
+              // Alert.alert("Thành công", "Xóa thành viên thành công.");
               await fetchMemberInGroupDetails();
               if (socket) {
                 socket.emit("group:member-removed", {
@@ -1483,6 +1502,7 @@ const ChatScreen = ({ navigation, route }) => {
           onRemoveMember={handleRemoveMember}
           onChangeMemberRole={handleChangeMemberRole}
           onFetchAvailableFriends={fetchAvailableFriends}
+          onFetchGroupMembers={fetchMemberInGroupDetails} // Thêm dòng này
           onHideChat={handleHideChat}
           onOpenImagePreview={(url) => {
             setPreviewImage(url);

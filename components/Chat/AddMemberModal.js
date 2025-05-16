@@ -9,12 +9,12 @@ import {
 } from "react-native";
 import { Modal, Avatar, Text, Button } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { sendGroupInvite } from "../../apis/pendingGroupInvite.api";
+import axiosInstance from "../../utils/axiosInstance";
+import { handleApiError } from "../../utils/handleApiError";
 
-// Tính toán kích thước dựa trên Dimensions (copied from ChatInfoModal for consistency)
 const { width, height } = Dimensions.get("window");
-const baseWidth = 375; // iPhone 8 width
-const baseHeight = 667; // iPhone 8 height
+const baseWidth = 375;
+const baseHeight = 667;
 const scaleWidth = width / baseWidth;
 const scaleHeight = height / baseHeight;
 
@@ -29,28 +29,27 @@ const AddMemberModal = ({
   chatId,
   userId,
   friends,
+  friendsLoaded,
   onFetchFriends,
-  onSendInvites,
-  emitGroupInvite, // Add this prop to emit Socket.IO events
+  onAddMembers,
+  socket,
 }) => {
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch friends when the modal opens
   useEffect(() => {
-    if (visible) {
-      onFetchFriends(); // Refresh friends list when modal opens
+    if (visible && !friendsLoaded) {
+      onFetchFriends();
+      setSelectedMembers([]);
     }
-  }, [visible, onFetchFriends]);
+  }, [visible, friendsLoaded, onFetchFriends]);
 
-  // Reset selected members when modal closes
   useEffect(() => {
     if (!visible) {
       setSelectedMembers([]);
     }
   }, [visible]);
 
-  // Toggle selection of a member
   const toggleMember = (userId) => {
     setSelectedMembers((prev) =>
       prev.includes(userId)
@@ -59,30 +58,31 @@ const AddMemberModal = ({
     );
   };
 
-  // Send invites to selected members
-  const handleSendInvites = async () => {
+  const handleAddMembers = async () => {
     if (selectedMembers.length === 0) {
-      Alert.alert("Lỗi", "Vui lòng chọn ít nhất một người để mời.");
+      Alert.alert(
+        "Lỗi",
+        "Vui lòng chọn ít rearrangements nhất một người để thêm."
+      );
       return;
     }
 
     setLoading(true);
     try {
-      const newInvites = [];
-      for (const invitedUserId of selectedMembers) {
-        const invite = await sendGroupInvite(chatId, invitedUserId, userId);
-        newInvites.push(invite);
-        // Emit Socket.IO event for real-time update
-        if (emitGroupInvite) {
-          emitGroupInvite(invitedUserId, invite);
-        }
+      const response = await axiosInstance.post(
+        `/conversationGroup/${chatId}/add-members`,
+        { userIds: selectedMembers }
+      );
+
+      if (response.data) {
+        onAddMembers(selectedMembers);
+        onDismiss();
+        // Không hiển thị Alert ở đây để tránh trùng với ChatInfoModal
       }
-      onSendInvites(newInvites);
-      onDismiss();
-      Alert.alert("Thành công", "Đã gửi lời mời đến các thành viên được chọn.");
     } catch (error) {
-      console.error("Lỗi gửi lời mời nhóm:", error);
-      Alert.alert("Lỗi", error.message || "Không thể gửi lời mời nhóm.");
+      console.error("Lỗi thêm thành viên:", error);
+      const errorMessage = handleApiError(error);
+      Alert.alert("Lỗi", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -100,52 +100,62 @@ const AddMemberModal = ({
           <Text style={styles.modalCloseText}>Đóng</Text>
         </TouchableOpacity>
       </View>
-      <FlatList
-        data={friends}
-        keyExtractor={(item) =>
-          item._id?.toString() || Math.random().toString()
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.participantItem}
-            onPress={() => toggleMember(item._id)}
-          >
-            <Avatar.Image
-              size={normalize(40)}
-              source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-            />
-            <View style={styles.participantInfo}>
-              <Text style={styles.participantName}>
-                {item.fullName || item.username || "Không rõ"}
-              </Text>
-            </View>
-            <View style={styles.checkboxContainer}>
-              <MaterialCommunityIcons
-                name={
-                  selectedMembers.includes(item._id)
-                    ? "checkbox-marked"
-                    : "checkbox-blank-outline"
-                }
-                size={normalize(24)}
-                color="#0098f9"
+      {friendsLoaded && friends.length === 0 ? (
+        <Text style={styles.emptyText}>
+          Không có bạn bè nào để thêm vào nhóm.
+        </Text>
+      ) : (
+        <FlatList
+          data={friends}
+          keyExtractor={(item) =>
+            item._id?.toString() || Math.random().toString()
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.participantItem}
+              onPress={() => toggleMember(item._id)}
+            >
+              <Avatar.Image
+                size={normalize(40)}
+                source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
               />
-            </View>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>Không có bạn bè nào để thêm.</Text>
-        }
-        style={styles.participantList}
-        nestedScrollEnabled={true}
-      />
+              <View style={styles.participantInfo}>
+                <Text style={styles.participantName}>
+                  {item.fullName || item.username || "Không rõ"}
+                </Text>
+              </View>
+              <View style={styles.checkboxContainer}>
+                <MaterialCommunityIcons
+                  name={
+                    selectedMembers.includes(item._id)
+                      ? "checkbox-marked"
+                      : "checkbox-blank-outline"
+                  }
+                  size={normalize(24)}
+                  color="#0098f9"
+                />
+              </View>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
+            !friendsLoaded ? (
+              <Text style={styles.emptyText}>Đang tải danh sách bạn bè...</Text>
+            ) : null
+          }
+          style={styles.participantList}
+          nestedScrollEnabled={true}
+        />
+      )}
       <Button
         mode="contained"
-        onPress={handleSendInvites}
+        onPress={handleAddMembers}
         style={styles.sendInviteButton}
-        disabled={loading || selectedMembers.length === 0}
+        disabled={
+          loading || selectedMembers.length === 0 || friends.length === 0
+        }
         loading={loading}
       >
-        Gửi lời mời
+        Thêm
       </Button>
     </Modal>
   );
@@ -208,7 +218,7 @@ const styles = StyleSheet.create({
     fontSize: normalize(14),
     color: "#666",
     textAlign: "center",
-    marginVertical: normalize(10, true),
+    marginVertical: normalize(20, true),
   },
   sendInviteButton: {
     marginTop: normalize(15, true),

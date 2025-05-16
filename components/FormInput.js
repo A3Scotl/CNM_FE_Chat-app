@@ -1,5 +1,5 @@
-import React from 'react';
-import { TextInput, HelperText } from 'react-native-paper';
+import React from "react";
+import { TextInput, HelperText } from "react-native-paper";
 
 export default function FormInput({
   label,

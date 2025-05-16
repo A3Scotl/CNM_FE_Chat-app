@@ -21,6 +21,13 @@ const InputBar = ({
   inputRef,
   scrollRef,
 }) => {
+  // Debug scrollRef
+  React.useEffect(() => {
+    if (!scrollRef) {
+      console.warn("InputBar: scrollRef is undefined");
+    }
+  }, [scrollRef]);
+
   return (
     <>
       {showEmojiPicker && (
@@ -48,7 +55,10 @@ const InputBar = ({
           <TouchableOpacity onPress={onPickDocument} style={styles.inputIcon}>
             <MaterialIcons name="attach-file" size={24} color="#666" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onToggleRecording} style={styles.inputIcon}>
+          <TouchableOpacity
+            onPress={onToggleRecording}
+            style={styles.inputIcon}
+          >
             <MaterialIcons
               name={isRecording ? "stop" : "mic"}
               size={24}
@@ -68,13 +78,24 @@ const InputBar = ({
           onFocus={() => {
             onTyping();
             setShowEmojiPicker(false);
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+            if (scrollRef?.current) {
+              setTimeout(
+                () => scrollRef.current.scrollToEnd({ animated: true }),
+                300
+              );
+            } else {
+              console.warn(
+                "InputBar: Cannot scroll, scrollRef.current is undefined"
+              );
+            }
           }}
         />
         <TouchableOpacity
           style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
           onPress={onSend}
-          disabled={isSending || (!message.trim() && !selectedMedia && !selectedFile)}
+          disabled={
+            isSending || (!message.trim() && !selectedMedia && !selectedFile)
+          }
         >
           {isSending ? (
             <ActivityIndicator size="small" color="white" />

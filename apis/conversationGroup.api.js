@@ -29,7 +29,32 @@ export const createGroup = async (groupData) => {
   }
 };
 
-// Thêm thành viên vào nhóm
+// Thêm nhiều thành viên vào nhóm
+export const addGroupMembers = async (groupId, userIds) => {
+  try {
+    const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
+    const res = await axiosInstance.post(
+      `/conversationGroup/${groupId}/add-members`,
+      { userIds },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return res.data;
+  } catch (error) {
+    console.error(
+      "❌ Lỗi khi thêm thành viên vào nhóm:",
+      error?.response?.data || error
+    );
+    throw error;
+  }
+};
+
+// Thêm một thành viên vào nhóm (giữ lại để tương thích)
 export const addGroupMember = async (groupId, userId) => {
   try {
     const token = await getToken();

@@ -38,6 +38,8 @@ import {
 } from "../../apis/pendingGroupInvite.api";
 import { getFriendsNotInGroup } from "../../apis/conversationGroup.api";
 import AddMemberModal from "./AddMemberModal";
+import { debounce } from "lodash";
+import axiosInstance from "../../utils/axiosInstance";
 
 // Tính toán kích thước dựa trên Dimensions
 const { width, height } = Dimensions.get("window");
@@ -145,6 +147,7 @@ const ChatInfoModal = ({
   );
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [loadingFriends, setLoadingFriends] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
   const [inviteLoading, setInviteLoading] = useState({});
   const inputRef = useRef(null);
 
@@ -166,6 +169,24 @@ const ChatInfoModal = ({
         chat?.user?.avatar ||
         "https://i.pravatar.cc/150";
 
+  // Fallback để lấy danh sách thành viên nếu onFetchGroupMembers không có
+  const fetchGroupMembersFallback = useCallback(async () => {
+    try {
+      setLoadingMembers(true);
+      const response = await axiosInstance.get(
+        `/conversationGroup/${chat._id}/members`
+      );
+      setLocalGroupMembers(response.data || []);
+      return response.data;
+    } catch (error) {
+      console.error("Lỗi lấy danh sách thành viên (fallback):", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách thành viên.");
+      return [];
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [chat._id]);
+
   // Hàm lấy danh sách bạn bè không có trong nhóm
   const fetchFriendsNotInGroupData = useCallback(async () => {
     try {
@@ -181,13 +202,55 @@ const ChatInfoModal = ({
     } catch (error) {
       console.error("Lỗi lấy danh sách bạn bè không có trong nhóm:", error);
       setFriends([]);
-      setFriendsLoaded(false);
+      setFriendsLoaded(true);
+      Alert.alert("Lỗi", "Không thể tải danh sách bạn bè để thêm.");
     } finally {
       setLoadingFriends(false);
     }
   }, [chat._id]);
 
-  // Tích hợp useSocket để xử lý lời mời nhóm và cập nhật danh sách bạn bè realtime
+  // Hàm retry cho fetch group members
+  const retryFetchGroupMembers = useCallback(
+    async (retries = 3, delay = 1000) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          setLoadingMembers(true);
+          if (typeof onFetchGroupMembers === "function") {
+            await onFetchGroupMembers();
+          } else {
+            console.warn(
+              "onFetchGroupMembers không được định nghĩa, sử dụng fallback"
+            );
+            await fetchGroupMembersFallback();
+          }
+          return;
+        } catch (error) {
+          console.error(`Retry ${i + 1} failed for fetchGroupMembers:`, error);
+          if (i < retries - 1) {
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        } finally {
+          setLoadingMembers(false);
+        }
+      }
+      Alert.alert(
+        "Lỗi",
+        "Không thể tải danh sách thành viên sau nhiều lần thử."
+      );
+    },
+    [onFetchGroupMembers, fetchGroupMembersFallback]
+  );
+
+  // Debounce fetch group members
+  const debouncedFetchGroupMembers = useCallback(
+    debounce(() => {
+      console.log("Calling debouncedFetchGroupMembers");
+      retryFetchGroupMembers();
+    }, 300),
+    [retryFetchGroupMembers]
+  );
+
+  // Tích hợp useSocket
   const { socket, emitGroupInvite, emitGroupInviteAccepted } = useSocket(
     user._id,
     {
@@ -207,50 +270,101 @@ const ChatInfoModal = ({
                 (invite) => invite.invitedUser._id !== acceptedUser._id
               )
             );
-            // Xóa người dùng đã chấp nhận khỏi danh sách bạn bè khả dụng
             setFriends((prev) =>
               prev.filter((friend) => friend._id !== acceptedUser._id)
             );
-            // Cập nhật danh sách thành viên nhóm
-            if (acceptedUser._id && acceptedUser.fullName) {
-              setLocalGroupMembers((prev) => {
-                if (prev.some((member) => member._id === acceptedUser._id))
-                  return prev;
-                return [...prev, { ...acceptedUser, role: "member" }];
-              });
-            } else if (typeof onFetchGroupMembers === "function") {
-              onFetchGroupMembers();
-            }
-            // Tải lại danh sách bạn bè để đảm bảo tính chính xác
             fetchFriendsNotInGroupData();
+            debouncedFetchGroupMembers();
           }
         },
-        [chat._id, onFetchGroupMembers, fetchFriendsNotInGroupData]
+        [chat._id, fetchFriendsNotInGroupData, debouncedFetchGroupMembers]
       ),
-      onGroupInviteRejected: useCallback(
-        ({ inviteId, groupId }) => {
-          if (groupId === chat._id) {
-            setPendingInvites((prev) =>
-              prev.filter((invite) => invite._id !== inviteId)
-            );
-            // Tải lại danh sách bạn bè vì người dùng từ chối có thể quay lại danh sách khả dụng
-            fetchFriendsNotInGroupData();
-          }
-        },
-        [chat._id, fetchFriendsNotInGroupData]
-      ),
-      // Thêm sự kiện khi thành viên bị xóa khỏi nhóm
       onMemberRemoved: useCallback(
-        ({ userId, groupId }) => {
-          if (groupId === chat._id) {
+        ({ groupId, userId }) => {
+          console.log("onMemberRemoved:", { groupId, userId });
+          if (groupId === chat._id && userId) {
             setLocalGroupMembers((prev) =>
               prev.filter((member) => member._id !== userId)
             );
-            // Tải lại danh sách bạn bè vì người dùng bị xóa có thể quay lại danh sách khả dụng
             fetchFriendsNotInGroupData();
+            debouncedFetchGroupMembers();
+            Alert.alert("Thông báo", "Xóa thành viên thành công.");
           }
         },
-        [chat._id, fetchFriendsNotInGroupData]
+        [chat._id, fetchFriendsNotInGroupData, debouncedFetchGroupMembers]
+      ),
+      onMemberAdded: useCallback(
+        ({ groupId, addedUserIds, addedBy }) => {
+          console.log("onMemberAdded:", { groupId, addedUserIds, addedBy });
+          if (groupId === chat._id && Array.isArray(addedUserIds)) {
+            setLocalGroupMembers((prev) => {
+              const newMembers = addedUserIds.map((id) => ({
+                _id: id,
+                fullName: "Thành viên mới",
+                avatar: "https://i.pravatar.cc/150",
+                role: "member",
+                deletedAt: null,
+                isLoading: true,
+              }));
+              const updatedMembers = [
+                ...prev.filter((m) => !addedUserIds.includes(m._id)),
+                ...newMembers,
+              ];
+              console.log("Temporary localGroupMembers:", updatedMembers);
+              return updatedMembers;
+            });
+            debouncedFetchGroupMembers();
+            fetchFriendsNotInGroupData();
+            Alert.alert(
+              "Thông báo",
+              `${
+                addedUserIds.length || "Một"
+              } thành viên mới đã được thêm vào nhóm.`
+            );
+          }
+        },
+        [chat._id, fetchFriendsNotInGroupData, debouncedFetchGroupMembers]
+      ),
+      onUserJoinedGroup: useCallback(
+        ({ groupId, user }) => {
+          if (groupId === chat._id) {
+            setLocalGroupMembers((prev) => {
+              const isAlreadyMember = prev.some(
+                (member) => member._id === user._id
+              );
+              if (isAlreadyMember) return prev;
+              return [
+                ...prev,
+                {
+                  _id: user._id,
+                  fullName: user.fullName || "Thành viên mới",
+                  avatar: user.avatar || "https://i.pravatar.cc/150",
+                  role: "member",
+                  deletedAt: null,
+                },
+              ];
+            });
+            fetchFriendsNotInGroupData();
+            debouncedFetchGroupMembers();
+            Alert.alert(
+              "Thành viên mới",
+              `${user.fullName || "Một thành viên"} đã tham gia nhóm.`
+            );
+            try {
+              Audio.Sound.createAsync(
+                require("../assets/sounds/invite-group.mp3")
+              ).then(({ sound }) => {
+                sound.playAsync();
+                sound.setOnPlaybackStatusUpdate((status) => {
+                  if (status.didJustFinish) sound.unloadAsync();
+                });
+              });
+            } catch (err) {
+              console.error("Lỗi phát âm thanh thông báo:", err);
+            }
+          }
+        },
+        [chat._id, fetchFriendsNotInGroupData, debouncedFetchGroupMembers]
       ),
     }
   );
@@ -258,12 +372,12 @@ const ChatInfoModal = ({
   const [localGroupMembers, setLocalGroupMembers] = useState(groupMembers);
 
   useEffect(() => {
+    console.log("Syncing localGroupMembers:", groupMembers);
     setLocalGroupMembers(groupMembers);
   }, [groupMembers]);
 
-  // Lấy danh sách bạn bè ban đầu khi modal mở
   useEffect(() => {
-    if (visible && isGroup && (isOwner || isAdmin) && !friendsLoaded) {
+    if (visible && isGroup && !friendsLoaded) {
       if (propFriends.length === 0) {
         fetchFriendsNotInGroupData();
       } else if (JSON.stringify(friends) !== JSON.stringify(propFriends)) {
@@ -274,15 +388,13 @@ const ChatInfoModal = ({
   }, [
     visible,
     isGroup,
-    isOwner,
-    isAdmin,
     propFriends,
     friendsLoaded,
     fetchFriendsNotInGroupData,
   ]);
 
   useEffect(() => {
-    if (visible && isGroup && (isOwner || isAdmin) && isEditingName) {
+    if (visible && isGroup && isEditingName) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 200,
@@ -296,7 +408,7 @@ const ChatInfoModal = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [visible, isGroup, isOwner, isAdmin, isEditingName]);
+  }, [visible, isGroup, isEditingName]);
 
   useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin)) {
@@ -307,26 +419,34 @@ const ChatInfoModal = ({
     }
   }, [visible, isGroup, isOwner, isAdmin, chat._id]);
 
-  const fetchPendingInvites = async () => {
-    try {
-      setLoadingInvites(true);
-      if (typeof getPendingGroupInvitesByGroup !== "function") {
-        console.error(
-          "getPendingGroupInvitesByGroup is not a function. Check import in pendingGroupInvite.api.js"
+  const fetchPendingInvites = async (retries = 3, delay = 500) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        setLoadingInvites(true);
+        const invites = await getPendingGroupInvitesByGroup(chat._id);
+        console.log("Raw API response:", JSON.stringify(invites, null, 2));
+        const pendingOnly = Array.isArray(invites)
+          ? invites.filter(
+              (invite) => invite.status === "pending" && invite._id
+            )
+          : [];
+        console.log(
+          "Filtered pending invites:",
+          JSON.stringify(pendingOnly, null, 2)
         );
-        throw new Error("getPendingGroupInvitesByGroup is not defined");
+        setPendingInvites(pendingOnly);
+        if (pendingOnly.length > 0) return; // Thoát nếu có dữ liệu
+      } catch (error) {
+        console.error("Error fetching pending invites:", error);
+        if (i === retries - 1) {
+          Alert.alert("Lỗi", "Không thể tải danh sách lời mời nhóm.");
+        }
+      } finally {
+        setLoadingInvites(false);
       }
-      const invites = await getPendingGroupInvitesByGroup(chat._id);
-      console.log("Pending invites fetched:", JSON.stringify(invites, null, 2));
-      const pendingOnly = Array.isArray(invites)
-        ? invites.filter((invite) => invite.status === "pending" && invite._id)
-        : [];
-      setPendingInvites(pendingOnly);
-    } catch (error) {
-      console.error("Lỗi lấy danh sách lời mời:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách lời mời nhóm.");
-    } finally {
-      setLoadingInvites(false);
+      if (i < retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
   };
 
@@ -334,17 +454,13 @@ const ChatInfoModal = ({
     try {
       setInviteLoading((prev) => ({ ...prev, [inviteId]: true }));
       await acceptGroupInvite(inviteId);
-      await rejectGroupInvite(inviteId);
       setPendingInvites((prev) =>
         prev.filter((invite) => invite._id !== inviteId)
       );
       setFriends((prev) =>
         prev.filter((friend) => friend._id !== invitedUser._id)
       );
-      setLocalGroupMembers((prev) => {
-        if (prev.some((member) => member._id === invitedUser._id)) return prev;
-        return [...prev, { ...invitedUser, role: "member" }];
-      });
+      debouncedFetchGroupMembers();
       if (socket) {
         socket.emit("accept-group-invite", {
           groupId: chat._id,
@@ -352,7 +468,7 @@ const ChatInfoModal = ({
         });
       }
       setFriendsLoaded(false);
-      Alert.alert("Thành công", "Lời mời đã được chấp nhận và xóa.");
+      Alert.alert("Thành công", "Lời mời đã được chấp nhận.");
     } catch (error) {
       console.error("Lỗi chấp nhận lời mời:", error);
       const errorMessage =
@@ -528,103 +644,132 @@ const ChatInfoModal = ({
                     <Text style={styles.modalSectionTitle}>
                       Thành viên ({localGroupMembers.length || 0})
                     </Text>
-                    {(isOwner || isAdmin) && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          fetchFriendsNotInGroupData(); // Tải lại danh sách bạn bè trước khi mở modal
-                          setShowAddMemberModal(true);
-                        }}
-                        disabled={loadingFriends}
+                    <TouchableOpacity
+                      onPress={() => {
+                        fetchFriendsNotInGroupData();
+                        setShowAddMemberModal(true);
+                      }}
+                      disabled={
+                        loadingFriends ||
+                        (friendsLoaded && friends.length === 0)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.addMemberText,
+                          friendsLoaded &&
+                            friends.length === 0 && { color: "#999" },
+                        ]}
                       >
-                        <Text style={styles.addMemberText}>
-                          {loadingFriends ? "Đang tải..." : "+ Thêm thành viên"}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                        {loadingFriends ? "Đang tải..." : "+ Thêm thành viên"}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                  <FlatList
-                    data={localGroupMembers}
-                    keyExtractor={(item) =>
-                      item._id?.toString() || Math.random().toString()
-                    }
-                    renderItem={({ item }) => (
-                      <View style={styles.participantItem}>
-                        <Avatar.Image
-                          size={normalize(40)}
-                          source={{
-                            uri: item.avatar || "https://i.pravatar.cc/150",
-                          }}
-                        />
-                        <View style={styles.participantInfo}>
-                          <Text style={styles.participantName}>
-                            {item.fullName}
-                          </Text>
-                          <Text style={styles.participantRole}>
-                            {item.role === "owner"
-                              ? "Chủ nhóm"
-                              : item.role === "admin"
-                              ? "Quản trị viên"
-                              : "Thành viên"}
-                          </Text>
-                        </View>
-                        {isOwner && item._id !== user._id && (
-                          <View style={styles.memberActions}>
-                            <IconButton
-                              icon="account-edit"
-                              size={normalize(20)}
-                              onPress={() =>
-                                Alert.alert(
-                                  "Thay đổi quyền",
-                                  "Chọn vai trò mới:",
-                                  [
-                                    {
-                                      text: "Thành viên",
-                                      onPress: () =>
-                                        onChangeMemberRole(item._id, "member"),
-                                    },
-                                    {
-                                      text: "Quản trị viên",
-                                      onPress: () =>
-                                        onChangeMemberRole(item._id, "admin"),
-                                    },
-                                    {
-                                      text: "Chủ nhóm",
-                                      onPress: () =>
-                                        onChangeMemberRole(item._id, "owner"),
-                                    },
-                                    { text: "Hủy", style: "cancel" },
-                                  ],
-                                  { cancelable: true }
-                                )
-                              }
-                              containerColor="transparent"
-                              hitSlop={{
-                                top: 10,
-                                bottom: 10,
-                                left: 10,
-                                right: 10,
-                              }}
-                            />
-                            <IconButton
-                              icon="delete"
-                              size={normalize(20)}
-                              onPress={() => onRemoveMember(item._id)}
-                              iconColor="#ff4444"
-                              containerColor="transparent"
-                              hitSlop={{
-                                top: 10,
-                                bottom: 10,
-                                left: 10,
-                                right: 10,
-                              }}
-                            />
+                  {loadingMembers ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#0098f9"
+                      style={{ marginVertical: normalize(10, true) }}
+                    />
+                  ) : localGroupMembers.length === 0 ? (
+                    <Text style={styles.emptyText}>
+                      Không có thành viên nào.
+                    </Text>
+                  ) : (
+                    <FlatList
+                      data={localGroupMembers}
+                      keyExtractor={(item) =>
+                        item._id?.toString() || Math.random().toString()
+                      }
+                      renderItem={({ item }) => (
+                        <View style={styles.participantItem}>
+                          <Avatar.Image
+                            size={normalize(40)}
+                            source={{
+                              uri: item.avatar || "https://i.pravatar.cc/150",
+                            }}
+                          />
+                          <View style={styles.participantInfo}>
+                            <Text style={styles.participantName}>
+                              {item.fullName || "Thành viên mới"}
+                            </Text>
+                            <Text style={styles.participantRole}>
+                              {item.isLoading ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color="#0098f9"
+                                />
+                              ) : item.role === "owner" ? (
+                                "Chủ nhóm"
+                              ) : item.role === "admin" ? (
+                                "Quản trị viên"
+                              ) : (
+                                "Thành viên"
+                              )}
+                            </Text>
                           </View>
-                        )}
-                      </View>
-                    )}
-                    style={styles.participantList}
-                    nestedScrollEnabled={true}
-                  />
+                          {isOwner && item._id !== user._id && (
+                            <View style={styles.memberActions}>
+                              <IconButton
+                                icon="account-edit"
+                                size={normalize(20)}
+                                onPress={() =>
+                                  Alert.alert(
+                                    "Thay đổi quyền",
+                                    "Chọn vai trò mới:",
+                                    [
+                                      {
+                                        text: "Thành viên",
+                                        onPress: () =>
+                                          onChangeMemberRole(
+                                            item._id,
+                                            "member"
+                                          ),
+                                      },
+                                      {
+                                        text: "Quản trị viên",
+                                        onPress: () =>
+                                          onChangeMemberRole(item._id, "admin"),
+                                      },
+                                      {
+                                        text: "Chủ nhóm",
+                                        onPress: () =>
+                                          onChangeMemberRole(item._id, "owner"),
+                                      },
+                                      { text: "Hủy", style: "cancel" },
+                                    ],
+                                    { cancelable: true }
+                                  )
+                                }
+                                containerColor="transparent"
+                                hitSlop={{
+                                  top: 10,
+                                  bottom: 10,
+                                  left: 10,
+                                  right: 10,
+                                }}
+                              />
+                              <IconButton
+                                icon="delete"
+                                size={normalize(20)}
+                                onPress={() => onRemoveMember(item._id)}
+                                iconColor="#ff4444"
+                                containerColor="transparent"
+                                hitSlop={{
+                                  top: 10,
+                                  bottom: 10,
+                                  left: 10,
+                                  right: 10,
+                                }}
+                              />
+                            </View>
+                          )}
+                        </View>
+                      )}
+                      style={styles.participantList}
+                      nestedScrollEnabled={true}
+                    />
+                  )}
                 </View>
               ),
             },
@@ -752,12 +897,15 @@ const ChatInfoModal = ({
       images,
       pendingInvites,
       friends,
+      friendsLoaded,
       isOwner,
       isAdmin,
       localGroupMembers,
       conversationDetails,
       displayName,
       displayAvatar,
+      loadingMembers,
+      loadingFriends,
     ]
   );
 
@@ -789,11 +937,17 @@ const ChatInfoModal = ({
         chatId={chat._id}
         userId={user._id}
         friends={friends}
-        onFetchFriends={fetchFriendsNotInGroupData} // Cập nhật prop để sử dụng hàm fetch realtime
-        onSendInvites={(newInvites) =>
-          setPendingInvites((prev) => [...prev, ...newInvites])
-        }
-        emitGroupInvite={emitGroupInvite}
+        friendsLoaded={friendsLoaded}
+        onFetchFriends={fetchFriendsNotInGroupData}
+        onAddMembers={(addedUserIds) => {
+          setFriends((prev) =>
+            prev.filter((friend) => !addedUserIds.includes(friend._id))
+          );
+          setShowAddMemberModal(false);
+          setFriendsLoaded(false);
+          debouncedFetchGroupMembers();
+        }}
+        socket={socket}
       />
     </Portal>
   );
