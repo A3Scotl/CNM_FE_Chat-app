@@ -18,6 +18,7 @@ const ChatListItem = ({ item, onPress, userId }) => {
 
   const [lastMessage, setLastMessage] = useState(initialLastMessage);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  const [hasNewInvite, setHasNewInvite] = useState(false); // State để theo dõi lời mời nhóm mới
   const conversationId = item._id;
 
   const handleLongPress = () => {
@@ -28,7 +29,7 @@ const ChatListItem = ({ item, onPress, userId }) => {
   const handleActionSheet = async (index) => {
     switch (index) {
       case 0:
-        const conversationId = lastMessage?.conversationId;
+        const conversationId = lastMessage?.conversationId || item._id;
 
         if (!conversationId) {
           console.error(
@@ -74,7 +75,6 @@ const ChatListItem = ({ item, onPress, userId }) => {
         await playNotificationSound();
         setUnreadCount((prev) => (prev || 0) + 1);
       }
-
       setLastMessage({
         _id: message._id,
         content:
@@ -94,8 +94,15 @@ const ChatListItem = ({ item, onPress, userId }) => {
     }
   };
 
+  const handleNewGroupInvite = (invite) => {
+    if (invite.groupId === conversationId) {
+      setHasNewInvite(true); // Hiển thị icon yêu cầu vào nhóm
+    }
+  };
+
   const { socket, joinRoom } = useSocket(userId, {
     onNewMessage: handleNewMessage,
+    onNewGroupInvite: handleNewGroupInvite,
   });
 
   useEffect(() => {
@@ -115,10 +122,17 @@ const ChatListItem = ({ item, onPress, userId }) => {
       : date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
   };
 
+  // Xử lý khi nhấn vào item: xóa Badge, icon yêu cầu và gọi hàm onPress
+  const handlePress = () => {
+    setHasNewInvite(false); // Ẩn icon yêu cầu
+    setUnreadCount(0); // Ẩn Badge
+    onPress(item);
+  };
+
   return (
     <TouchableOpacity
       style={styles.container}
-      onPress={() => onPress(item)}
+      onPress={handlePress}
       onLongPress={handleLongPress}
     >
       <Avatar.Image
@@ -135,22 +149,29 @@ const ChatListItem = ({ item, onPress, userId }) => {
         {lastMessage?.createdAt && (
           <Text style={styles.time}>{formatTime(lastMessage.createdAt)}</Text>
         )}
-        {unreadCount > 0 && (
-          <Badge style={styles.badge} size={20}>
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </Badge>
-        )}
+        <View style={styles.indicatorContainer}>
+          {unreadCount > 0 && (
+            <Badge style={styles.badge} size={20}>
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </Badge>
+          )}
+          {hasNewInvite && (
+            <Avatar.Icon
+              size={20}
+              icon="account-group"
+              style={styles.newInviteIcon}
+              color="#fff"
+            />
+          )}
+        </View>
       </View>
       {/* ActionSheet */}
       <ActionSheet
         ref={actionSheetRef}
-        options={[
-          "Xóa cuộc trò chuyện",
-          "Hủy", // Hủy sẽ là nút đóng
-        ]}
-        cancelButtonIndex={1} // Hủy là nút cuối cùng
-        destructiveButtonIndex={0} // Xóa là nút đỏ
-        onPress={handleActionSheet} // Xử lý hành động khi chọn
+        options={["Xóa cuộc trò chuyện", "Hủy"]}
+        cancelButtonIndex={1}
+        destructiveButtonIndex={0}
+        onPress={handleActionSheet}
       />
     </TouchableOpacity>
   );
@@ -186,10 +207,18 @@ const styles = StyleSheet.create({
   rightContainer: {
     alignItems: "flex-end",
   },
+  indicatorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
   badge: {
     backgroundColor: "#007bff",
     color: "#fff",
-    marginTop: 4,
+  },
+  newInviteIcon: {
+    backgroundColor: "#ff0000",
+    marginLeft: 8,
   },
 });
 

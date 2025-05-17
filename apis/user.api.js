@@ -41,12 +41,23 @@ export const updateProfile = async (profileData) => {
 
 export const findUserByPhone = async (phone) => {
   try {
-    console.log(`Searching: ${phone}`)
-    const { data } = await axiosInstance.get("/user/search", { params: { phone } });
+    console.log(`Searching: ${phone}`);
+    const { data } = await axiosInstance.get("/user/search", {
+      params: { phone },
+    });
 
     return data.data || [];
   } catch (error) {
     handleApiError(error);
     return [];
+  }
+};
+export const getUserById = async (userId) => {
+  try {
+    const { data } = await axiosInstance.get(`/user/find-byid/${userId}`);
+    return data.data;
+  } catch (error) {
+    handleApiError(error);
+    throw error;
   }
 };

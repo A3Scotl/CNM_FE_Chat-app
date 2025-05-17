@@ -401,7 +401,7 @@ const ConversationList = ({ currentUser }) => {
         prev.map((c) => (c._id === chat._id ? { ...c, unreadCount: 0 } : c))
       )
     );
-    console.log(chat);
+    // console.log(chat);
     navigation.navigate("Chat", {
       conversationId: chat._id,
       chat: chat,

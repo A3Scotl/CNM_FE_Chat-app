@@ -177,7 +177,7 @@ const ChatScreen = ({ navigation, route }) => {
       setFilteredConversations(mappedConversations);
     } catch (error) {
       console.error("Lỗi lấy danh sách cuộc trò chuyện:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
+      // Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
     }
   };
 
@@ -330,27 +330,20 @@ const ChatScreen = ({ navigation, route }) => {
 
       socketConnection.on(
         "group:member-added",
-        ({ groupId, addedUserId, addedBy }) => {
+        async ({ groupId, addedUserId, addedBy }) => {
           if (groupId === chat._id) {
             fetchMemberInGroupDetails();
-
-            if (addedBy !== userId) {
-              Alert.alert(
-                "Thành viên mới",
-                `Một người dùng đã được thêm vào nhóm.`
-              );
-              try {
-                Audio.Sound.createAsync(
-                  require("../assets/sounds/invite-group.mp3")
-                ).then(({ sound }) => {
-                  sound.playAsync();
-                  sound.setOnPlaybackStatusUpdate((status) => {
-                    if (status.didJustFinish) sound.unloadAsync();
-                  });
+            try {
+              Audio.Sound.createAsync(
+                require("../assets/sounds/invite-group.mp3")
+              ).then(({ sound }) => {
+                sound.playAsync();
+                sound.setOnPlaybackStatusUpdate((status) => {
+                  if (status.didJustFinish) sound.unloadAsync();
                 });
-              } catch (err) {
-                console.error("Lỗi phát âm thanh thông báo:", err);
-              }
+              });
+            } catch (err) {
+              console.error("Lỗi phát âm thanh thông báo:", err);
             }
           }
         }
@@ -358,11 +351,7 @@ const ChatScreen = ({ navigation, route }) => {
 
       socketConnection.on("new-group-invite", (invite) => {
         if (invite.groupId === chat._id) {
-          Alert.alert(
-            "Lời mời mới",
-            `Người dùng ${invite.invitedBy.fullName} đã mời một thành viên vào nhóm.`
-          );
-
+          // Alert.alert("Lời mời mới", `Bạn nhận được 1 yêu cầu duyệt vào nhóm.`);
           try {
             Audio.Sound.createAsync(
               require("../assets/sounds/invite-group.mp3")

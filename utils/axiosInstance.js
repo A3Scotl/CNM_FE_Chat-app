@@ -28,11 +28,11 @@ axiosInstance.interceptors.request.use(
 
 export default axiosInstance;
 export const handleApiError = (error) => {
-  console.error("API Error:", {
-    message: error.message,
-    response: error.response?.data,
-    status: error.response?.status,
-  });
+  // console.error("API Error:", {
+  //   message: error.message,
+  //   response: error.response?.data,
+  //   status: error.response?.status,
+  // });
 
   if (error.response) {
     const { status, data } = error.response;

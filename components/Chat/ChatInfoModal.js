@@ -35,9 +35,11 @@ import {
   acceptGroupInvite,
   rejectGroupInvite,
   sendGroupInvite,
+  toggleRequireApproval,
 } from "../../apis/pendingGroupInvite.api";
 import { getFriendsNotInGroup } from "../../apis/conversationGroup.api";
 import AddMemberModal from "./AddMemberModal";
+import InviteMemberModal from "./InviteMemberModal";
 import { debounce } from "lodash";
 import axiosInstance from "../../utils/axiosInstance";
 
@@ -68,12 +70,9 @@ const PendingInviteItem = memo(
           source={{ uri: invitedUser.avatar || "https://i.pravatar.cc/150" }}
         />
         <View style={styles.participantInfo}>
-          <Text style={styles.participantName}>
-            {invitedUser.fullName || invitedUser._id || "Không rõ"}
-          </Text>
+          <Text style={styles.participantName}>{invitedUser.fullName}</Text>
           <Text style={styles.participantRole}>
-            Mời bởi: {invitedBy.fullName || invitedBy._id || "Không rõ"} (Đang
-            chờ)
+            Mời bởi: {invitedBy.fullName} (Đang chờ)
           </Text>
         </View>
         {(isOwner || isAdmin) && (
@@ -126,12 +125,14 @@ const ChatInfoModal = ({
   onDeleteGroup,
   onRemoveMember,
   onChangeMemberRole,
+  onFetchAvailable,
   onFetchAvailableFriends,
   onFetchGroupMembers,
   onOpenImagePreview,
   isTogglingApproval,
 }) => {
   const isGroup = chat.type === "group";
+  const requireApproval = conversationDetails?.requireApproval || false;
   const images = messages.filter(
     (msg) => msg.type === "image" && msg.fileMeta?.length > 0
   );
@@ -142,6 +143,7 @@ const ChatInfoModal = ({
   const [pendingInvites, setPendingInvites] = useState([]);
   const [loadingInvites, setLoadingInvites] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showInviteMemberModal, setShowInviteMemberModal] = useState(false);
   const [friends, setFriends] = useState(
     Array.isArray(propFriends) ? propFriends : []
   );
@@ -233,10 +235,10 @@ const ChatInfoModal = ({
           setLoadingMembers(false);
         }
       }
-      Alert.alert(
-        "Lỗi",
-        "Không thể tải danh sách thành viên sau nhiều lần thử."
-      );
+      // Alert.alert(
+      //   "Lỗi",
+      //   "Không thể tải danh sách thành viên sau nhiều lần thử."
+      // );
     },
     [onFetchGroupMembers, fetchGroupMembersFallback]
   );
@@ -254,9 +256,38 @@ const ChatInfoModal = ({
   const { socket, emitGroupInvite, emitGroupInviteAccepted } = useSocket(
     user._id,
     {
+      groupId: chat._id,
       onNewGroupInvite: useCallback(
         (invite) => {
-          if (invite.groupId === chat._id && (isOwner || isAdmin)) {
+          console.log(
+            "Received new-group-invite:",
+            JSON.stringify(invite, null, 2)
+          );
+          console.log(
+            "Current chat._id:",
+            chat._id,
+            "isOwner:",
+            isOwner,
+            "isAdmin:",
+            isAdmin
+          );
+          if (invite.groupId.toString() === chat._id) {
+            console.log("Updating pendingInvites with new invite");
+            setPendingInvites((prev) => {
+              const isDuplicate = prev.some((i) => i._id === invite.inviteId);
+              if (isDuplicate) return prev;
+              return [
+                ...prev,
+                {
+                  _id: invite.inviteId,
+                  groupId: invite.groupId,
+                  invitedUser: invite.invitedUser,
+                  invitedBy: invite.invitedBy,
+                  status: "pending",
+                },
+              ];
+            });
+            console.log("Calling fetchPendingInvites for group:", chat._id);
             fetchPendingInvites();
           }
         },
@@ -275,6 +306,7 @@ const ChatInfoModal = ({
             );
             fetchFriendsNotInGroupData();
             debouncedFetchGroupMembers();
+            fetchPendingInvites();
           }
         },
         [chat._id, fetchFriendsNotInGroupData, debouncedFetchGroupMembers]
@@ -288,7 +320,7 @@ const ChatInfoModal = ({
             );
             fetchFriendsNotInGroupData();
             debouncedFetchGroupMembers();
-            Alert.alert("Thông báo", "Xóa thành viên thành công.");
+            // Alert.alert("Thông báo", "Xóa thành viên thành công.");
           }
         },
         [chat._id, fetchFriendsNotInGroupData, debouncedFetchGroupMembers]
@@ -417,12 +449,18 @@ const ChatInfoModal = ({
       setPendingInvites([]);
       setLoadingInvites(false);
     }
-  }, [visible, isGroup, isOwner, isAdmin, chat._id]);
+  }, [visible, isGroup, chat._id, isOwner, isAdmin]);
 
-  const fetchPendingInvites = async (retries = 3, delay = 500) => {
+  const fetchPendingInvites = async (retries = 3, delay = 1000) => {
     for (let i = 0; i < retries; i++) {
       try {
         setLoadingInvites(true);
+        if (typeof getPendingGroupInvitesByGroup !== "function") {
+          console.error(
+            "getPendingGroupInvitesByGroup is not a function. Check import in pendingGroupInvite.api.js"
+          );
+          throw new Error("getPendingGroupInvitesByGroup is not defined");
+        }
         const invites = await getPendingGroupInvitesByGroup(chat._id);
         console.log("Raw API response:", JSON.stringify(invites, null, 2));
         const pendingOnly = Array.isArray(invites)
@@ -435,7 +473,7 @@ const ChatInfoModal = ({
           JSON.stringify(pendingOnly, null, 2)
         );
         setPendingInvites(pendingOnly);
-        if (pendingOnly.length > 0) return; // Thoát nếu có dữ liệu
+        if (pendingOnly.length > 0) return;
       } catch (error) {
         console.error("Error fetching pending invites:", error);
         if (i === retries - 1) {
@@ -465,10 +503,13 @@ const ChatInfoModal = ({
         socket.emit("accept-group-invite", {
           groupId: chat._id,
           user: invitedUser,
+          inviteId, // Thêm inviteId để dễ xử lý
         });
       }
       setFriendsLoaded(false);
       Alert.alert("Thành công", "Lời mời đã được chấp nhận.");
+      // Gọi fetchPendingInvites để cập nhật danh sách lời mời cho tất cả người dùng
+      fetchPendingInvites();
     } catch (error) {
       console.error("Lỗi chấp nhận lời mời:", error);
       const errorMessage =
@@ -495,6 +536,8 @@ const ChatInfoModal = ({
         });
       }
       Alert.alert("Thành công", "Lời mời đã bị từ chối.");
+      fetchFriendsNotInGroupData();
+      debouncedFetchGroupMembers();
     } catch (error) {
       console.error("Lỗi từ chối lời mời:", error);
       Alert.alert("Lỗi", error.message || "Không thể từ chối lời mời.");
@@ -647,7 +690,11 @@ const ChatInfoModal = ({
                     <TouchableOpacity
                       onPress={() => {
                         fetchFriendsNotInGroupData();
-                        setShowAddMemberModal(true);
+                        if (requireApproval && !isOwner && !isAdmin) {
+                          setShowInviteMemberModal(true);
+                        } else {
+                          setShowAddMemberModal(true);
+                        }
                       }}
                       disabled={
                         loadingFriends ||
@@ -661,7 +708,11 @@ const ChatInfoModal = ({
                             friends.length === 0 && { color: "#999" },
                         ]}
                       >
-                        {loadingFriends ? "Đang tải..." : "+ Thêm thành viên"}
+                        {loadingFriends
+                          ? "Đang tải..."
+                          : requireApproval && !isOwner && !isAdmin
+                          ? "Gửi yêu cầu vào nhóm"
+                          : "+ Thêm thành viên"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -777,39 +828,45 @@ const ChatInfoModal = ({
               ? [
                   {
                     key: "pendingInvites",
-                    render: () => (
-                      <View style={styles.modalSection}>
-                        <Text style={styles.modalSectionTitle}>
-                          Lời mời nhóm ({pendingInvites.length || 0})
-                        </Text>
-                        {loadingInvites ? (
-                          <Text style={styles.loadingText}>Đang tải...</Text>
-                        ) : pendingInvites.length === 0 ? (
-                          <Text style={styles.emptyText}>
-                            Không có lời mời nào.
+                    render: () => {
+                      // console.log(
+                      //   "Rendering pendingInvites section, data:",
+                      //   pendingInvites
+                      // );
+                      return (
+                        <View style={styles.modalSection}>
+                          <Text style={styles.modalSectionTitle}>
+                            Lời mời nhóm ({pendingInvites.length || 0})
                           </Text>
-                        ) : (
-                          <FlatList
-                            data={pendingInvites}
-                            keyExtractor={(item) =>
-                              item._id?.toString() || Math.random().toString()
-                            }
-                            renderItem={({ item }) => (
-                              <PendingInviteItem
-                                item={item}
-                                isOwner={isOwner}
-                                isAdmin={isAdmin}
-                                onAccept={handleAcceptInvite}
-                                onReject={handleRejectInvite}
-                                loading={inviteLoading}
-                              />
-                            )}
-                            style={styles.participantList}
-                            nestedScrollEnabled={true}
-                          />
-                        )}
-                      </View>
-                    ),
+                          {loadingInvites ? (
+                            <Text style={styles.loadingText}>Đang tải...</Text>
+                          ) : pendingInvites.length === 0 ? (
+                            <Text style={styles.emptyText}>
+                              Không có lời mời nào.
+                            </Text>
+                          ) : (
+                            <FlatList
+                              data={pendingInvites}
+                              keyExtractor={(item) =>
+                                item._id?.toString() || Math.random().toString()
+                              }
+                              renderItem={({ item }) => (
+                                <PendingInviteItem
+                                  item={item}
+                                  isOwner={isOwner}
+                                  isAdmin={isAdmin}
+                                  onAccept={handleAcceptInvite}
+                                  onReject={handleRejectInvite}
+                                  loading={inviteLoading}
+                                />
+                              )}
+                              style={styles.participantList}
+                              nestedScrollEnabled={true}
+                            />
+                          )}
+                        </View>
+                      );
+                    },
                   },
                 ]
               : []),
@@ -861,7 +918,7 @@ const ChatInfoModal = ({
                         Yêu cầu duyệt thành viên
                       </Text>
                       <Switch
-                        value={conversationDetails?.requireApproval}
+                        value={requireApproval}
                         onValueChange={onToggleRequireApproval}
                         color="#0098f9"
                         disabled={isTogglingApproval}
@@ -906,6 +963,7 @@ const ChatInfoModal = ({
       displayAvatar,
       loadingMembers,
       loadingFriends,
+      requireApproval,
     ]
   );
 
@@ -946,6 +1004,24 @@ const ChatInfoModal = ({
           setShowAddMemberModal(false);
           setFriendsLoaded(false);
           debouncedFetchGroupMembers();
+        }}
+        socket={socket}
+      />
+      <InviteMemberModal
+        visible={showInviteMemberModal}
+        onDismiss={() => setShowInviteMemberModal(false)}
+        chatId={chat._id}
+        userId={user._id}
+        friends={friends}
+        friendsLoaded={friendsLoaded}
+        onFetchFriends={fetchFriendsNotInGroupData}
+        onInviteSent={(invitedUserIds) => {
+          setFriends((prev) =>
+            prev.filter((friend) => !invitedUserIds.includes(friend._id))
+          );
+          setShowInviteMemberModal(false);
+          setFriendsLoaded(false);
+          fetchPendingInvites();
         }}
         socket={socket}
       />
