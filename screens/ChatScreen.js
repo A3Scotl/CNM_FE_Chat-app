@@ -182,6 +182,7 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   useEffect(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
     inputRef.current?.focus();
     fetchConversations();
   }, []);

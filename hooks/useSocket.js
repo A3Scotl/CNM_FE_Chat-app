@@ -17,10 +17,14 @@ export const useSocket = (
     onMemberAdded,
     onMemberRemoved,
     onUserJoinedGroup,
+    onUpdateChatList,
   } = {}
 ) => {
   const socketRef = useRef(null);
-  const eventCache = useRef(new Map()); // Cache để lọc sự kiện trùng lặp
+  const eventCache = useRef(new Map());
+  const isCleaningUp = useRef(false);
+  const isConnected = useRef(false); // Track stable connection
+  const messageQueue = useRef([]); // Queue for buffering events during reconnection
 
   useEffect(() => {
     if (!userId) {
@@ -51,7 +55,13 @@ export const useSocket = (
 
         socketRef.current.on("connect", () => {
           console.log("✅ Socket kết nối thành công");
+          isConnected.current = true;
           socketRef.current.emit("register", userId);
+          // Process queued messages
+          while (messageQueue.current.length > 0) {
+            const { event, data } = messageQueue.current.shift();
+            processEvent(event, data);
+          }
         });
 
         socketRef.current.on("connect_error", (err) => {
@@ -60,147 +70,229 @@ export const useSocket = (
             description: err.description,
             context: err.context,
           });
+          isConnected.current = false;
           Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ.");
         });
 
-        socketRef.current.on(
-          "friend-request",
-          ({ message, from, requestId }) => {
-            console.log("Nhận yêu cầu kết bạn:", { message, from, requestId });
-            Alert.alert(
-              "Yêu cầu kết bạn mới",
-              `${message} từ ${from.fullName}`
+        const processEvent = (event, data) => {
+          if (isCleaningUp.current || !isConnected.current) {
+            console.log(
+              `Hàng đợi sự kiện ${event} do đang cleanup hoặc chưa kết nối`
             );
-            if (onFriendRequest) {
-              onFriendRequest({ message, from, requestId });
-            }
-          }
-        );
-
-        socketRef.current.on("friend-request-accepted", ({ message, user }) => {
-          console.log("Yêu cầu kết bạn đã được chấp nhận:", { message, user });
-          Alert.alert("Yêu cầu kết bạn đã được chấp nhận", message);
-          if (onFriendRequestAccepted) {
-            onFriendRequestAccepted({ message, user });
-          }
-        });
-
-        socketRef.current.on("new-message", (msg) => {
-          if (!msg._id || !msg.conversationId) {
-            console.warn("Tin nhắn không hợp lệ từ socket:", msg);
-            return;
-          }
-          if (onNewMessage) {
-            onNewMessage(msg);
-          }
-        });
-
-        socketRef.current.on(
-          "typing",
-          ({ conversationId, userId: typingUserId, fullName }) => {
-            if (onTyping && conversationId && typingUserId && fullName) {
-              onTyping({ conversationId, userId: typingUserId, fullName });
-            }
-          }
-        );
-
-        socketRef.current.on(
-          "stop-typing",
-          ({ conversationId, userId: typingUserId }) => {
-            if (onStopTyping && conversationId && typingUserId) {
-              onStopTyping({ conversationId, userId: typingUserId });
-            }
-          }
-        );
-
-        socketRef.current.on("new-group-invite", (invite) => {
-          console.log("📨 Nhận lời mời nhóm:", invite);
-          if (onNewGroupInvite) onNewGroupInvite(invite);
-        });
-
-        socketRef.current.on("group-invite-accepted", ({ user, groupId }) => {
-          console.log("✅ Ai đó đã tham gia nhóm:", user, groupId);
-          if (onGroupInviteAccepted) onGroupInviteAccepted({ user, groupId });
-        });
-
-        const handleMemberAdded = (
-          { groupId, addedUserIds, addedBy },
-          eventName
-        ) => {
-          if (!groupId || !Array.isArray(addedUserIds)) {
-            console.warn(`Payload ${eventName} không hợp lệ:`, {
-              groupId,
-              addedUserIds,
-              addedBy,
-            });
+            messageQueue.current.push({ event, data });
             return;
           }
 
-          // Tạo key duy nhất cho sự kiện dựa trên groupId và addedUserIds
-          const eventKey = `${groupId}:${addedUserIds.sort().join(",")}`;
-          const now = Date.now();
-          const cachedEvent = eventCache.current.get(eventKey);
+          switch (event) {
+            case "friend-request":
+              const { message, from, requestId } = data;
+              const friendRequestKey = `friend-request:${requestId}:${from._id}`;
+              if (checkCache(friendRequestKey, "yêu cầu kết bạn")) {
+                Alert.alert(
+                  "Yêu cầu kết bạn mới",
+                  `${message} từ ${from.fullName}`
+                );
+                if (onFriendRequest)
+                  onFriendRequest({ message, from, requestId });
+              }
+              break;
 
-          // Chỉ xử lý nếu sự kiện chưa được xử lý trong 5 giây qua
-          if (!cachedEvent || now - cachedEvent.timestamp > 5000) {
-            console.log(`📨 Thành viên mới được thêm (${eventName}):`, {
-              groupId,
-              addedUserIds,
-              addedBy,
-            });
-            eventCache.current.set(eventKey, { timestamp: now });
-            if (onMemberAdded) {
-              onMemberAdded({ groupId, addedUserIds, addedBy });
-            }
+            case "friend-request-accepted":
+              const { message: msg, user } = data;
+              const friendAcceptedKey = `friend-request-accepted:${user._id}`;
+              if (checkCache(friendAcceptedKey, "yêu cầu kết bạn chấp nhận")) {
+                Alert.alert("Yêu cầu kết bạn đã được chấp nhận", msg);
+                if (onFriendRequestAccepted)
+                  onFriendRequestAccepted({ message: msg, user });
+              }
+              break;
 
-            // Xóa cache sau 10 giây để tránh tràn bộ nhớ
-            setTimeout(() => {
-              eventCache.current.delete(eventKey);
-            }, 10000);
-          } else {
-            console.log(`Bỏ qua sự kiện trùng lặp (${eventName}):`, eventKey);
+            case "new-message":
+              if (!data._id || !data.conversationId) {
+                console.warn("Tin nhắn không hợp lệ từ socket:", data);
+                return;
+              }
+              const messageKey = `new-message:${data._id}:${
+                data.conversationId
+              }:${data.createdAt || Date.now()}`;
+              if (checkCache(messageKey, "tin nhắn mới")) {
+                console.log("Xử lý tin nhắn mới:", data);
+                if (onNewMessage) onNewMessage(data);
+              }
+              break;
+
+            case "typing":
+              const { conversationId, userId: typingUserId, fullName } = data;
+              const typingKey = `typing:${conversationId}:${typingUserId}`;
+              if (checkCache(typingKey, "typing")) {
+                if (onTyping && conversationId && typingUserId && fullName) {
+                  onTyping({ conversationId, userId: typingUserId, fullName });
+                }
+              }
+              break;
+
+            case "stop-typing":
+              const { conversationId: stopConvoId, userId: stopUserId } = data;
+              const stopTypingKey = `stop-typing:${stopConvoId}:${stopUserId}`;
+              if (checkCache(stopTypingKey, "stop-typing")) {
+                if (onStopTyping && stopConvoId && stopUserId) {
+                  onStopTyping({
+                    conversationId: stopConvoId,
+                    userId: stopUserId,
+                  });
+                }
+              }
+              break;
+
+            case "new-group-invite":
+              const inviteKey = `new-group-invite:${data._id}`;
+              if (checkCache(inviteKey, "lời mời nhóm")) {
+                console.log("📨 Nhận lời mời nhóm:", data);
+                if (onNewGroupInvite) onNewGroupInvite(data);
+              }
+              break;
+
+            case "group-invite-accepted":
+              const { user: inviteUser, groupId } = data;
+              const groupInviteKey = `group-invite-accepted:${groupId}:${inviteUser._id}`;
+              if (checkCache(groupInviteKey, "nhóm chấp nhận")) {
+                console.log("✅ Ai đó đã tham gia nhóm:", inviteUser, groupId);
+                if (onGroupInviteAccepted)
+                  onGroupInviteAccepted({ user: inviteUser, groupId });
+              }
+              break;
+
+            case "update-chat-list":
+              const chatKey = `update-chat-list:${data.conversationId}:${
+                data.updatedAt || Date.now()
+              }`;
+              if (checkCache(chatKey, "cập nhật danh sách chat")) {
+                console.log("📨 Cập nhật danh sách chat:", data);
+                if (onUpdateChatList) onUpdateChatList(data);
+              }
+              break;
+
+            case "user-joined-group":
+              const { groupId: joinGroupId, user: joinUser } = data;
+              const joinKey = `user-joined-group:${joinGroupId}:${joinUser._id}`;
+              if (checkCache(joinKey, "người dùng tham gia nhóm")) {
+                console.log("📨 Người dùng tham gia nhóm:", {
+                  groupId: joinGroupId,
+                  user: joinUser,
+                });
+                if (onUserJoinedGroup)
+                  onUserJoinedGroup({ groupId: joinGroupId, user: joinUser });
+              }
+              break;
+
+            case "group:member-added":
+            case "group:member-added-group":
+              const { addedUserIds, addedBy } = data;
+              if (!groupId || !Array.isArray(addedUserIds)) {
+                console.warn(`Payload ${event} không hợp lệ:`, {
+                  groupId,
+                  addedUserIds,
+                  addedBy,
+                });
+                return;
+              }
+              const memberAddedKey = `${event}:${groupId}:${addedUserIds
+                .sort()
+                .join(",")}`;
+              if (checkCache(memberAddedKey, `thành viên mới (${event})`)) {
+                console.log(`📨 Thành viên mới được thêm (${event}):`, {
+                  groupId,
+                  addedUserIds,
+                  addedBy,
+                });
+                if (onMemberAdded)
+                  onMemberAdded({ groupId, addedUserIds, addedBy });
+              }
+              break;
+
+            case "group:member-removed":
+              const { groupId: removeGroupId, removedUserId, removedBy } = data;
+              if (!removeGroupId || !removedUserId) {
+                console.warn("Payload group:member-removed không hợp lệ:", {
+                  groupId: removeGroupId,
+                  removedUserId,
+                  removedBy,
+                });
+                return;
+              }
+              const memberRemovedKey = `group:member-removed:${removeGroupId}:${removedUserId}`;
+              if (checkCache(memberRemovedKey, "thành viên bị xóa")) {
+                console.log("📨 Thành viên bị xóa:", {
+                  groupId: removeGroupId,
+                  removedUserId,
+                  removedBy,
+                });
+                if (onMemberRemoved)
+                  onMemberRemoved({
+                    groupId: removeGroupId,
+                    userId: removedUserId,
+                  });
+              }
+              break;
+
+            default:
+              console.log(`Sự kiện socket không xử lý: ${event}`, data);
           }
         };
 
-        socketRef.current.on("user-joined-group", ({ groupId, user }) => {
-          console.log("📨 Người dùng tham gia nhóm:", { groupId, user });
-          if (onUserJoinedGroup) {
-            onUserJoinedGroup({ groupId, user });
+        const checkCache = (eventKey, eventName) => {
+          const now = Date.now();
+          const cachedEvent = eventCache.current.get(eventKey);
+          if (cachedEvent && now - cachedEvent.timestamp < 3000) {
+            // Tightened to 3 seconds
+            console.log(`Bỏ qua sự kiện trùng lặp (${eventName}):`, eventKey);
+            return false;
           }
-        });
+          eventCache.current.set(eventKey, { timestamp: now });
+          setTimeout(() => {
+            eventCache.current.delete(eventKey);
+          }, 10000);
+          return true;
+        };
 
-        socketRef.current.on("group:member-added", (payload) => {
-          handleMemberAdded(payload, "group:member-added");
-        });
-
-        socketRef.current.on("group:member-added-group", (payload) => {
-          handleMemberAdded(payload, "group:member-added-group");
-        });
-
-        socketRef.current.on(
-          "group:member-removed",
-          ({ groupId, removedUserId, removedBy }) => {
-            if (!groupId || !removedUserId) {
-              console.warn("Payload group:member-removed không hợp lệ:", {
-                groupId,
-                removedUserId,
-                removedBy,
-              });
-              return;
-            }
-            console.log("📨 Thành viên bị xóa:", {
-              groupId,
-              removedUserId,
-              removedBy,
-            });
-            if (onMemberRemoved) {
-              onMemberRemoved({ groupId, userId: removedUserId });
-            }
-          }
+        socketRef.current.on("friend-request", (data) =>
+          processEvent("friend-request", data)
+        );
+        socketRef.current.on("friend-request-accepted", (data) =>
+          processEvent("friend-request-accepted", data)
+        );
+        socketRef.current.on("new-message", (data) =>
+          processEvent("new-message", data)
+        );
+        socketRef.current.on("typing", (data) => processEvent("typing", data));
+        socketRef.current.on("stop-typing", (data) =>
+          processEvent("stop-typing", data)
+        );
+        socketRef.current.on("new-group-invite", (data) =>
+          processEvent("new-group-invite", data)
+        );
+        socketRef.current.on("group-invite-accepted", (data) =>
+          processEvent("group-invite-accepted", data)
+        );
+        socketRef.current.on("update-chat-list", (data) =>
+          processEvent("update-chat-list", data)
+        );
+        socketRef.current.on("user-joined-group", (data) =>
+          processEvent("user-joined-group", data)
+        );
+        socketRef.current.on("group:member-added", (data) =>
+          processEvent("group:member-added", data)
+        );
+        socketRef.current.on("group:member-added-group", (data) =>
+          processEvent("group:member-added-group", data)
+        );
+        socketRef.current.on("group:member-removed", (data) =>
+          processEvent("group:member-removed", data)
         );
 
         socketRef.current.on("disconnect", (reason) => {
           console.log("Ngắt kết nối", `Lý do: ${reason}`);
+          isConnected.current = false;
         });
 
         socketRef.current.onAny((event, ...args) => {
@@ -214,8 +306,8 @@ export const useSocket = (
     initializeSocket();
 
     return () => {
+      isCleaningUp.current = true;
       if (socketRef.current) {
-        socketRef.current.off("user-joined-group");
         socketRef.current.off("friend-request");
         socketRef.current.off("friend-request-accepted");
         socketRef.current.off("new-message");
@@ -223,6 +315,8 @@ export const useSocket = (
         socketRef.current.off("stop-typing");
         socketRef.current.off("new-group-invite");
         socketRef.current.off("group-invite-accepted");
+        socketRef.current.off("update-chat-list");
+        socketRef.current.off("user-joined-group");
         socketRef.current.off("group:member-added");
         socketRef.current.off("group:member-added-group");
         socketRef.current.off("group:member-removed");
@@ -234,6 +328,8 @@ export const useSocket = (
         socketRef.current = null;
         console.log("🧹 Socket đã được cleanup");
       }
+      isCleaningUp.current = false;
+      messageQueue.current = []; // Clear queue on cleanup
     };
   }, [
     userId,
@@ -247,6 +343,7 @@ export const useSocket = (
     onMemberAdded,
     onMemberRemoved,
     onUserJoinedGroup,
+    onUpdateChatList,
   ]);
 
   const joinRoom = (conversationId) => {

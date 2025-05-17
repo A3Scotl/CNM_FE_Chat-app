@@ -5,7 +5,7 @@ import { useSocket } from "../../hooks/useSocket";
 import { Audio } from "expo-av";
 import ActionSheet from "react-native-actionsheet";
 import { hideConversation } from "../../apis/message.api";
-import { Animated } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons"; // Thêm icon library
 
 const ChatListItem = ({ item, onPress, userId }) => {
   const {
@@ -18,26 +18,22 @@ const ChatListItem = ({ item, onPress, userId }) => {
 
   const [lastMessage, setLastMessage] = useState(initialLastMessage);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
-  const [hasNewInvite, setHasNewInvite] = useState(false); // State để theo dõi lời mời nhóm mới
+  const [hasNewInvite, setHasNewInvite] = useState(false); // State cho lời mời mới
   const conversationId = item._id;
 
   const handleLongPress = () => {
     actionSheetRef.current.show();
   };
 
-  // Handle ActionSheet và thực hiện hành động
   const handleActionSheet = async (index) => {
     switch (index) {
       case 0:
-        const conversationId = lastMessage?.conversationId || item._id;
-
         if (!conversationId) {
           console.error(
             "❌ Không thể ẩn cuộc trò chuyện, conversationId không hợp lệ."
           );
           return;
         }
-
         try {
           const response = await hideConversation(conversationId);
           console.log(response.message);
@@ -52,17 +48,17 @@ const ChatListItem = ({ item, onPress, userId }) => {
   };
 
   const playNotificationSound = async () => {
-    // try {
-    //   // const { sound } = await Audio.Sound.createAsync(
-    //   //   require("../../assets/sounds/message-notification.mp3")
-    //   // );
-    //   // await sound.playAsync();
-    //   // sound.setOnPlaybackStatusUpdate((status) => {
-    //   //   if (status.didJustFinish) sound.unloadAsync();
-    //   // });
-    // } catch (err) {
-    //   console.error("Lỗi phát âm thanh thông báo:", err);
-    // }
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require("../../assets/sounds/message-notification.mp3")
+      );
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) sound.unloadAsync();
+      });
+    } catch (err) {
+      console.error("Lỗi phát âm thanh thông báo:", err);
+    }
   };
 
   const handleNewMessage = async (message) => {
@@ -75,6 +71,7 @@ const ChatListItem = ({ item, onPress, userId }) => {
         await playNotificationSound();
         setUnreadCount((prev) => (prev || 0) + 1);
       }
+
       setLastMessage({
         _id: message._id,
         content:
@@ -95,14 +92,15 @@ const ChatListItem = ({ item, onPress, userId }) => {
   };
 
   const handleNewGroupInvite = (invite) => {
-    if (invite.groupId === conversationId) {
-      setHasNewInvite(true); // Hiển thị icon yêu cầu vào nhóm
+    if (invite.groupId === conversationId && type === "group") {
+      setHasNewInvite(true); // Hiển thị chấm đỏ khi có lời mời mới
+      playNotificationSound();
     }
   };
 
   const { socket, joinRoom } = useSocket(userId, {
     onNewMessage: handleNewMessage,
-    onNewGroupInvite: handleNewGroupInvite,
+    onNewGroupInvite: handleNewGroupInvite, // Bắt sự kiện lời mời nhóm
   });
 
   useEffect(() => {
@@ -122,10 +120,8 @@ const ChatListItem = ({ item, onPress, userId }) => {
       : date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
   };
 
-  // Xử lý khi nhấn vào item: xóa Badge, icon yêu cầu và gọi hàm onPress
   const handlePress = () => {
-    setHasNewInvite(false); // Ẩn icon yêu cầu
-    setUnreadCount(0); // Ẩn Badge
+    setHasNewInvite(false); // Xóa chấm đỏ khi nhấn vào item
     onPress(item);
   };
 
@@ -149,23 +145,23 @@ const ChatListItem = ({ item, onPress, userId }) => {
         {lastMessage?.createdAt && (
           <Text style={styles.time}>{formatTime(lastMessage.createdAt)}</Text>
         )}
-        <View style={styles.indicatorContainer}>
+        <View style={styles.badgeContainer}>
           {unreadCount > 0 && (
             <Badge style={styles.badge} size={20}>
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           )}
           {hasNewInvite && (
-            <Avatar.Icon
-              size={20}
-              icon="account-group"
-              style={styles.newInviteIcon}
-              color="#fff"
-            />
+            <Badge style={[styles.badge, styles.inviteBadge]} size={20}>
+              <MaterialCommunityIcons
+                name="account-plus"
+                size={12}
+                color="#fff"
+              />
+            </Badge>
           )}
         </View>
       </View>
-      {/* ActionSheet */}
       <ActionSheet
         ref={actionSheetRef}
         options={["Xóa cuộc trò chuyện", "Hủy"]}
@@ -207,18 +203,20 @@ const styles = StyleSheet.create({
   rightContainer: {
     alignItems: "flex-end",
   },
-  indicatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+  badgeContainer: {
+    flexDirection: "column",
+    alignItems: "flex-end",
     marginTop: 4,
   },
   badge: {
     backgroundColor: "#007bff",
     color: "#fff",
+    marginTop: 4,
   },
-  newInviteIcon: {
-    backgroundColor: "#ff0000",
-    marginLeft: 8,
+  inviteBadge: {
+    backgroundColor: "#ff4444", // Màu đỏ cho badge lời mời
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

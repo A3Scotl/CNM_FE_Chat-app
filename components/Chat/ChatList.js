@@ -16,10 +16,10 @@ const ChatList = ({ chats, onChatSelect, currentUserId }) => {
       data={chats}
       keyExtractor={(item) => item._id}
       renderItem={({ item }) => (
-        <ChatListItem 
-          item={item} 
-          onPress={onChatSelect} 
-          userId={currentUserId} 
+        <ChatListItem
+          item={item}
+          onPress={onChatSelect}
+          userId={currentUserId}
         />
       )}
     />
