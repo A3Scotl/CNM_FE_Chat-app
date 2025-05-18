@@ -330,7 +330,7 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on(
-        "group:member-added",
+        "group:member-added-group",
         async ({ groupId, addedUserId, addedBy }) => {
           if (groupId === chat._id) {
             fetchMemberInGroupDetails();

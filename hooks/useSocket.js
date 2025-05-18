@@ -187,7 +187,7 @@ export const useSocket = (
 
             case "group:member-added":
             case "group:member-added-group":
-              const { addedUserIds, addedBy } = data;
+              const { groupId: memberGroupId, addedUserIds, addedBy } = data;
               if (!groupId || !Array.isArray(addedUserIds)) {
                 console.warn(`Payload ${event} không hợp lệ:`, {
                   groupId,
