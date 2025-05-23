@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, TouchableOpacity, TextInput } from "react-native";
-import { ActivityIndicator } from "react-native-paper";
+import { ActivityIndicator, Text } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import EmojiSelector from "react-native-emoji-selector";
 
@@ -25,10 +25,27 @@ const InputBar = ({
     <>
       {showEmojiPicker && (
         <View style={styles.emojiPickerContainer}>
+          <View style={styles.emojiPickerHeader}>
+            <Text style={styles.emojiPickerTitle}>Chọn Emoji</Text>
+            <TouchableOpacity
+              onPress={() => setShowEmojiPicker(false)}
+              disabled={isSending}
+            >
+              <MaterialIcons
+                name="close"
+                size={24}
+                color={isSending ? "#ccc" : "#0098f9"}
+              />
+            </TouchableOpacity>
+          </View>
           <EmojiSelector
             onEmojiSelected={(emoji) => {
-              setMessage((prev) => prev + emoji);
-              setShowEmojiPicker(false);
+              if (!isSending) {
+                setMessage((prev) => prev + emoji);
+                setTimeout(() => {
+                  scrollRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }
             }}
             columns={8}
           />
@@ -39,20 +56,45 @@ const InputBar = ({
           <TouchableOpacity
             onPress={() => setShowEmojiPicker(!showEmojiPicker)}
             style={styles.inputIcon}
+            disabled={isSending}
           >
-            <MaterialIcons name="insert-emoticon" size={24} color="#666" />
+            <MaterialIcons
+              name="insert-emoticon"
+              size={24}
+              color={isSending ? "#ccc" : "#666"}
+            />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onPickImage} style={styles.inputIcon}>
-            <MaterialIcons name="photo" size={24} color="#666" />
+          <TouchableOpacity
+            onPress={onPickImage}
+            style={styles.inputIcon}
+            disabled={isSending}
+          >
+            <MaterialIcons
+              name="photo"
+              size={24}
+              color={isSending ? "#ccc" : "#666"}
+            />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onPickDocument} style={styles.inputIcon}>
-            <MaterialIcons name="attach-file" size={24} color="#666" />
+          <TouchableOpacity
+            onPress={onPickDocument}
+            style={styles.inputIcon}
+            disabled={isSending}
+          >
+            <MaterialIcons
+              name="attach-file"
+              size={24}
+              color={isSending ? "#ccc" : "#666"}
+            />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onToggleRecording} style={styles.inputIcon}>
+          <TouchableOpacity
+            onPress={onToggleRecording}
+            style={styles.inputIcon}
+            disabled={isSending}
+          >
             <MaterialIcons
               name={isRecording ? "stop" : "mic"}
               size={24}
-              color={isRecording ? "#ff0000" : "#666"}
+              color={isRecording ? "#ff0000" : isSending ? "#ccc" : "#666"}
             />
           </TouchableOpacity>
         </View>
@@ -61,14 +103,22 @@ const InputBar = ({
           style={styles.input}
           placeholder="Nhập tin nhắn..."
           value={message}
-          onChangeText={setMessage}
+          onChangeText={(text) => {
+            if (!isSending) {
+              setMessage(text);
+              onTyping();
+            }
+          }}
           multiline
           keyboardType="default"
           autoCorrect={false}
+          editable={!isSending}
           onFocus={() => {
-            onTyping();
-            setShowEmojiPicker(false);
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+            if (!isSending) {
+              onTyping();
+              setShowEmojiPicker(false);
+              setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+            }
           }}
         />
         <TouchableOpacity
@@ -129,10 +179,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#99CDF7",
   },
   emojiPickerContainer: {
-    height: 200,
+    height: 400, 
     backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#ddd",
+  },
+  emojiPickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  emojiPickerTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
   },
 });
 
