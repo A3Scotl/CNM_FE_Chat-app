@@ -12,7 +12,6 @@ import { format } from 'date-fns';
 const ProfileModal = ({
   visible,
   user,
-  token,
   onDismiss,
   onUpdateSuccess
 }) => {
@@ -75,12 +74,14 @@ const ProfileModal = ({
 
   const handleAvatarUpdate = async () => {
     if (!tempAvatar || !user?._id) return;
-    
+
     setIsLoading(true);
     try {
-      const updatedUser = await uploadAvatar(tempAvatar, user._id);
+      await uploadAvatar(tempAvatar, user._id);
+      const updatedUser = await getMyProfile(); // Lấy dữ liệu người dùng mới nhất
       Alert.alert('Thành công', 'Cập nhật ảnh đại diện thành công');
-      onUpdateSuccess(updatedUser); 
+      onUpdateSuccess(updatedUser);
+      setTempAvatar(null); // Xóa tempAvatar sau khi cập nhật
     } catch (error) {
       console.error('Lỗi cập nhật:', error);
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi cập nhật ảnh đại diện');
@@ -92,14 +93,14 @@ const ProfileModal = ({
 
   const handleProfileUpdate = async () => {
     if (!user?._id) return;
-    
+
     setIsLoading(true);
     try {
       const formattedData = {
         ...editFormData,
         dob: editFormData.dob.toISOString()
       };
-      
+
       const updatedUser = await updateProfile(formattedData);
       Alert.alert('Thành công', 'Cập nhật thông tin thành công');
       onUpdateSuccess(updatedUser);
@@ -151,7 +152,7 @@ const ProfileModal = ({
             </View>
           )}
 
-          <ScrollView style={{}}>
+          <ScrollView>
             {isEditingProfile ? (
               <>
                 <View style={styles.editHeader}>
@@ -173,7 +174,6 @@ const ProfileModal = ({
                     style={styles.input}
                     mode="outlined"
                   />
-                  
                   <TextInput
                     label="Tên tài khoản"
                     value={editFormData.userName}
@@ -181,25 +181,6 @@ const ProfileModal = ({
                     style={styles.input}
                     mode="outlined"
                   />
-                  
-                  {/* <TextInput
-                    label="Số điện thoại"
-                    value={editFormData.phoneNumber}
-                    onChangeText={text => setEditFormData({...editFormData, phoneNumber: text})}
-                    style={styles.input}
-                    mode="outlined"
-                    keyboardType="phone-pad"
-                  /> */}
-                  
-                  {/* <TextInput
-                    label="Email"
-                    value={editFormData.email}
-                    onChangeText={text => setEditFormData({...editFormData, email: text})}
-                    style={styles.input}
-                    mode="outlined"
-                    keyboardType="email-address"
-                  /> */}
-                  
                   <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePickerButton}>
                     <TextInput
                       label="Ngày sinh"
@@ -210,7 +191,6 @@ const ProfileModal = ({
                       right={<TextInput.Icon icon="calendar" />}
                     />
                   </TouchableOpacity>
-                  
                   {showDatePicker && (
                     <DateTimePicker
                       value={editFormData.dob}
@@ -219,7 +199,6 @@ const ProfileModal = ({
                       onChange={handleDateChange}
                     />
                   )}
-                  
                   <Menu
                     visible={showGenderMenu}
                     onDismiss={() => setShowGenderMenu(false)}
@@ -236,26 +215,26 @@ const ProfileModal = ({
                       </TouchableOpacity>
                     }
                   >
-                    <Menu.Item 
+                    <Menu.Item
                       onPress={() => {
                         setEditFormData({...editFormData, gender: 'male'});
                         setShowGenderMenu(false);
-                      }} 
-                      title="Nam" 
+                      }}
+                      title="Nam"
                     />
-                    <Menu.Item 
+                    <Menu.Item
                       onPress={() => {
                         setEditFormData({...editFormData, gender: 'female'});
                         setShowGenderMenu(false);
-                      }} 
-                      title="Nữ" 
+                      }}
+                      title="Nữ"
                     />
-                    <Menu.Item 
+                    <Menu.Item
                       onPress={() => {
                         setEditFormData({...editFormData, gender: 'other'});
                         setShowGenderMenu(false);
-                      }} 
-                      title="Khác" 
+                      }}
+                      title="Khác"
                     />
                   </Menu>
                 </View>
@@ -356,7 +335,7 @@ const createStyles = (colors) => StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
-    height:600
+    height: 600
   },
   card: {
     margin: 20,
@@ -403,7 +382,6 @@ const createStyles = (colors) => StyleSheet.create({
   actions: {
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-   
   },
   saveButton: {
     backgroundColor: colors.primary,

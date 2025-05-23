@@ -31,7 +31,7 @@ const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
 
-  const [currentUser, setCurrentUser] = useState(null); 
+  const [currentUser, setCurrentUser] = useState(null);
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
   const [selectedChat, setSelectedChat] = useState(null);
@@ -55,6 +55,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [loadingGroupSearch, setLoadingGroupSearch] = useState(false);
   const [loadingSendRequest, setLoadingSendRequest] = useState(false);
   const [loadingCreateGroup, setLoadingCreateGroup] = useState(false);
+  const [avatarRefresh, setAvatarRefresh] = useState(Date.now()); // Thêm state để làm mới avatar
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
@@ -95,6 +96,7 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
+    setAvatarRefresh(Date.now()); // Làm mới avatar khi cập nhật
   };
 
   const handleLogout = async () => {
@@ -195,7 +197,6 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const handleCreateGroup = async () => {
-    // Ngăn gọi lại nếu đang trong trạng thái loading
     if (loadingCreateGroup) return;
 
     if (!groupName.trim()) {
@@ -470,7 +471,9 @@ const HomeScreen = ({ navigation, route }) => {
                 <Avatar.Image
                   size={36}
                   source={{
-                    uri: currentUser?.avatar || "https://i.pravatar.cc/150",
+                    uri: currentUser?.avatar
+                      ? `${currentUser.avatar}?t=${avatarRefresh}`
+                      : "https://i.pravatar.cc/150",
                   }}
                   style={styles.avatar}
                 />
