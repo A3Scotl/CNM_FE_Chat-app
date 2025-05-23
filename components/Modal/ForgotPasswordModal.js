@@ -10,6 +10,7 @@ const ForgotPasswordModal = ({ visible, onClose }) => {
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('request');
   const [error, setError] = useState({ visible: false, message: '' });
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleRequestOtp = async () => {
     if (!phoneNumber.trim()) {
@@ -17,10 +18,13 @@ const ForgotPasswordModal = ({ visible, onClose }) => {
       return;
     }
     try {
+      setIsLoading(true);
       await requestOtpForgotPassword(phoneNumber.trim());
       setStep('verify');
     } catch (err) {
       setError({ visible: true, message: err.message || "Không thể gửi mã OTP." });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -30,11 +34,14 @@ const ForgotPasswordModal = ({ visible, onClose }) => {
       return;
     }
     try {
+      setIsLoading(true);
       await verifyOtpForgotPassword({ phoneNumber: phoneNumber.trim(), otp: otp.trim() });
       setError({ visible: true, message: "Mật khẩu mới đã được gửi qua SMS." });
       handleClose();
     } catch (err) {
       setError({ visible: true, message: err.message || "Xác minh OTP thất bại." });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -71,15 +78,15 @@ const ForgotPasswordModal = ({ visible, onClose }) => {
                 </Card.Content>
                 <Card.Actions>
                     {step === 'request' ? (
-                        <Button mode="contained" onPress={handleRequestOtp} style={styles.button}>
+                        <Button mode="contained" onPress={handleRequestOtp} style={styles.button} loading={isLoading} disabled={isLoading}>
                             Gửi mã OTP
                         </Button>
                     ) : (
-                        <Button mode="contained" onPress={handleVerifyOtp} style={styles.button}>
+                        <Button mode="contained" onPress={handleVerifyOtp} style={styles.button} loading={isLoading} disabled={isLoading}>
                             Xác nhận OTP
                         </Button>
                     )}
-                    <Button mode="outlined" onPress={handleClose} style={styles.button}>
+                    <Button mode="outlined" onPress={handleClose} style={styles.button} disabled={isLoading}>
                         Huỷ
                     </Button>
                 </Card.Actions>

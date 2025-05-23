@@ -6,6 +6,7 @@ import ErrorDialog from '../Error/ErrorDialog';
 const ChangePasswordModal = ({ visible, onClose }) => {
     const { colors } = useTheme();
     const [error, setError] = useState({ visible: false, message: '' });
+    const [isLoading, setIsLoading] = useState(false);
 
     const [form, setForm] = useState({
         oldPassword: '',
@@ -34,6 +35,7 @@ const ChangePasswordModal = ({ visible, onClose }) => {
         }
 
         try {
+            setIsLoading(true);
             const result = await changePassword({ oldPassword, newPassword, confirmPassword });
             if (result?.message) {
                 Alert.alert("Thành công", result.message);
@@ -42,6 +44,8 @@ const ChangePasswordModal = ({ visible, onClose }) => {
             }
         } catch (err) {
             setError({ visible: true, message: "Đổi mật khẩu không thành công" });
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -55,8 +59,8 @@ const ChangePasswordModal = ({ visible, onClose }) => {
                     <TextInput label="Xác nhận mật khẩu mới" value={form.confirmPassword} onChangeText={text => handleChange('confirmPassword', text)} secureTextEntry style={styles.input} />
                 </Card.Content>
                 <Card.Actions>
-                    <Button mode="contained" onPress={handleChangePassword} style={styles.button}>Đổi mật khẩu</Button>
-                    <Button mode="outlined" onPress={onClose} style={styles.button}>Huỷ</Button>
+                    <Button mode="contained" onPress={handleChangePassword} style={styles.button} loading={isLoading} disabled={isLoading}>Đổi mật khẩu</Button>
+                    <Button mode="outlined" onPress={onClose} style={styles.button} disabled={isLoading}>Huỷ</Button>
                 </Card.Actions>
             </Card>
             <ErrorDialog
