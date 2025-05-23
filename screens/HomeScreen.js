@@ -195,6 +195,9 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const handleCreateGroup = async () => {
+    // Ngăn gọi lại nếu đang trong trạng thái loading
+    if (loadingCreateGroup) return;
+
     if (!groupName.trim()) {
       Alert.alert("Lỗi", "Vui lòng nhập tên nhóm");
       return;
@@ -216,7 +219,6 @@ const HomeScreen = ({ navigation, route }) => {
       setSelectedMembers([]);
       setGroupSearchQuery("");
       setGroupSearchResults([]);
-      // Alert.alert("Thành công", "Nhóm đã được tạo!");
       navigation.navigate("Chat", {
         conversationId: response.data.group._id,
         chat: {
@@ -272,11 +274,12 @@ const HomeScreen = ({ navigation, route }) => {
                     <TouchableOpacity
                       style={styles.addButton}
                       onPress={() => handleSendFriendRequest(item._id)}
+                      disabled={loadingSendRequest}
                     >
                       <MaterialCommunityIcons
                         name="account-plus"
                         size={24}
-                        color={colors.primary}
+                        color={loadingSendRequest ? "#aaa" : colors.primary}
                       />
                     </TouchableOpacity>
                   )}
@@ -339,43 +342,50 @@ const HomeScreen = ({ navigation, route }) => {
           />
         )}
         <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
-        <FlatList
-          data={friends}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.userItem}
-              onPress={() => toggleMember(item._id)}
-            >
-              <Avatar.Image
-                size={40}
-                source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-              />
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.fullName}</Text>
-                <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-              </View>
-              <MaterialCommunityIcons
-                name={selectedMembers.includes(item._id) ? "checkbox-marked" : "checkbox-blank-outline"}
-                size={24}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          )}
-          style={styles.friendsList}
-        />
+        {loadingFriends ? (
+          <ActivityIndicator size="large" color={colors.primary} style={styles.loadingIndicator} />
+        ) : (
+          <FlatList
+            data={friends}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.userItem}
+                onPress={() => toggleMember(item._id)}
+              >
+                <Avatar.Image
+                  size={40}
+                  source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                />
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{item.fullName}</Text>
+                  <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                </View>
+                <MaterialCommunityIcons
+                  name={selectedMembers.includes(item._id) ? "checkbox-marked" : "checkbox-blank-outline"}
+                  size={24}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            )}
+            style={styles.friendsList}
+          />
+        )}
         <View style={styles.modalButtons}>
           <Button
             mode="contained"
             onPress={handleCreateGroup}
             style={styles.modalButton}
+            disabled={loadingCreateGroup}
+            loading={loadingCreateGroup}
           >
-            Tạo nhóm
+            {loadingCreateGroup ? "Đang tạo..." : "Tạo nhóm"}
           </Button>
           <Button
             mode="outlined"
             onPress={() => setShowCreateGroupModal(false)}
             style={styles.modalButton}
+            disabled={loadingCreateGroup}
           >
             Hủy
           </Button>
@@ -527,8 +537,6 @@ const HomeScreen = ({ navigation, route }) => {
   );
 };
 
-
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -539,7 +547,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   groupIcon: {
-    marginLeft:10
+    marginLeft: 10,
   },
   loadingContainer: {
     flex: 1,
@@ -615,14 +623,14 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
   },
   modalTitle: {
-    paddingTop:70,
-    textAlign:'center',
+    paddingTop: 70,
+    textAlign: "center",
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 15,
   },
   modalInput: {
-    marginHorizontal:20,
+    marginHorizontal: 20,
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 5,
@@ -633,17 +641,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     marginVertical: 10,
-    paddingHorizontal:30,
-    paddingVertical:5
+    paddingHorizontal: 30,
+    paddingVertical: 5,
   },
   searchResults: {
     maxHeight: 150,
     marginBottom: 10,
-    paddingHorizontal:30
-
+    paddingHorizontal: 30,
   },
   friendsList: {
-    paddingHorizontal:30
+    paddingHorizontal: 30,
   },
   modalButtons: {
     flexDirection: "row",
@@ -653,7 +660,10 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     marginHorizontal: 20,
-    marginBottom:50
+    marginBottom: 50,
+  },
+  loadingIndicator: {
+    marginVertical: 20,
   },
 });
 
