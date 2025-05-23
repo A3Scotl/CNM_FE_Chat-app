@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, TouchableOpacity, TextInput, Image, FlatList, Alert, Animated, Platform, ActivityIndicator } from "react-native";
 import { Portal, Modal, Avatar, Text, Button, IconButton, Switch } from "react-native-paper";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AddMemberModal from "./AddMemberModal";
 
 const ChatInfoModal = ({
@@ -31,11 +31,14 @@ const ChatInfoModal = ({
   onChangeMemberRole,
   onFetchAvailableFriends,
   onOpenImagePreview,
-  isTogglingApproval, // Thêm prop mới
+  isTogglingApproval,
 }) => {
   const isGroup = chat.type === "group";
   const images = messages.filter((msg) => msg.type === "image" && msg.fileMeta?.length > 0);
+  const files = messages.filter((msg) => (msg.type === "audio" || msg.type === "file") && msg.fileMeta?.length > 0);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [membersExpanded, setMembersExpanded] = useState(false);
+  const [membersHeightAnim] = useState(new Animated.Value(0));
   const [error, setError] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -67,6 +70,14 @@ const ChatInfoModal = ({
     }
   }, [visible, isGroup, isOwner, isAdmin, isEditingName]);
 
+  useEffect(() => {
+    Animated.timing(membersHeightAnim, {
+      toValue: membersExpanded ? 200 : 0, // Adjust 200 based on max members height
+      duration: 200,
+      useNativeDriver: false, // Height animation doesn't support native driver
+    }).start();
+  }, [membersExpanded]);
+
   const handleUpdate = async () => {
     if (!newGroupName.trim() && !newGroupAvatar) {
       setError("Vui lòng nhập tên nhóm hoặc chọn ảnh mới");
@@ -97,6 +108,10 @@ const ChatInfoModal = ({
       setNewGroupAvatar(null);
       setError("");
     }
+  };
+
+  const toggleMembers = () => {
+    setMembersExpanded(!membersExpanded);
   };
 
   const sections = [
@@ -176,10 +191,85 @@ const ChatInfoModal = ({
           key: "members",
           render: () => (
             <View style={styles.modalSection}>
-              <View style={styles.sectionHeader}>
+              <TouchableOpacity onPress={toggleMembers} style={styles.sectionHeader}>
+
                 <Text style={styles.modalSectionTitle}>
                   Thành viên ({groupMembers.length || 0})
                 </Text>
+
+                <View style={styles.sectionHeaderRight}>
+
+                  <MaterialIcons
+                    name={membersExpanded ? "expand-less" : "expand-more"}
+                    size={28} 
+                    color="black"
+                    style={styles.iconStyle} 
+                  />
+                </View>
+
+              </TouchableOpacity>
+
+              <Animated.View style={[styles.membersContainer, { height: membersHeightAnim }]}>
+                <FlatList
+                  data={groupMembers}
+                  keyExtractor={(item) => item._id}
+                  renderItem={({ item }) => (
+                    <View style={styles.participantItem}>
+                      <Avatar.Image
+                        size={40}
+                        source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                      />
+                      <View style={styles.participantInfo}>
+                        <Text style={styles.participantName}>{item.fullName}</Text>
+                        <Text style={styles.participantRole}>
+                          {item.role === "owner"
+                            ? "Chủ nhóm"
+                            : item.role === "admin"
+                              ? "Quản trị viên"
+                              : "Thành viên"}
+                        </Text>
+                      </View>
+                      {isOwner && item._id !== user._id && (
+                        <View style={styles.memberActions}>
+                          <IconButton
+                            icon="account-edit"
+                            size={20}
+                            onPress={() =>
+                              Alert.alert(
+                                "Thay đổi quyền",
+                                "Chọn vai trò mới:",
+                                [
+                                  {
+                                    text: "Thành viên",
+                                    onPress: () => onChangeMemberRole(item._id, "member"),
+                                  },
+                                  {
+                                    text: "Quản trị viên",
+                                    onPress: () => onChangeMemberRole(item._id, "admin"),
+                                  },
+                                  {
+                                    text: "Chủ nhóm",
+                                    onPress: () => onChangeMemberRole(item._id, "owner"),
+                                  },
+                                  { text: "Hủy", style: "cancel" },
+                                ],
+                                { cancelable: true }
+                              )
+                            }
+                          />
+                          <IconButton
+                            icon="delete"
+                            size={20}
+                            onPress={() => onRemoveMember(item._id)}
+                            iconColor="#ff4444"
+                          />
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  style={styles.participantList}
+                  nestedScrollEnabled={true}
+                />
                 <TouchableOpacity
                   onPress={() => {
                     onFetchAvailableFriends();
@@ -188,67 +278,9 @@ const ChatInfoModal = ({
                 >
                   <Text style={styles.addMemberText}>+ Thêm thành viên</Text>
                 </TouchableOpacity>
-              </View>
-              <FlatList
-                data={groupMembers}
-                keyExtractor={(item) => item._id}
-                renderItem={({ item }) => (
-                  <View style={styles.participantItem}>
-                    <Avatar.Image
-                      size={40}
-                      source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                    />
-                    <View style={styles.participantInfo}>
-                      <Text style={styles.participantName}>{item.fullName}</Text>
-                      <Text style={styles.participantRole}>
-                        {item.role === "owner"
-                          ? "Chủ nhóm"
-                          : item.role === "admin"
-                            ? "Quản trị viên"
-                            : "Thành viên"}
-                      </Text>
-                    </View>
-                    {isOwner && item._id !== user._id && (
-                      <View style={styles.memberActions}>
-                        <IconButton
-                          icon="account-edit"
-                          size={20}
-                          onPress={() =>
-                            Alert.alert(
-                              "Thay đổi quyền",
-                              "Chọn vai trò mới:",
-                              [
-                                {
-                                  text: "Thành viên",
-                                  onPress: () => onChangeMemberRole(item._id, "member"),
-                                },
-                                {
-                                  text: "Quản trị viên",
-                                  onPress: () => onChangeMemberRole(item._id, "admin"),
-                                },
-                                {
-                                  text: "Chủ nhóm",
-                                  onPress: () => onChangeMemberRole(item._id, "owner"),
-                                },
-                                { text: "Hủy", style: "cancel" },
-                              ],
-                              { cancelable: true }
-                            )
-                          }
-                        />
-                        <IconButton
-                          icon="delete"
-                          size={20}
-                          onPress={() => onRemoveMember(item._id)}
-                          iconColor="#ff4444"
-                        />
-                      </View>
-                    )}
-                  </View>
-                )}
-                style={styles.participantList}
-                nestedScrollEnabled={true}
-              />
+              </Animated.View>
+
+
             </View>
           ),
         },
@@ -281,6 +313,41 @@ const ChatInfoModal = ({
         },
       ]
       : []),
+    ...(files.length > 0
+      ? [
+        {
+          key: "files",
+          render: () => (
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Tệp đã gửi ({files.length})</Text>
+              <FlatList
+                data={files}
+                keyExtractor={(item) => item._id}
+                renderItem={({ item }) => (
+                  <View style={styles.fileItem}>
+                    <FontAwesome5
+                      name={item.type === "audio" ? "play-circle" : "file-alt"}
+                      size={24}
+                      color="#0098f9"
+                    />
+                    <View style={styles.fileInfo}>
+                      <Text style={styles.fileName}>{item.fileMeta[0].name}</Text>
+                      <Text style={styles.fileSize}>
+                        {(item.fileMeta[0].size / 1024).toFixed(2)} KB
+                        {item.type === "audio" && item.fileMeta[0].duration
+                          ? ` • ${item.fileMeta[0].duration}s`
+                          : ""}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                style={styles.fileList}
+              />
+            </View>
+          ),
+        },
+      ]
+      : []),
     ...(isGroup
       ? [
         {
@@ -295,7 +362,7 @@ const ChatInfoModal = ({
                     value={conversationDetails?.requireApproval}
                     onValueChange={onToggleRequireApproval}
                     color="#0098f9"
-                    disabled={isTogglingApproval} 
+                    disabled={isTogglingApproval}
                   />
                 </View>
               )}
@@ -309,7 +376,6 @@ const ChatInfoModal = ({
                   Rời nhóm
                 </Button>
               )}
-
               {isOwner && (
                 <Button
                   mode="outlined"
@@ -358,6 +424,7 @@ const ChatInfoModal = ({
     </Portal>
   );
 };
+
 const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: "white",
@@ -411,9 +478,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   modalSection: {
-    maxHeight: 800,
-
-    marginBottom: 60
+    marginBottom: 20,
   },
   modalSectionTitle: {
     fontSize: 16,
@@ -425,11 +490,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    textAlign: 'center'
+  },
+  sectionHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   addMemberText: {
+    textAlign: 'right',
     fontSize: 14,
     color: "#0098f9",
     fontWeight: "500",
+    
+  },
+  membersContainer: {
+    overflow: "hidden",
   },
   participantList: {
     maxHeight: 200,
@@ -463,6 +538,27 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 8,
     marginRight: 10,
+  },
+  fileList: {
+    maxHeight: 200,
+  },
+  fileItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  fileInfo: {
+    marginLeft: 10,
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  fileSize: {
+    fontSize: 14,
+    color: "#666",
   },
   modalButton: {
     marginTop: 10,
@@ -562,6 +658,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     fontWeight: "500",
+  },
+  iconStyle: {
+    borderWidth: 2, 
+    borderColor: 'black', 
+    borderRadius: 20, 
+    padding: 1, 
+    backgroundColor: 'white', 
+    shadowColor: 'black',
+    shadowOffset: { width: 1, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 1,
+    elevation: 2,
   },
 });
 
