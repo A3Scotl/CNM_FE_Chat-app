@@ -6,6 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import { Audio } from "expo-av";
+import { debounce } from "lodash";
 
 const ConversationList = ({ currentUser }) => {
   const [conversations, setConversations] = useState([]);
@@ -62,6 +63,9 @@ const ConversationList = ({ currentUser }) => {
     }
   }, [currentUser]);
 
+ 
+  // const debouncedFetchConversations = debounce(fetchConversations, 1000);
+
   useEffect(() => {
     let socketConnection;
 
@@ -100,7 +104,6 @@ const ConversationList = ({ currentUser }) => {
               if (status.didJustFinish) sound.unloadAsync();
             });
           });
-          // Alert.alert("Nhóm mới", `Nhóm "${group.name}" đã được tạo.`);
           fetchConversations();
         } catch (err) {
           console.error("Lỗi phát âm thanh nhóm mới:", err);
@@ -116,7 +119,10 @@ const ConversationList = ({ currentUser }) => {
                 ...convo,
                 lastMessage: {
                   _id: msg._id,
-                  content: msg.content,
+                  content: msg.content || (
+                    msg.type === "image" ? "Hình ảnh" :
+                    msg.type === "audio" ? "Tin nhắn âm thanh" : "Tệp"
+                  ),
                   sender: msg.sender,
                   createdAt: msg.createdAt,
                   type: msg.type,
@@ -132,6 +138,7 @@ const ConversationList = ({ currentUser }) => {
 
           return sortConversations([...updatedConversations]);
         });
+        // debouncedFetchConversations();
       });
 
       socketConnection.on("message-recalled", ({ conversationId, messageId, updatedMessage }) => {
@@ -175,7 +182,6 @@ const ConversationList = ({ currentUser }) => {
                 if (status.didJustFinish) sound.unloadAsync();
               });
             });
-            // Alert.alert("Thành viên mới", `Một người dùng đã được thêm vào nhóm.`);
           } catch (err) {
             console.error("Lỗi phát âm thanh thông báo:", err);
           }
@@ -194,7 +200,6 @@ const ConversationList = ({ currentUser }) => {
                 if (status.didJustFinish) sound.unloadAsync();
               });
             });
-            // Alert.alert("Thành viên bị xóa", `Một người dùng đã bị xóa khỏi nhóm.`);
           } catch (err) {
             console.error("Lỗi phát âm thanh thông báo:", err);
           }
@@ -234,7 +239,6 @@ const ConversationList = ({ currentUser }) => {
               if (status.didJustFinish) sound.unloadAsync();
             });
           });
-          // Alert.alert("Nhóm đã giải tán", `Nhóm đã bị giải tán.`);
         } catch (err) {
           console.error("Lỗi phát âm thanh thông báo:", err);
         }
@@ -266,7 +270,6 @@ const ConversationList = ({ currentUser }) => {
               if (status.didJustFinish) sound.unloadAsync();
             });
           });
-          // Alert.alert("Cập nhật nhóm", `Thông tin nhóm đã được cập nhật.`);
         } catch (err) {
           console.error("Lỗi phát âm thanh thông báo:", err);
         }
@@ -285,7 +288,6 @@ const ConversationList = ({ currentUser }) => {
                 if (status.didJustFinish) sound.unloadAsync();
               });
             });
-            // Alert.alert("Thay đổi quyền", `Quyền của một thành viên đã được thay đổi thành ${roleText}.`);
           } catch (err) {
             console.error("Lỗi phát âm thanh thông báo:", err);
           }
@@ -334,7 +336,6 @@ const ConversationList = ({ currentUser }) => {
     return () => {
       if (socketConnection) {
         socketConnection.disconnect();
-        console.log("Socket.IO đã ngắt kết nối trong ConversationList");
       }
     };
   }, [fetchConversations]);
@@ -347,10 +348,9 @@ const ConversationList = ({ currentUser }) => {
         )
       )
     );
-    console.log(chat);
     navigation.navigate("Chat", {
       conversationId: chat._id,
-      chat: chat,
+      chat,
       user: currentUser,
     });
   };
