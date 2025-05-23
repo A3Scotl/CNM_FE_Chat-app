@@ -50,7 +50,11 @@ const HomeScreen = ({ navigation, route }) => {
   const [friends, setFriends] = useState([]);
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [groupSearchResults, setGroupSearchResults] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [loadingLogout, setLoadingLogout] = useState(false);
+  const [loadingGroupSearch, setLoadingGroupSearch] = useState(false);
+  const [loadingSendRequest, setLoadingSendRequest] = useState(false);
+  const [loadingCreateGroup, setLoadingCreateGroup] = useState(false);
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
@@ -74,10 +78,13 @@ const HomeScreen = ({ navigation, route }) => {
 
   const fetchFriends = useCallback(async () => {
     try {
+      setLoadingFriends(true);
       const data = await getFriends();
       setFriends(data || []);
     } catch (error) {
       console.error("Failed to fetch friends:", error);
+    } finally {
+      setLoadingFriends(false);
     }
   }, []);
 
@@ -92,11 +99,14 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleLogout = async () => {
     try {
+      setLoadingLogout(true);
       setShowDropdown(false);
       await logout();
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
+    } finally {
+      setLoadingLogout(false);
     }
   };
 
@@ -140,12 +150,15 @@ const HomeScreen = ({ navigation, route }) => {
         return;
       }
       try {
+        setLoadingGroupSearch(true);
         const results = await findUserByPhone(formattedQuery);
         const resultsArray = Array.isArray(results) ? results : [results];
         setGroupSearchResults(resultsArray);
       } catch (error) {
         console.error("Group search error:", error);
         setGroupSearchResults([]);
+      } finally {
+        setLoadingGroupSearch(false);
       }
     }, 500),
     []
@@ -163,6 +176,7 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleSendFriendRequest = async (receiverId) => {
     try {
+      setLoadingSendRequest(true);
       await sendRequest(receiverId);
       Alert.alert("Thành công", "Lời mời kết bạn đã được gửi!");
       setMessage("Lời mời kết bạn đã được gửi!");
@@ -175,6 +189,8 @@ const HomeScreen = ({ navigation, route }) => {
       setMessage(errorMsg);
       setTimeout(() => setMessage(""), 3000);
       console.error("Error sending friend request:", error);
+    } finally {
+      setLoadingSendRequest(false);
     }
   };
 
@@ -189,6 +205,7 @@ const HomeScreen = ({ navigation, route }) => {
     }
 
     try {
+      setLoadingCreateGroup(true);
       const groupData = {
         name: groupName,
         members: selectedMembers,
@@ -213,6 +230,8 @@ const HomeScreen = ({ navigation, route }) => {
       console.error("Error creating group:", error?.response?.data || error);
       const errorMsg = error?.response?.data?.message || "Không thể tạo nhóm, vui lòng thử lại.";
       Alert.alert("Lỗi", errorMsg);
+    } finally {
+      setLoadingCreateGroup(false);
     }
   };
 
