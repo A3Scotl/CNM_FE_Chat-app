@@ -581,7 +581,7 @@ const ChatScreen = ({ navigation, route }) => {
         additionalContent: additionalContent.trim(),
       };
      
-        await forwardManyMessage(payload);
+      await forwardManyMessage(payload);
       
       setShowForwardModal(false);
       setSelectedConversations([]);
@@ -1343,9 +1343,6 @@ const ChatScreen = ({ navigation, route }) => {
               }}>
                 <Text style={styles.cancelButton}>Hủy</Text>
               </TouchableOpacity>
-              {/* <Text style={styles.modalTitle}>
-                Chuyển tiếp tin nhắn {selectedConversations.length > 0 ? `(${selectedConversations.length})` : ""}
-              </Text> */}
               <TouchableOpacity
                 onPress={handleForwardMessage}
                 disabled={isSending || selectedConversations.length === 0}
