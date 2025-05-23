@@ -97,9 +97,6 @@ const ChatScreen = ({ navigation, route }) => {
   useEffect(() => {
     if (!chat?._id) {
       console.warn("ChatScreen: conversationId không hợp lệ", { chatId: chat?._id });
-      Alert.alert("Lỗi", "Hội thoại không tồn tại. Vui lòng quay lại danh sách hội thoại.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
     } else if (chat.type === "group") {
       fetchMemberInGroupDetails();
     }
@@ -116,7 +113,6 @@ const ChatScreen = ({ navigation, route }) => {
       setIsAdmin(currentMember?.role === "admin" || currentMember?.role === "owner");
     } catch (error) {
       console.error("Không thể tải chi tiết nhóm:", error);
-      Alert.alert("Lỗi", "Không thể tải chi tiết nhóm.");
     } finally {
       setIsLoading(false);
     }
@@ -204,7 +200,7 @@ const ChatScreen = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const socketConnection = io("https://be.haudev.io.vn", {
+      const socketConnection = io("http://192.168.1.189:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 5,
@@ -347,9 +343,7 @@ const ChatScreen = ({ navigation, route }) => {
         if (groupId === chat._id) {
           fetchMemberInGroupDetails();
           if (leftUserId === userId) {
-            Alert.alert("Rời nhóm", "Bạn đã rời khỏi nhóm.", [
-              { text: "OK", onPress: () => navigation.goBack() },
-            ]);
+            navigation.goBack()
           } else {
             Alert.alert("Thành viên rời nhóm", `Một thành viên đã rời khỏi nhóm.`);
             try {
@@ -371,15 +365,6 @@ const ChatScreen = ({ navigation, route }) => {
       socketConnection.on("group:deleted", ({ groupId }) => {
         console.log("Nhận sự kiện group:deleted:", { groupId });
         if (groupId === chat._id) {
-          Alert.alert("Thông báo", "Nhóm đã giải tán.", [
-            {
-              text: "OK",
-              onPress: () => {
-                socketConnection.emit("leave-room", chat._id);
-                navigation.replace("Home");
-              },
-            },
-          ]);
           setTimeout(() => {
             socketConnection.emit("leave-room", chat._id);
             navigation.replace("Home");
@@ -539,7 +524,6 @@ const ChatScreen = ({ navigation, route }) => {
             : msg
         )
       );
-      Alert.alert("Thành công", "Tin nhắn đã được thu hồi.");
     } catch (error) {
       console.error("Lỗi thu hồi tin nhắn:", error);
       Alert.alert("Lỗi", error.message || "Không thể thu hồi tin nhắn.");
@@ -596,7 +580,7 @@ const ChatScreen = ({ navigation, route }) => {
         targetConversationIds: selectedConversations,
         additionalContent: additionalContent.trim(),
       };
-
+      console.log(selectedConversations.length)
       if (selectedConversations.length === 1) {
         await forwardMessage(payload);
         Alert.alert("Thành công", "Tin nhắn đã được chuyển tiếp.");
@@ -612,7 +596,7 @@ const ChatScreen = ({ navigation, route }) => {
       setFilteredConversations(conversations);
     } catch (error) {
       console.error("Lỗi chuyển tiếp tin nhắn:", error);
-      Alert.alert("Lỗi", error.message || "Không thể chuyển tiếp tin nhắn.");
+      // Alert.alert("Lỗi", error.message || "Không thể chuyển tiếp tin nhắn.");
     } finally {
       setIsSending(false);
     }
@@ -802,7 +786,7 @@ const ChatScreen = ({ navigation, route }) => {
         type: file.type,
       });
 
-      const response = await fetch("https://be.haudev.io.vn/api/upload", {
+      const response = await fetch("http://192.168.1.189:5000/api/upload", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -866,7 +850,7 @@ const ChatScreen = ({ navigation, route }) => {
         payload.fileMeta = fileMeta;
       }
 
-      const response = await fetch("https://be.haudev.io.vn/api/message/send", {
+      const response = await fetch("http://192.168.1.189:5000/api/message/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -924,7 +908,7 @@ const ChatScreen = ({ navigation, route }) => {
         payload.replyTo = replyingTo._id;
       }
 
-      const response = await fetch("https://be.haudev.io.vn/api/message/send", {
+      const response = await fetch("http://192.168.1.189:5000/api/message/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -978,9 +962,6 @@ const ChatScreen = ({ navigation, route }) => {
           onPress: async () => {
             try {
               await leaveGroup(chat._id);
-              Alert.alert("Thành công", "Bạn đã rời nhóm thành công.", [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
               if (socket) {
                 socket.emit("group:memberLeft", { groupId: chat._id, leftUserId: userId });
               }
@@ -1367,9 +1348,9 @@ const ChatScreen = ({ navigation, route }) => {
               }}>
                 <Text style={styles.cancelButton}>Hủy</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>
+              {/* <Text style={styles.modalTitle}>
                 Chuyển tiếp tin nhắn {selectedConversations.length > 0 ? `(${selectedConversations.length})` : ""}
-              </Text>
+              </Text> */}
               <TouchableOpacity
                 onPress={handleForwardMessage}
                 disabled={isSending || selectedConversations.length === 0}

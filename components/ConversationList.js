@@ -57,7 +57,6 @@ const ConversationList = ({ currentUser }) => {
       setConversations(sortedConversations);
     } catch (error) {
       console.error("❌ Lỗi khi tải cuộc trò chuyện:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
     } finally {
       setLoading(false);
     }
@@ -74,7 +73,7 @@ const ConversationList = ({ currentUser }) => {
         return;
       }
 
-      socketConnection = io("https://be.haudev.io.vn", {
+      socketConnection = io("http://192.168.1.189:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,

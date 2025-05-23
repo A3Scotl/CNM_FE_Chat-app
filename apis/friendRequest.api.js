@@ -14,6 +14,7 @@ const friendRequest = {
   getRequests: async () => {
     try {
       const response = await axiosInstance.get("/friend-request/pending");
+      console.log(response.data.data._id)
       return response.data.data || response.data;
     } catch (error) {
       throw new Error(handleApiError(error) || "Failed to fetch pending requests");

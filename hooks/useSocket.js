@@ -27,7 +27,7 @@ export const useSocket = (
           return;
         }
 
-        socketRef.current = io(SOCKET_URL || "https://be.haudev.io.vn", {
+        socketRef.current = io(SOCKET_URL, {
           auth: { userId, token },
           reconnection: true,
           reconnectionAttempts: 20,
@@ -38,15 +38,6 @@ export const useSocket = (
         socketRef.current.on("connect", () => {
           console.log("✅ Socket kết nối thành công");
           socketRef.current.emit("register", userId);
-        });
-
-        socketRef.current.on("connect_error", (err) => {
-          console.error("Lỗi kết nối socket:", {
-            message: err.message,
-            description: err.description,
-            context: err.context,
-          });
-          Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ.");
         });
 
         socketRef.current.on("friend-request", ({ message, from, requestId }) => {

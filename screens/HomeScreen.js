@@ -12,8 +12,16 @@ import {
   Modal,
   TextInput,
 } from "react-native";
-import { Appbar, Avatar, useTheme, BottomNavigation, Portal, Button } from "react-native-paper";
+import {
+  Appbar,
+  Avatar,
+  useTheme,
+  BottomNavigation,
+  Portal,
+  Button,
+} from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { io } from "socket.io-client";
 import ConversationList from "../components/ConversationList";
 import ProfileModal from "../components/Modal/ProfileModal";
 import SettingsModal from "../components/Modal/SettingsModal";
@@ -27,10 +35,15 @@ import { createGroup } from "../apis/conversationGroup.api";
 import { getFriends } from "../apis/contact.api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// Khởi tạo Socket.IO client
+const socket = io("http://192.168.1.189:5000", {
+  autoConnect: false,
+});
+
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
-
+  const { sendRequest } = useFriendRequest();
   const [currentUser, setCurrentUser] = useState(null);
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
@@ -50,28 +63,59 @@ const HomeScreen = ({ navigation, route }) => {
   const [friends, setFriends] = useState([]);
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [groupSearchResults, setGroupSearchResults] = useState([]);
-  const [loadingFriends, setLoadingFriends] = useState(false);
-  const [loadingLogout, setLoadingLogout] = useState(false);
-  const [loadingGroupSearch, setLoadingGroupSearch] = useState(false);
-  const [loadingSendRequest, setLoadingSendRequest] = useState(false);
-  const [loadingCreateGroup, setLoadingCreateGroup] = useState(false);
-  const [avatarRefresh, setAvatarRefresh] = useState(Date.now()); // Thêm state để làm mới avatar
+  const [loading, setLoading] = useState(true);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false); // State mới cho loading nút Tạo nhóm
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
     { key: "contacts", title: "Contacts", icon: "account-group" },
   ];
 
+  // Kết nối Socket.IO và lắng nghe sự kiện
+  useEffect(() => {
+    const connectSocket = async () => {
+      const token = await AsyncStorage.getItem("token");
+      socket.auth = { token };
+      socket.connect();
+
+      socket.on("friend-request", (data) => {
+        Alert.alert("Thông báo", data.message);
+      });
+
+      socket.on("friend-request-accepted", (data) => {
+        Alert.alert("Thông báo", data.message);
+      });
+
+      socket.on("group:member-added", (data) => {
+        console.log("Đã được thêm vào nhóm:", data);
+      });
+
+      socket.on("new-group-invite", (data) => {
+        console.log("Nhận lời mời nhóm:", data);
+      });
+
+      socket.on("connect_error", (err) => {
+        console.error("Socket connection error:", err);
+      });
+    };
+
+    connectSocket();
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
   const fetchProfile = useCallback(async () => {
     try {
       const profile = await getMyProfile();
       setCurrentUser({
         ...profile,
-        token: route.params?.user?.token || (await AsyncStorage.getItem("token")),
+        token:
+          route.params?.user?.token || (await AsyncStorage.getItem("token")),
       });
     } catch (error) {
       console.error("Failed to fetch profile:", error);
-      Alert.alert("Lỗi", "Không thể tải thông tin người dùng.");
     } finally {
       setLoading(false);
     }
@@ -79,13 +123,10 @@ const HomeScreen = ({ navigation, route }) => {
 
   const fetchFriends = useCallback(async () => {
     try {
-      setLoadingFriends(true);
       const data = await getFriends();
       setFriends(data || []);
     } catch (error) {
       console.error("Failed to fetch friends:", error);
-    } finally {
-      setLoadingFriends(false);
     }
   }, []);
 
@@ -96,19 +137,16 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
-    setAvatarRefresh(Date.now()); // Làm mới avatar khi cập nhật
   };
 
   const handleLogout = async () => {
     try {
-      setLoadingLogout(true);
       setShowDropdown(false);
       await logout();
+      socket.disconnect();
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
-    } finally {
-      setLoadingLogout(false);
     }
   };
 
@@ -152,15 +190,12 @@ const HomeScreen = ({ navigation, route }) => {
         return;
       }
       try {
-        setLoadingGroupSearch(true);
         const results = await findUserByPhone(formattedQuery);
         const resultsArray = Array.isArray(results) ? results : [results];
         setGroupSearchResults(resultsArray);
       } catch (error) {
         console.error("Group search error:", error);
         setGroupSearchResults([]);
-      } finally {
-        setLoadingGroupSearch(false);
       }
     }, 500),
     []
@@ -178,7 +213,6 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleSendFriendRequest = async (receiverId) => {
     try {
-      setLoadingSendRequest(true);
       await sendRequest(receiverId);
       Alert.alert("Thành công", "Lời mời kết bạn đã được gửi!");
       setMessage("Lời mời kết bạn đã được gửi!");
@@ -191,14 +225,10 @@ const HomeScreen = ({ navigation, route }) => {
       setMessage(errorMsg);
       setTimeout(() => setMessage(""), 3000);
       console.error("Error sending friend request:", error);
-    } finally {
-      setLoadingSendRequest(false);
     }
   };
 
   const handleCreateGroup = async () => {
-    if (loadingCreateGroup) return;
-
     if (!groupName.trim()) {
       Alert.alert("Lỗi", "Vui lòng nhập tên nhóm");
       return;
@@ -208,8 +238,9 @@ const HomeScreen = ({ navigation, route }) => {
       return;
     }
 
+    setIsCreatingGroup(true); // Bắt đầu loading
+
     try {
-      setLoadingCreateGroup(true);
       const groupData = {
         name: groupName,
         members: selectedMembers,
@@ -224,17 +255,22 @@ const HomeScreen = ({ navigation, route }) => {
         conversationId: response.data.group._id,
         chat: {
           _id: response.data.group._id,
-          user: { fullName: response.data.group.name, avatar: response.data.group.avatar },
+          user: {
+            fullName: response.data.group.name,
+            avatar: response.data.group.avatar,
+          },
           type: "group",
         },
         user: currentUser,
       });
     } catch (error) {
       console.error("Error creating group:", error?.response?.data || error);
-      const errorMsg = error?.response?.data?.message || "Không thể tạo nhóm, vui lòng thử lại.";
+      const errorMsg =
+        error?.response?.data?.message ||
+        "Không thể tạo nhóm, vui lòng thử lại.";
       Alert.alert("Lỗi", errorMsg);
     } finally {
-      setLoadingCreateGroup(false);
+      setIsCreatingGroup(false); // Kết thúc loading
     }
   };
 
@@ -275,12 +311,11 @@ const HomeScreen = ({ navigation, route }) => {
                     <TouchableOpacity
                       style={styles.addButton}
                       onPress={() => handleSendFriendRequest(item._id)}
-                      disabled={loadingSendRequest}
                     >
                       <MaterialCommunityIcons
                         name="account-plus"
                         size={24}
-                        color={loadingSendRequest ? "#aaa" : colors.primary}
+                        color={colors.primary}
                       />
                     </TouchableOpacity>
                   )}
@@ -333,7 +368,11 @@ const HomeScreen = ({ navigation, route }) => {
                   <Text style={styles.userPhone}>{item.phoneNumber}</Text>
                 </View>
                 <MaterialCommunityIcons
-                  name={selectedMembers.includes(item._id) ? "checkbox-marked" : "checkbox-blank-outline"}
+                  name={
+                    selectedMembers.includes(item._id)
+                      ? "checkbox-marked"
+                      : "checkbox-blank-outline"
+                  }
                   size={24}
                   color={colors.primary}
                 />
@@ -343,50 +382,54 @@ const HomeScreen = ({ navigation, route }) => {
           />
         )}
         <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
-        {loadingFriends ? (
-          <ActivityIndicator size="large" color={colors.primary} style={styles.loadingIndicator} />
-        ) : (
-          <FlatList
-            data={friends}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.userItem}
-                onPress={() => toggleMember(item._id)}
-              >
-                <Avatar.Image
-                  size={40}
-                  source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.fullName}</Text>
-                  <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-                </View>
-                <MaterialCommunityIcons
-                  name={selectedMembers.includes(item._id) ? "checkbox-marked" : "checkbox-blank-outline"}
-                  size={24}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            )}
-            style={styles.friendsList}
-          />
-        )}
+        <FlatList
+          data={friends}
+          keyExtractor={(item) => item._id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.userItem}
+              onPress={() => toggleMember(item._id)}
+            >
+              <Avatar.Image
+                size={40}
+                source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+              />
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{item.fullName}</Text>
+                <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+              </View>
+              <MaterialCommunityIcons
+                name={
+                  selectedMembers.includes(item._id)
+                    ? "checkbox-marked"
+                    : "checkbox-blank-outline"
+                }
+                size={24}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          )}
+          style={styles.friendsList}
+        />
         <View style={styles.modalButtons}>
           <Button
             mode="contained"
             onPress={handleCreateGroup}
             style={styles.modalButton}
-            disabled={loadingCreateGroup}
-            loading={loadingCreateGroup}
+            disabled={isCreatingGroup} // Vô hiệu hóa nút khi đang loading
+            contentStyle={styles.createButtonContent}
           >
-            {loadingCreateGroup ? "Đang tạo..." : "Tạo nhóm"}
+            {isCreatingGroup ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.createButtonText}>Tạo nhóm</Text>
+            )}
           </Button>
           <Button
             mode="outlined"
             onPress={() => setShowCreateGroupModal(false)}
             style={styles.modalButton}
-            disabled={loadingCreateGroup}
+            disabled={isCreatingGroup} // Vô hiệu hóa nút Hủy khi đang loading
           >
             Hủy
           </Button>
@@ -471,9 +514,7 @@ const HomeScreen = ({ navigation, route }) => {
                 <Avatar.Image
                   size={36}
                   source={{
-                    uri: currentUser?.avatar
-                      ? `${currentUser.avatar}?t=${avatarRefresh}`
-                      : "https://i.pravatar.cc/150",
+                    uri: currentUser?.avatar || "https://i.pravatar.cc/150",
                   }}
                   style={styles.avatar}
                 />
@@ -621,16 +662,16 @@ const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: "white",
     margin: 20,
-    padding: 100,
+    padding: 20,
     borderRadius: 10,
     maxHeight: "80%",
   },
   modalTitle: {
-    paddingTop: 70,
     textAlign: "center",
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 15,
+    paddingTop: 60,
   },
   modalInput: {
     marginHorizontal: 20,
@@ -648,8 +689,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   searchResults: {
-    maxHeight: 150,
-    marginBottom: 10,
+    height: 100,
+    maxHeight: 100,
     paddingHorizontal: 30,
   },
   friendsList: {
@@ -659,14 +700,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 20,
+    paddingBottom: 60,
   },
   modalButton: {
     flex: 1,
     marginHorizontal: 20,
-    marginBottom: 50,
   },
-  loadingIndicator: {
-    marginVertical: 20,
+  createButtonContent: {
+    height: 40, // Đảm bảo chiều cao nút đồng nhất
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  createButtonText: {
+    color: "#fff",
+    fontSize: 16,
   },
 });
 
