@@ -159,7 +159,7 @@ const ChatScreen = ({ navigation, route }) => {
     });
     const keyboardDidHideListener = Keyboard.addListener("keyboardDidHide", () => {
       scrollRef.current?.scrollToEnd({ animated: true });
-      setShowEmojiPicker(false);
+      // setShowEmojiPicker(false);
     });
 
     return () => {
@@ -580,14 +580,9 @@ const ChatScreen = ({ navigation, route }) => {
         targetConversationIds: selectedConversations,
         additionalContent: additionalContent.trim(),
       };
-      console.log(selectedConversations.length)
-      if (selectedConversations.length === 1) {
-        await forwardMessage(payload);
-        Alert.alert("Thành công", "Tin nhắn đã được chuyển tiếp.");
-      } else {
+     
         await forwardManyMessage(payload);
-        Alert.alert("Thành công", "Tin nhắn đã được chuyển tiếp đến nhiều cuộc trò chuyện.");
-      }
+      
       setShowForwardModal(false);
       setSelectedConversations([]);
       setForwardMessageData(null);

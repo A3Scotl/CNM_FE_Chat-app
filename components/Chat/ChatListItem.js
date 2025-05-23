@@ -10,19 +10,7 @@ const ChatListItem = ({ item, onPress, userId }) => {
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const conversationId = item._id;
 
-  const playNotificationSound = async () => {
-    // try {
-    //   // const { sound } = await Audio.Sound.createAsync(
-    //   //   require("../../assets/sounds/message-notification.mp3")
-    //   // );
-    //   // await sound.playAsync();
-    //   // sound.setOnPlaybackStatusUpdate((status) => {
-    //   //   if (status.didJustFinish) sound.unloadAsync();
-    //   // });
-    // } catch (err) {
-    //   console.error("Lỗi phát âm thanh thông báo:", err);
-    // }
-  };
+
 
   const handleNewMessage = async (message) => {
     if (message.conversationId === conversationId) {

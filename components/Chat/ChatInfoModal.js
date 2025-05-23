@@ -172,133 +172,134 @@ const ChatInfoModal = ({
     },
     ...(isGroup
       ? [
-          {
-            key: "members",
-            render: () => (
-              <View style={styles.modalSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.modalSectionTitle}>
-                    Thành viên ({groupMembers.length || 0})
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      onFetchAvailableFriends();
-                      setShowAddMemberModal(true);
-                    }}
-                  >
-                    <Text style={styles.addMemberText}>+ Thêm thành viên</Text>
-                  </TouchableOpacity>
-                </View>
-                <FlatList
-                  data={groupMembers}
-                  keyExtractor={(item) => item._id}
-                  renderItem={({ item }) => (
-                    <View style={styles.participantItem}>
-                      <Avatar.Image
-                        size={40}
-                        source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                      />
-                      <View style={styles.participantInfo}>
-                        <Text style={styles.participantName}>{item.fullName}</Text>
-                        <Text style={styles.participantRole}>
-                          {item.role === "owner"
-                            ? "Chủ nhóm"
-                            : item.role === "admin"
+        {
+          key: "members",
+          render: () => (
+            <View style={styles.modalSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.modalSectionTitle}>
+                  Thành viên ({groupMembers.length || 0})
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    onFetchAvailableFriends();
+                    setShowAddMemberModal(true);
+                  }}
+                >
+                  <Text style={styles.addMemberText}>+ Thêm thành viên</Text>
+                </TouchableOpacity>
+              </View>
+              <FlatList
+                data={groupMembers}
+                keyExtractor={(item) => item._id}
+                renderItem={({ item }) => (
+                  <View style={styles.participantItem}>
+                    <Avatar.Image
+                      size={40}
+                      source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                    />
+                    <View style={styles.participantInfo}>
+                      <Text style={styles.participantName}>{item.fullName}</Text>
+                      <Text style={styles.participantRole}>
+                        {item.role === "owner"
+                          ? "Chủ nhóm"
+                          : item.role === "admin"
                             ? "Quản trị viên"
                             : "Thành viên"}
-                        </Text>
-                      </View>
-                      {isOwner && item._id !== user._id && (
-                        <View style={styles.memberActions}>
-                          <IconButton
-                            icon="account-edit"
-                            size={20}
-                            onPress={() =>
-                              Alert.alert(
-                                "Thay đổi quyền",
-                                "Chọn vai trò mới:",
-                                [
-                                  {
-                                    text: "Thành viên",
-                                    onPress: () => onChangeMemberRole(item._id, "member"),
-                                  },
-                                  {
-                                    text: "Quản trị viên",
-                                    onPress: () => onChangeMemberRole(item._id, "admin"),
-                                  },
-                                  {
-                                    text: "Chủ nhóm",
-                                    onPress: () => onChangeMemberRole(item._id, "owner"),
-                                  },
-                                  { text: "Hủy", style: "cancel" },
-                                ],
-                                { cancelable: true }
-                              )
-                            }
-                          />
-                          <IconButton
-                            icon="delete"
-                            size={20}
-                            onPress={() => onRemoveMember(item._id)}
-                            iconColor="#ff4444"
-                          />
-                        </View>
-                      )}
+                      </Text>
                     </View>
-                  )}
-                  style={styles.participantList}
-                  nestedScrollEnabled={true}
-                />
-              </View>
-            ),
-          },
-        ]
+                    {isOwner && item._id !== user._id && (
+                      <View style={styles.memberActions}>
+                        <IconButton
+                          icon="account-edit"
+                          size={20}
+                          onPress={() =>
+                            Alert.alert(
+                              "Thay đổi quyền",
+                              "Chọn vai trò mới:",
+                              [
+                                {
+                                  text: "Thành viên",
+                                  onPress: () => onChangeMemberRole(item._id, "member"),
+                                },
+                                {
+                                  text: "Quản trị viên",
+                                  onPress: () => onChangeMemberRole(item._id, "admin"),
+                                },
+                                {
+                                  text: "Chủ nhóm",
+                                  onPress: () => onChangeMemberRole(item._id, "owner"),
+                                },
+                                { text: "Hủy", style: "cancel" },
+                              ],
+                              { cancelable: true }
+                            )
+                          }
+                        />
+                        <IconButton
+                          icon="delete"
+                          size={20}
+                          onPress={() => onRemoveMember(item._id)}
+                          iconColor="#ff4444"
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
+                style={styles.participantList}
+                nestedScrollEnabled={true}
+              />
+            </View>
+          ),
+        },
+      ]
       : []),
     ...(images.length > 0
       ? [
-          {
-            key: "images",
-            render: () => (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>Ảnh đã gửi ({images.length})</Text>
-                <FlatList
-                  data={images}
-                  keyExtractor={(item) => item._id}
-                  horizontal
-                  renderItem={({ item }) => (
-                    <TouchableOpacity onPress={() => onOpenImagePreview(item.fileMeta[0].url)}>
-                      <Image
-                        source={{ uri: item.fileMeta[0].url }}
-                        style={styles.sentImage}
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
-                  )}
-                  style={styles.imageList}
-                />
-              </View>
-            ),
-          },
-        ]
+        {
+          key: "images",
+          render: () => (
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Ảnh đã gửi ({images.length})</Text>
+              <FlatList
+                data={images}
+                keyExtractor={(item) => item._id}
+                horizontal
+                renderItem={({ item }) => (
+                  <TouchableOpacity onPress={() => onOpenImagePreview(item.fileMeta[0].url)}>
+                    <Image
+                      source={{ uri: item.fileMeta[0].url }}
+                      style={styles.sentImage}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                )}
+                style={styles.imageList}
+              />
+            </View>
+          ),
+        },
+      ]
       : []),
     ...(isGroup
       ? [
-          {
-            key: "settings",
-            render: () => (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>Cài đặt nhóm</Text>
-                {isOwner && (
-                  <View style={styles.switchContainer}>
-                    <Text style={styles.switchLabel}>Yêu cầu duyệt thành viên</Text>
-                    <Switch
-                      value={conversationDetails?.requireApproval}
-                      onValueChange={onToggleRequireApproval}
-                      color="#0098f9"
-                      disabled={isTogglingApproval} // Vô hiệu hóa khi đang toggle
-                    />
-                  </View>
-                )}
+        {
+          key: "settings",
+          render: () => (
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Cài đặt nhóm</Text>
+              {isOwner && (
+                <View style={styles.switchContainer}>
+                  <Text style={styles.switchLabel}>Yêu cầu duyệt thành viên</Text>
+                  <Switch
+                    value={conversationDetails?.requireApproval}
+                    onValueChange={onToggleRequireApproval}
+                    color="#0098f9"
+                    disabled={isTogglingApproval} 
+                  />
+                </View>
+              )}
+              {!isOwner && (
                 <Button
                   mode="outlined"
                   onPress={onLeaveGroup}
@@ -307,20 +308,22 @@ const ChatInfoModal = ({
                 >
                   Rời nhóm
                 </Button>
-                {isOwner && (
-                  <Button
-                    mode="outlined"
-                    onPress={onDeleteGroup}
-                    style={[styles.modalButton, { borderColor: "#ff4444" }]}
-                    labelStyle={{ color: "#ff4444" }}
-                  >
-                    Giải tán nhóm
-                  </Button>
-                )}
-              </View>
-            ),
-          },
-        ]
+              )}
+
+              {isOwner && (
+                <Button
+                  mode="outlined"
+                  onPress={onDeleteGroup}
+                  style={[styles.modalButton, { borderColor: "#ff4444" }]}
+                  labelStyle={{ color: "#ff4444" }}
+                >
+                  Giải tán nhóm
+                </Button>
+              )}
+            </View>
+          ),
+        },
+      ]
       : []),
   ];
 
@@ -408,9 +411,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   modalSection: {
-   maxHeight:800,
+    maxHeight: 800,
 
-   marginBottom:60
+    marginBottom: 60
   },
   modalSectionTitle: {
     fontSize: 16,
