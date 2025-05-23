@@ -1,50 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { Avatar, Text, Badge } from "react-native-paper";
-import { useSocket } from "../../hooks/useSocket";
-import { Audio } from "expo-av";
 
 const ChatListItem = ({ item, onPress, userId }) => {
-  const { user, lastMessage: initialLastMessage, type, unreadCount: initialUnreadCount } = item;
-  const [lastMessage, setLastMessage] = useState(initialLastMessage);
-  const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
-  const conversationId = item._id;
-
-
-
-  const handleNewMessage = async (message) => {
-    if (message.conversationId === conversationId) {
-      const senderId = typeof message.sender === "object" ? message.sender._id : message.sender;
-      if (senderId !== userId) {
-        await playNotificationSound();
-        setUnreadCount((prev) => (prev || 0) + 1);
-      }
-
-      setLastMessage({
-        _id: message._id,
-        content: message.content || (
-          message.type === "image" ? "Hình ảnh" : 
-          message.type === "audio" ? "Tin nhắn âm thanh" : "Tệp"
-        ),
-        sender: message.sender,
-        createdAt: message.createdAt || new Date().toISOString(),
-        type: message.type,
-        fileMeta: message.fileMeta || [],
-        replyTo: message.replyTo,
-        isRevoke: message.isRevoke || false,
-      });
-    }
-  };
-
-  const { socket, joinRoom } = useSocket(userId, {
-    onNewMessage: handleNewMessage,
-  });
-
-  useEffect(() => {
-    if (conversationId && joinRoom) {
-      joinRoom(conversationId);
-    }
-  }, [conversationId, joinRoom]);
+  const { user, lastMessage, type, unreadCount } = item;
 
   const formatTime = (createdAt) => {
     if (!createdAt) return "";

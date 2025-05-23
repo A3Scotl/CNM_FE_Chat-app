@@ -72,9 +72,9 @@ const ChatInfoModal = ({
 
   useEffect(() => {
     Animated.timing(membersHeightAnim, {
-      toValue: membersExpanded ? 200 : 0, // Adjust 200 based on max members height
+      toValue: membersExpanded ? 200 : 0, 
       duration: 200,
-      useNativeDriver: false, // Height animation doesn't support native driver
+      useNativeDriver: false,
     }).start();
   }, [membersExpanded]);
 
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   modalSection: {
-    marginBottom: 20,
+   
   },
   modalSectionTitle: {
     fontSize: 16,
