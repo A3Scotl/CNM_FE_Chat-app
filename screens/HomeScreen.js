@@ -309,32 +309,36 @@ const HomeScreen = ({ navigation, route }) => {
     );
   };
 
-  const renderSearchResults = () => {
-    if (!searchQuery.trim()) return null;
+const renderSearchResults = () => {
+  if (!searchQuery.trim()) return null;
 
-    return (
-      <View style={styles.searchOverlay}>
-        {isSearching ? (
-          <Text style={styles.searchingText}>Đang tìm kiếm...</Text>
-        ) : searchResults.length > 0 ? (
-          <FlatList
-            data={searchResults}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => {
-              const isCurrentUser = item._id === currentUser?._id;
-              return (
-                <View style={styles.userItem}>
-                  <Avatar.Image
-                    size={40}
-                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                  />
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>
-                      {item.fullName || "Người dùng không xác định"}
-                    </Text>
-                    <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-                  </View>
-                  {!isCurrentUser && (
+  return (
+    <View style={styles.searchOverlay}>
+      {isSearching ? (
+        <Text style={styles.searchingText}>Đang tìm kiếm...</Text>
+      ) : searchResults.length > 0 ? (
+        <FlatList
+          data={searchResults}
+          keyExtractor={(item) => item._id}
+          renderItem={({ item }) => {
+            const isCurrentUser = item._id === currentUser?._id;
+            const isFriend = friends.some((friend) => friend._id === item._id);
+            return (
+              <View style={styles.userItem}>
+                <Avatar.Image
+                  size={40}
+                  source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                />
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>
+                    {item.fullName || "Người dùng không xác định"}
+                  </Text>
+                  <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                </View>
+                {!isCurrentUser && (
+                  isFriend ? (
+                    <Text style={styles.friendText}>Bạn bè</Text>
+                  ) : (
                     <TouchableOpacity
                       style={styles.addButton}
                       onPress={() => handleSendFriendRequest(item._id)}
@@ -345,17 +349,18 @@ const HomeScreen = ({ navigation, route }) => {
                         color={colors.primary}
                       />
                     </TouchableOpacity>
-                  )}
-                </View>
-              );
-            }}
-          />
-        ) : (
-          <Text style={styles.noResults}>Không tìm thấy người dùng.</Text>
-        )}
-      </View>
-    );
-  };
+                  )
+                )}
+              </View>
+            );
+          }}
+        />
+      ) : (
+        <Text style={styles.noResults}>Không tìm thấy người dùng.</Text>
+      )}
+    </View>
+  );
+};
 
   const renderGroupModal = () => (
     <Portal>
@@ -734,13 +739,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   createButtonContent: {
-    height: 40, // Đảm bảo chiều cao nút đồng nhất
+    height: 40, 
     justifyContent: "center",
     alignItems: "center",
   },
   createButtonText: {
     color: "#fff",
     fontSize: 16,
+  },
+  friendText: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+    padding: 5,
   },
 });
 
