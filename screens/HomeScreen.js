@@ -21,7 +21,7 @@ import {
   Button,
 } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 import ConversationList from "../components/ConversationList";
 import ProfileModal from "../components/Modal/ProfileModal";
 import SettingsModal from "../components/Modal/SettingsModal";
@@ -38,7 +38,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
-  const { sendRequest,fetchRequests,fetchSentRequests } = useFriendRequest();
+  const { sendRequest, fetchRequests, fetchSentRequests } = useFriendRequest();
   const [currentUser, setCurrentUser] = useState(null);
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
@@ -59,7 +59,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [groupSearchResults, setGroupSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false); 
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
@@ -68,6 +68,7 @@ const HomeScreen = ({ navigation, route }) => {
 
   // Kết nối Socket.IO và lắng nghe sự kiện
   useEffect(() => {
+    let socketConnection;
     const connectSocket = async () => {
       const token = await AsyncStorage.getItem("token");
       const userId = await AsyncStorage.getItem("userId");
@@ -76,35 +77,35 @@ const HomeScreen = ({ navigation, route }) => {
         return;
       }
 
-      socket = io("http://192.168.1.189:5000", {
+      socketConnection = io("http://192.168.1.189:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,
       });
-      socket.on("connect", () => {
+      socketConnection.on("connect", () => {
         console.log("✅ Socket kết nối thành công");
         socketConnection.emit("register", userId);
       });
-      socket.on("friend-request", (data) => {
+      socketConnection.on("friend-request", (data) => {
         Alert.alert("Thông báo", data.message);
       });
-      socket.on("friend-request-accepted", (data) => {
+      socketConnection.on("friend-request-accepted", (data) => {
         Alert.alert("Thông báo", data.message);
       });
-      socket.on("friend-removed", (data) => {
+      socketConnection.on("friend-removed", (data) => {
         console.log("Thông báo", data.message);
       });
 
-      socket.on("group:member-added", (data) => {
+      socketConnection.on("group:member-added", (data) => {
         console.log("Đã được thêm vào nhóm:", data);
       });
 
-      socket.on("new-group-invite", (data) => {
+      socketConnection.on("new-group-invite", (data) => {
         console.log("Nhận lời mời nhóm:", data);
       });
 
-       socketConnection.on("disconnect", (reason) => {
+      socketConnection.on("disconnect", (reason) => {
         console.log("Ngắt kết nối Socket.IO. Lý do:", reason);
       });
 
@@ -116,7 +117,7 @@ const HomeScreen = ({ navigation, route }) => {
     connectSocket();
 
     return () => {
-      socket.disconnect();
+      socketConnection.disconnect();
     };
   }, []);
 
@@ -152,12 +153,21 @@ const HomeScreen = ({ navigation, route }) => {
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
   };
-
+  const clearCache = async () => {
+    try {
+      await AsyncStorage.removeItem("friendRequests");
+      await AsyncStorage.removeItem("sentRequests");
+      await AsyncStorage.removeItem("friends");
+    } catch (err) {
+      console.error("Failed to clear cache:", err);
+    }
+  };
   const handleLogout = async () => {
     try {
       setShowDropdown(false);
+      await clearCache();
       await logout();
-      socket.disconnect();
+      Socket.disconnect();
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
@@ -227,16 +237,19 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleSendFriendRequest = async (receiverId) => {
     try {
+      setIsSearching(true);
       await sendRequest(receiverId);
       Alert.alert("Thành công", "Lời mời kết bạn đã được gửi!");
       setMessage("Lời mời kết bạn đã được gửi!");
       setTimeout(() => setMessage(""), 3000);
-      await fetchFriends();
-      await fetchSentRequests();
-      await fetchRequests();
+      await Promise.all([fetchFriends(), fetchRequests()]);
+      setSearchQuery("");
+      setSearchResults([]);
     } catch (error) {
       setTimeout(() => setMessage(""), 3000);
-      Alert.alert("Lời mời kết bạn đã được gửi trước đó!");
+      Alert.alert("Lỗi", error.message || "Lời mời kết bạn đã được gửi trước đó!");
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -441,7 +454,7 @@ const HomeScreen = ({ navigation, route }) => {
             mode="outlined"
             onPress={() => setShowCreateGroupModal(false)}
             style={styles.modalButton}
-            disabled={isCreatingGroup} 
+            disabled={isCreatingGroup}
           >
             Hủy
           </Button>

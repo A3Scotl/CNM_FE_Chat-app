@@ -121,21 +121,20 @@ const ContactsScreen = () => {
       });
 
       socketConnection.on("friend-request", async ({ requestId, from }) => {
-        console.log("Nhận lời mời kết bạn:", { requestId, from });
-        Alert.alert("Lời mời kết bạn", `Bạn nhận được lời mời kết bạn mới.`);
-        await fetchRequests(); 
+        // console.log("Nhận lời mời kết bạn:", { requestId, from });
+        // Alert.alert("Lời mời kết bạn", `Bạn nhận được lời mời kết bạn mới.`);
+        await fetchRequests();
       });
 
       socketConnection.on("friend-request-accepted", async ({ requestId, userId }) => {
-        console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
-        Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
-        await fetchFriends();
-        await fetchSentRequests();
+        // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
+        // Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
+        await Promise.all([fetchFriends(), fetchSentRequests(true)]);
       });
 
       socketConnection.on("friend-removed", async ({ userId }) => {
-        // Alert.alert("Thông báo", `Một người bạn đã hủy kết bạn với bạn.`);
-        await fetchFriends();
+        console.log("Người bạn bị hủy kết bạn:", { userId });
+        await Promise.all([fetchFriends(), fetchRequests()]);
       });
 
       socketConnection.on("disconnect", (reason) => {
@@ -182,8 +181,7 @@ const ContactsScreen = () => {
       setLoadingAction((prev) => ({ ...prev, [requestId]: "accept" }));
       await acceptRequest(requestId);
       Alert.alert("Thành công", "Đã chấp nhận lời mời kết bạn!");
-      await fetchFriends();
-      await fetchRequests();
+      await Promise.all([fetchFriends(), fetchRequests()]);
     } catch (error) {
       console.error("Lỗi khi chấp nhận lời mời:", error);
       Alert.alert("Lỗi", error.message || "Không thể chấp nhận lời mời.");
@@ -206,32 +204,17 @@ const ContactsScreen = () => {
       setLoadingAction((prev) => ({ ...prev, [requestId]: undefined }));
     }
   };
-  // Handle remove friend
-  const handleCancelRequest = async (requestId) => {
-    try {
-      setLoadingAction((prev) => ({ ...prev, [requestId]: "remove" }));
-      await deleteFriendShip(requestId);
-      Alert.alert("Thành công", "Bạn đã hủy yêu cầu kết bạn!");
-      await fetchFriends();
-      await fetchSentRequests();
-      await fetchRequests();
-    } catch (error) {
-      console.error("Lỗi khi hủy yêu cầu kết bạn:", error);
-      Alert.alert("Lỗi", error.message || "Không thể hủy yêu cầu kết bạn.");
-    } finally {
-      setLoadingAction((prev) => ({ ...prev, [requestId]: undefined }));
-    }
-  };
-  // Handle remove friend
+
+  // Handle remove friend or cancel sent request
   const handleRemoveFriend = async (requestId) => {
     try {
       setLoadingAction((prev) => ({ ...prev, [requestId]: "remove" }));
       await deleteFriendShip(requestId);
-      Alert.alert("Thành công", "Hủy kết bạn thành công!");
-      await fetchFriends();
+      Alert.alert("Thành công", "Hủy thành công!");
+      await Promise.all([fetchFriends(), fetchRequests(), fetchSentRequests(true)]);
     } catch (error) {
       console.error("Lỗi khi hủy kết bạn:", error);
-      Alert.alert("Lỗi", error.message || "Không thể hủy kết bạn.");
+      Alert.alert("Lỗi", error.message || "Không thể hủy.");
     } finally {
       setLoadingAction((prev) => ({ ...prev, [requestId]: undefined }));
     }
@@ -294,13 +277,15 @@ const ContactsScreen = () => {
   };
 
   const RequestItem = React.memo(({ item, handleAccept, handleReject, colors }) => {
-    const [userInfo, setUserInfo] = useState(item.user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" });
+    const [userInfo, setUserInfo] = useState(
+      item.user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" }
+    );
 
     React.useEffect(() => {
       if (item.user && typeof item.user === "string") {
         fetchUserInfo(item.user).then(setUserInfo);
-      } else if (item.from && !item.user.fullName) {
-        fetchUserInfo(item.user._id).then(setUserInfo);
+      } else if (item.from && !item.user?.fullName) {
+        fetchUserInfo(item.from._id || item.from).then(setUserInfo);
       }
     }, [item.from]);
 
@@ -316,19 +301,19 @@ const ContactsScreen = () => {
         <View style={styles.rowBottom}>
           <Button
             mode="contained"
-            onPress={() => handleAccept(item.requestId)}
+            onPress={() => handleAccept(item.requestId || item._id)}
             style={[styles.button, { backgroundColor: colors.primary }]}
-            disabled={loadingAction[item.requestId] === "accept"}
-            loading={loadingAction[item.requestId] === "accept"}
+            disabled={loadingAction[item.requestId || item._id] === "accept"}
+            loading={loadingAction[item.requestId || item._id] === "accept"}
           >
             Chấp nhận
           </Button>
           <Button
             mode="outlined"
-            onPress={() => handleReject(item.requestId)}
+            onPress={() => handleReject(item.requestId || item._id)}
             style={styles.button}
-            disabled={loadingAction[item.requestId] === "reject"}
-            loading={loadingAction[item.requestId] === "reject"}
+            disabled={loadingAction[item.requestId || item._id] === "reject"}
+            loading={loadingAction[item.requestId || item._id] === "reject"}
           >
             Từ chối
           </Button>
@@ -338,8 +323,10 @@ const ContactsScreen = () => {
   });
 
   const SentRequestItem = React.memo(({ item, colors }) => {
-    const [userInfo, setUserInfo] = useState(item.to || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" });
-    console.log(item)
+    const [userInfo, setUserInfo] = useState(
+      item.to || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" }
+    );
+
     React.useEffect(() => {
       if (item.to && typeof item.to === "string") {
         fetchUserInfo(item.to).then(setUserInfo);
@@ -357,16 +344,15 @@ const ContactsScreen = () => {
             <Text style={[styles.subText, { color: colors.text }]}>Đã gửi {dayjs(item.createdAt).fromNow()}</Text>
           </View>
           <Button
-          mode="outlined"
-          onPress={() => handleCancelRequest(item._id)}
-          style={{color: 'white' }}
-          disabled={loadingAction[item._id] === "remove"}
-          loading={loadingAction[item._id] === "remove"}
-        >
-          Hủy
-        </Button>
+            mode="outlined"
+            onPress={() => handleRemoveFriend(item._id)}
+            style={styles.button}
+            disabled={loadingAction[item._id] === "remove"}
+            loading={loadingAction[item._id] === "remove"}
+          >
+            Hủy
+          </Button>
         </View>
-        
       </View>
     );
   });
@@ -418,7 +404,7 @@ const ContactsScreen = () => {
       title: `Lời mời kết bạn (${requests?.length || 0})`,
       data: requests || [],
       renderItem: renderRequestItem,
-      emptyMessage: "Không có lời mời kết bạn.",
+      emptyMessage: errorRequests ? `Lỗi: ${errorRequests}` : "Không có lời mời kết bạn.",
       isLoading: loadingRequests,
       error: errorRequests,
     },
@@ -426,7 +412,7 @@ const ContactsScreen = () => {
       title: `Lời mời đã gửi (${sentRequests?.length || 0})`,
       data: sentRequests || [],
       renderItem: renderSentRequestItem,
-      emptyMessage: "Bạn chưa gửi lời mời kết bạn nào.",
+      emptyMessage: errorSentRequests ? `Lỗi: ${errorSentRequests}` : "Bạn chưa gửi lời mời kết bạn nào.",
       isLoading: loadingSentRequests,
       error: errorSentRequests,
     },
@@ -434,7 +420,7 @@ const ContactsScreen = () => {
       title: `Bạn bè (${friends?.length || 0})`,
       data: friends || [],
       renderItem: renderFriendItem,
-      emptyMessage: "Chưa có bạn bè.",
+      emptyMessage: errorFriends ? `Lỗi: ${errorFriends}` : "Chưa có bạn bè.",
       isLoading: loadingFriends,
       error: errorFriends,
     },
@@ -479,11 +465,12 @@ const ContactsScreen = () => {
       {activeTab === "friends" && (
         <SectionList
           sections={friendSections}
-          keyExtractor={(item, index) => item._id + index}
+          keyExtractor={(item, index) => `${item._id || item.fs_id || item.requestId}-${index}`}
           renderSectionHeader={renderSectionHeader}
           renderItem={renderSectionItem}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.text }]}>Không có dữ liệu.</Text>}
+          extraData={sentRequests} // Buộc render lại khi sentRequests thay đổi
         />
       )}
 

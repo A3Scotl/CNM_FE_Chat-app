@@ -67,39 +67,37 @@ export const useFriendRequest = () => {
     },
     onFriendRequestAccepted: ({ user }) => {
       setSentRequests((prev) => prev.filter((req) => req.to._id !== user._id));
-      fetchFriends(); // Cập nhật danh sách bạn bè
-      fetchSentRequests(); // Làm mới danh sách đã gửi
+      fetchFriends(true);
+      fetchSentRequests(true);
     },
   });
 
   // Hàm fetch chung
-  const fetchData = async (fetchFn, setState, cacheKey, setLoading, setError) => {
+  const fetchData = async (fetchFn, setState, cacheKey, setLoading, setError, skipCache = false) => {
     if (!userId) return;
     setLoading(true);
     setError(null);
 
-    // Kiểm tra cache trước
-    const cachedData = await getCachedData(cacheKey);
-    if (cachedData) {
-      setState(cachedData);
-      setLoading(false);
-      // Cập nhật nền
-      try {
-        const data = await fetchFn();
-        // Loại bỏ trùng lặp trước khi set state
-        const uniqueData = Array.from(new Map(data.map(item => [item._id, item])).values());
-        setState(uniqueData || []);
-        await cacheData(cacheKey, uniqueData || []);
-      } catch (err) {
-        console.error(`Failed to update ${cacheKey}:`, err);
+    if (!skipCache) {
+      const cachedData = await getCachedData(cacheKey);
+      if (cachedData) {
+        setState(cachedData);
+        setLoading(false);
+        // Cập nhật nền
+        try {
+          const data = await fetchFn();
+          const uniqueData = Array.from(new Map(data.map(item => [item._id, item])).values());
+          setState(uniqueData || []);
+          await cacheData(cacheKey, uniqueData || []);
+        } catch (err) {
+          console.error(`Failed to update ${cacheKey}:`, err);
+        }
+        return;
       }
-      return;
     }
 
-    // Nếu không có cache, gọi API
     try {
       const data = await fetchFn();
-      // Loại bỏ trùng lặp trước khi set state
       const uniqueData = Array.from(new Map(data.map(item => [item._id, item])).values());
       setState(uniqueData || []);
       await cacheData(cacheKey, uniqueData || []);
@@ -113,15 +111,45 @@ export const useFriendRequest = () => {
 
   // Fetch các loại dữ liệu
   const fetchRequests = useCallback(
-    () => fetchData(friendRequest.getRequests, setRequests, "friendRequests", setLoadingRequests, setErrorRequests),
+    (skipCache = false) =>
+      fetchData(
+        friendRequest.getRequests,
+        setRequests,
+        "friendRequests",
+        setLoadingRequests,
+        setErrorRequests,
+        skipCache
+      ),
     [userId]
   );
+
   const fetchSentRequests = useCallback(
-    () => fetchData(friendRequest.getSentFriendsRequest, setSentRequests, "sentRequests", setLoadingSentRequests, setErrorSentRequests),
+    (skipCache = false) =>
+      fetchData(
+        async () => {
+          const data = await friendRequest.getSentFriendsRequest();
+          console.log("Fetched sentRequests:", data);
+          return data;
+        },
+        setSentRequests,
+        "sentRequests",
+        setLoadingSentRequests,
+        setErrorSentRequests,
+        skipCache
+      ),
     [userId]
   );
+
   const fetchFriends = useCallback(
-    () => fetchData(friendRequest.getFriends, setFriends, "friends", setLoadingFriends, setErrorFriends),
+    (skipCache = false) =>
+      fetchData(
+        friendRequest.getFriends,
+        setFriends,
+        "friends",
+        setLoadingFriends,
+        setErrorFriends,
+        skipCache
+      ),
     [userId]
   );
 
@@ -129,15 +157,24 @@ export const useFriendRequest = () => {
   const sendRequest = async (receiverId) => {
     try {
       const response = await friendRequest.sendRequest(receiverId);
+      console.log("Send request response:", response);
       setSentRequests((prev) => {
-        const newRequest = { _id: response._id, to: { _id: receiverId }, status: "pending" };
+        const newRequest = {
+          _id: response._id,
+          to: { _id: receiverId },
+          status: "pending",
+          createdAt: new Date().toISOString(), // Thêm createdAt để hiển thị thời gian
+        };
         const updatedRequests = [...prev, newRequest];
-        // Loại bỏ trùng lặp
-        return Array.from(new Map(updatedRequests.map(item => [item._id, item])).values());
+        const uniqueRequests = Array.from(new Map(updatedRequests.map((item) => [item._id, item])).values());
+        cacheData("sentRequests", uniqueRequests);
+        console.log("Updated sentRequests:", uniqueRequests);
+        return uniqueRequests;
       });
-      // Làm mới danh sách từ server
-      await fetchSentRequests();
+      // Làm mới sentRequests từ server, bỏ qua cache
+      await fetchSentRequests(true);
     } catch (err) {
+      console.error("Error sending friend request:", err);
       throw new Error(err.message);
     }
   };
@@ -146,8 +183,12 @@ export const useFriendRequest = () => {
   const acceptRequest = async (requestId) => {
     try {
       await friendRequest.acceptRequest(requestId);
-      setRequests((prev) => prev.filter((req) => req._id !== requestId));
-      fetchFriends();
+      setRequests((prev) => {
+        const updatedRequests = prev.filter((req) => req._id !== requestId);
+        cacheData("friendRequests", updatedRequests);
+        return updatedRequests;
+      });
+      await fetchFriends(true);
     } catch (err) {
       throw new Error(err.message);
     }
@@ -157,17 +198,31 @@ export const useFriendRequest = () => {
   const rejectRequest = async (requestId) => {
     try {
       await friendRequest.rejectRequest(requestId);
-      setRequests((prev) => prev.filter((req) => req._id !== requestId));
+      setRequests((prev) => {
+        const updatedRequests = prev.filter((req) => req._id !== requestId);
+        cacheData("friendRequests", updatedRequests);
+        return updatedRequests;
+      });
     } catch (err) {
       throw new Error(err.message);
     }
   };
-  // Từ chối lời mời
+
+  // Hủy lời mời kết bạn hoặc hủy kết bạn
   const deleteFriendShip = async (requestId) => {
     try {
       await friendRequest.deleteFriendShip(requestId);
-      setRequests((prev) => prev.filter((req) => req._id !== requestId));
-      fetchFriends();
+      setSentRequests((prev) => {
+        const updatedRequests = prev.filter((req) => req._id !== requestId);
+        cacheData("sentRequests", updatedRequests);
+        return updatedRequests;
+      });
+      setRequests((prev) => {
+        const updatedRequests = prev.filter((req) => req._id !== requestId);
+        cacheData("friendRequests", updatedRequests);
+        return updatedRequests;
+      });
+      await fetchFriends(true);
     } catch (err) {
       throw new Error(err.message);
     }
@@ -198,6 +253,6 @@ export const useFriendRequest = () => {
     fetchRequests,
     fetchSentRequests,
     fetchFriends,
-    deleteFriendShip
+    deleteFriendShip,
   };
 };
