@@ -72,7 +72,7 @@ const ChatInfoModal = ({
 
   useEffect(() => {
     Animated.timing(membersHeightAnim, {
-      toValue: membersExpanded ? 200 : 0, 
+      toValue: membersExpanded ? 200 : 0,
       duration: 200,
       useNativeDriver: false,
     }).start();
@@ -120,14 +120,17 @@ const ChatInfoModal = ({
       render: () => (
         <View style={styles.modalAvatarContainer}>
           <TouchableOpacity
-            onPress={isOwner || isAdmin ? onPickAvatar : null}
-            disabled={!isOwner && !isAdmin}
+            onPress={(isOwner || isAdmin) && isEditingName ? onPickAvatar : () => console.log("Chọn ảnh bị vô hiệu hóa - cần vào chế độ chỉnh sửa")}
+            disabled={!(isOwner || isAdmin) || !isEditingName}
             style={styles.avatarTouchable}
           >
             <Avatar.Image
               size={100}
               source={{ uri: displayAvatar, cache: "reload" }}
-              style={styles.avatarImage}
+              style={[
+                styles.avatarImage,
+                !(isOwner || isAdmin) || !isEditingName ? { opacity: 0.7 } : {},
+              ]}
             />
             {(isOwner || isAdmin) && (
               <View style={styles.editAvatarIcon}>
@@ -201,9 +204,9 @@ const ChatInfoModal = ({
 
                   <MaterialIcons
                     name={membersExpanded ? "expand-less" : "expand-more"}
-                    size={28} 
+                    size={28}
                     color="black"
-                    style={styles.iconStyle} 
+                    style={styles.iconStyle}
                   />
                 </View>
 
@@ -478,7 +481,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   modalSection: {
-   
+
   },
   modalSectionTitle: {
     fontSize: 16,
@@ -501,7 +504,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#0098f9",
     fontWeight: "500",
-    
+
   },
   membersContainer: {
     overflow: "hidden",
@@ -660,11 +663,11 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   iconStyle: {
-    borderWidth: 2, 
-    borderColor: 'black', 
-    borderRadius: 20, 
-    padding: 1, 
-    backgroundColor: 'white', 
+    borderWidth: 2,
+    borderColor: 'black',
+    borderRadius: 20,
+    padding: 1,
+    backgroundColor: 'white',
     shadowColor: 'black',
     shadowOffset: { width: 1, height: 1 },
     shadowOpacity: 0.3,

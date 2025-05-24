@@ -261,36 +261,14 @@ const ConversationList = ({ currentUser }) => {
           });
           return sortConversations([...updatedConversations]);
         });
-        try {
-          Audio.Sound.createAsync(
-            require("../assets/sounds/invite-group.mp3")
-          ).then(({ sound }) => {
-            sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if (status.didJustFinish) sound.unloadAsync();
-            });
-          });
-        } catch (err) {
-          console.error("Lỗi phát âm thanh thông báo:", err);
-        }
+       
       });
 
       socketConnection.on("group:memberRoleChanged", ({ groupId, userId: affectedUserId, newRole }) => {
         fetchConversations();
         if (affectedUserId !== userId) {
           const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-          try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
-              });
-            });
-          } catch (err) {
-            console.error("Lỗi phát âm thanh thông báo:", err);
-          }
+         
         }
       });
 

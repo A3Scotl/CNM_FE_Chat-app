@@ -21,7 +21,7 @@ import {
   Button,
 } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 import ConversationList from "../components/ConversationList";
 import ProfileModal from "../components/Modal/ProfileModal";
 import SettingsModal from "../components/Modal/SettingsModal";
@@ -35,15 +35,10 @@ import { createGroup } from "../apis/conversationGroup.api";
 import { getFriends } from "../apis/contact.api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Khởi tạo Socket.IO client
-const socket = io("http://192.168.1.189:5000", {
-  autoConnect: false,
-});
-
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
-  const { sendRequest } = useFriendRequest();
+  const { sendRequest, fetchRequests, fetchSentRequests } = useFriendRequest();
   const [currentUser, setCurrentUser] = useState(null);
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
@@ -64,7 +59,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [groupSearchResults, setGroupSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false); // State mới cho loading nút Tạo nhóm
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
@@ -73,36 +68,58 @@ const HomeScreen = ({ navigation, route }) => {
 
   // Kết nối Socket.IO và lắng nghe sự kiện
   useEffect(() => {
+    let socketConnection;
     const connectSocket = async () => {
       const token = await AsyncStorage.getItem("token");
-      socket.auth = { token };
-      socket.connect();
+      const userId = await AsyncStorage.getItem("userId");
+      if (!token || !userId) {
+        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        return;
+      }
 
-      socket.on("friend-request", (data) => {
+      socketConnection = io("http://192.168.1.189:5000", {
+        auth: { token },
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+      });
+      socketConnection.on("connect", () => {
+        console.log("✅ Socket kết nối thành công");
+        socketConnection.emit("register", userId);
+      });
+      socketConnection.on("friend-request", (data) => {
         Alert.alert("Thông báo", data.message);
       });
-
-      socket.on("friend-request-accepted", (data) => {
-        Alert.alert("Thông báo", data.message);
+      socketConnection.on("friend-request-accepted", async ({ requestId, userId }) => {
+        // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
+        Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
+        await Promise.all([fetchFriends(), fetchSentRequests(true)]);
+      });
+      socketConnection.on("friend-removed", (data) => {
+        console.log("Thông báo", data.message);
       });
 
-      socket.on("group:member-added", (data) => {
+      socketConnection.on("group:member-added", (data) => {
         console.log("Đã được thêm vào nhóm:", data);
       });
 
-      socket.on("new-group-invite", (data) => {
+      socketConnection.on("new-group-invite", (data) => {
         console.log("Nhận lời mời nhóm:", data);
       });
 
-      socket.on("connect_error", (err) => {
-        console.error("Socket connection error:", err);
+      socketConnection.on("disconnect", (reason) => {
+        console.log("Ngắt kết nối Socket.IO. Lý do:", reason);
+      });
+
+      socketConnection.on("connect_error", (error) => {
+        console.error("Lỗi kết nối Socket.IO", error);
       });
     };
 
     connectSocket();
 
     return () => {
-      socket.disconnect();
+      socketConnection.disconnect();
     };
   }, []);
 
@@ -138,12 +155,21 @@ const HomeScreen = ({ navigation, route }) => {
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
   };
-
+  const clearCache = async () => {
+    try {
+      await AsyncStorage.removeItem("friendRequests");
+      await AsyncStorage.removeItem("sentRequests");
+      await AsyncStorage.removeItem("friends");
+    } catch (err) {
+      console.error("Failed to clear cache:", err);
+    }
+  };
   const handleLogout = async () => {
     try {
       setShowDropdown(false);
+      await clearCache();
       await logout();
-      socket.disconnect();
+
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
@@ -178,7 +204,7 @@ const HomeScreen = ({ navigation, route }) => {
       } finally {
         setIsSearching(false);
       }
-    }, 500),
+    }, 2500),
     []
   );
 
@@ -213,18 +239,19 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleSendFriendRequest = async (receiverId) => {
     try {
+      setIsSearching(true);
       await sendRequest(receiverId);
       Alert.alert("Thành công", "Lời mời kết bạn đã được gửi!");
       setMessage("Lời mời kết bạn đã được gửi!");
       setTimeout(() => setMessage(""), 3000);
+      await Promise.all([fetchFriends(), fetchRequests()]);
+      setSearchQuery("");
+      setSearchResults([]);
     } catch (error) {
-      const errorMsg =
-        error.message === "Friend request already exists"
-          ? "Lời mời kết bạn đã được gửi trước đó!"
-          : "Không thể gửi lời mời kết bạn.";
-      setMessage(errorMsg);
       setTimeout(() => setMessage(""), 3000);
-      console.error("Error sending friend request:", error);
+      Alert.alert("Lỗi", error.message || "Lời mời kết bạn đã được gửi trước đó!");
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -238,7 +265,7 @@ const HomeScreen = ({ navigation, route }) => {
       return;
     }
 
-    setIsCreatingGroup(true); // Bắt đầu loading
+    setIsCreatingGroup(true);
 
     try {
       const groupData = {
@@ -416,7 +443,7 @@ const HomeScreen = ({ navigation, route }) => {
             mode="contained"
             onPress={handleCreateGroup}
             style={styles.modalButton}
-            disabled={isCreatingGroup} // Vô hiệu hóa nút khi đang loading
+            disabled={isCreatingGroup}
             contentStyle={styles.createButtonContent}
           >
             {isCreatingGroup ? (
@@ -429,7 +456,7 @@ const HomeScreen = ({ navigation, route }) => {
             mode="outlined"
             onPress={() => setShowCreateGroupModal(false)}
             style={styles.modalButton}
-            disabled={isCreatingGroup} // Vô hiệu hóa nút Hủy khi đang loading
+            disabled={isCreatingGroup}
           >
             Hủy
           </Button>
