@@ -374,24 +374,21 @@ const ChatScreen = ({ navigation, route }) => {
 
       socketConnection.on("group:infoUpdated", ({ groupId, name, avatar }) => {
         if (groupId === chat._id) {
-          setConversationDetails((prev) => ({
-            ...prev,
-            name: name || prev.name,
-            avatar: avatar || prev.avatar,
-          }));
+          setConversationDetails((prev) => {
+            const newDetails = {
+              ...prev,
+              name: name || prev.name,
+              avatar: avatar || prev.avatar,
+              user: {
+                ...prev.user,
+                fullName: name || prev.user.fullName,
+                avatar: avatar || prev.user.avatar,
+              },
+            };
+            console.log("group:infoUpdated - Updated conversationDetails:", newDetails);
+            return newDetails;
+          });
           // Alert.alert("Cập nhật nhóm", "Thông tin nhóm đã được cập nhật.");
-          try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
-              });
-            });
-          } catch (err) {
-            console.error("Lỗi phát âm thanh thông báo:", err);
-          }
         }
       });
 
@@ -449,7 +446,7 @@ const ChatScreen = ({ navigation, route }) => {
     };
 
     setupSocket();
-  }, [chat._id, userId,isTogglingApproval]);
+  }, [chat._id, userId, isTogglingApproval]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -580,9 +577,9 @@ const ChatScreen = ({ navigation, route }) => {
         targetConversationIds: selectedConversations,
         additionalContent: additionalContent.trim(),
       };
-     
+
       await forwardManyMessage(payload);
-      
+
       setShowForwardModal(false);
       setSelectedConversations([]);
       setForwardMessageData(null);
@@ -1002,62 +999,71 @@ const ChatScreen = ({ navigation, route }) => {
     );
   };
 
-  const handleUpdateGroupInfo = async () => {
-    if (!newGroupName && !newGroupAvatar) {
-      Alert.alert("Lỗi", "Vui lòng nhập tên nhóm hoặc chọn ảnh mới.");
-      return;
-    }
-  
-    try {
-      // Cập nhật conversationDetails.user ngay lập tức
-      setConversationDetails((prev) => {
-        const newDetails = {
-          ...prev,
-          user: {
-            ...prev.user,
-            fullName: newGroupName || prev.user.fullName,
-            avatar: newGroupAvatar ? newGroupAvatar.uri : prev.user.avatar,
-          },
-        };
-        console.log("Updating conversationDetails:", newDetails);
-        return newDetails;
-      });
-  
-      const payload = {};
-      if (newGroupName) payload.name = newGroupName;
-      if (newGroupAvatar) {
-        const url = await uploadToS3(newGroupAvatar);
-        payload.avatar = url;
-      }
-  
-      const updatedGroup = await updateGroupInfo(chat._id, payload.name, payload.avatar);
-      console.log("updatedGroup.data:", updatedGroup.data);
-      setConversationDetails((prev) => ({
+const handleUpdateGroupInfo = async () => {
+  if (!newGroupName && !newGroupAvatar) {
+    Alert.alert("Lỗi", "Vui lòng nhập tên nhóm hoặc chọn ảnh mới.");
+    return;
+  }
+
+  try {
+    // Cập nhật giao diện ngay lập tức
+    setConversationDetails((prev) => {
+      const newDetails = {
         ...prev,
-        ...updatedGroup.data,
         user: {
           ...prev.user,
-          fullName: updatedGroup.data.user?.fullName || newGroupName || prev.user.fullName,
-          avatar: updatedGroup.data.user?.avatar || payload.avatar || prev.user.avatar,
+          fullName: newGroupName || prev.user.fullName,
+          avatar: newGroupAvatar ? newGroupAvatar.uri : prev.user.avatar,
         },
-      }));
-      setNewGroupName("");
-      setNewGroupAvatar(null);
-      Alert.alert("Thành công", "Cập nhật thông tin nhóm thành công.");
-  
-      if (socket) {
-        socket.emit("group:infoUpdated", {
-          groupId: chat._id,
-          name: payload.name,
-          avatar: payload.avatar,
-        });
-      }
-    } catch (error) {
-      console.error("Lỗi cập nhật thông tin nhóm:", error);
-      setConversationDetails(chat);
-      Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
+      };
+      console.log("Immediate update conversationDetails:", newDetails);
+      return newDetails;
+    });
+
+    const payload = {};
+    if (newGroupName) payload.name = newGroupName;
+    if (newGroupAvatar) {
+      const url = await uploadToS3(newGroupAvatar);
+      payload.avatar = url;
     }
-  };
+
+    const updatedGroup = await updateGroupInfo(chat._id, payload.name, payload.avatar);
+    console.log("API updateGroupInfo response:", updatedGroup);
+
+    // Cập nhật với dữ liệu từ server
+    setConversationDetails((prev) => {
+      const newDetails = {
+        ...prev,
+        name: updatedGroup.data.name || prev.name,
+        avatar: updatedGroup.data.avatar || prev.avatar,
+        user: {
+          ...prev.user,
+          fullName: updatedGroup.data.name || newGroupName || prev.user.fullName,
+          avatar: updatedGroup.data.avatar || payload.avatar || prev.user.avatar,
+        },
+      };
+      console.log("Server update conversationDetails:", newDetails);
+      return newDetails;
+    });
+
+    setNewGroupName("");
+    setNewGroupAvatar(null);
+    Alert.alert("Thành công", "Cập nhật thông tin nhóm thành công.");
+
+    if (socket) {
+      socket.emit("group:infoUpdated", {
+        groupId: chat._id,
+        name: payload.name || updatedGroup.data.name,
+        avatar: payload.avatar || updatedGroup.data.avatar,
+      });
+    }
+  } catch (error) {
+    console.error("Lỗi cập nhật thông tin nhóm:", error);
+    // Khôi phục trạng thái cũ nếu lỗi
+    setConversationDetails(chat);
+    Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
+  }
+};
   const cancelReply = () => {
     setReplyingTo(null);
   };
@@ -1145,7 +1151,7 @@ const ChatScreen = ({ navigation, route }) => {
 
       setConversationDetails((prev) => ({
         ...prev,
-        requireApproval: !prev.requireApproval, 
+        requireApproval: !prev.requireApproval,
       }));
       Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
     } finally {
