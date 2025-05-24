@@ -206,7 +206,22 @@ const ContactsScreen = () => {
       setLoadingAction((prev) => ({ ...prev, [requestId]: undefined }));
     }
   };
-
+  // Handle remove friend
+  const handleCancelRequest = async (requestId) => {
+    try {
+      setLoadingAction((prev) => ({ ...prev, [requestId]: "remove" }));
+      await deleteFriendShip(requestId);
+      Alert.alert("Thành công", "Bạn đã hủy yêu cầu kết bạn!");
+      await fetchFriends();
+      await fetchSentRequests();
+      await fetchRequests();
+    } catch (error) {
+      console.error("Lỗi khi hủy yêu cầu kết bạn:", error);
+      Alert.alert("Lỗi", error.message || "Không thể hủy yêu cầu kết bạn.");
+    } finally {
+      setLoadingAction((prev) => ({ ...prev, [requestId]: undefined }));
+    }
+  };
   // Handle remove friend
   const handleRemoveFriend = async (requestId) => {
     try {
@@ -324,7 +339,7 @@ const ContactsScreen = () => {
 
   const SentRequestItem = React.memo(({ item, colors }) => {
     const [userInfo, setUserInfo] = useState(item.to || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" });
-
+    console.log(item)
     React.useEffect(() => {
       if (item.to && typeof item.to === "string") {
         fetchUserInfo(item.to).then(setUserInfo);
@@ -341,7 +356,17 @@ const ContactsScreen = () => {
             <Text style={[styles.name, { color: colors.text }]}>{userInfo.fullName}</Text>
             <Text style={[styles.subText, { color: colors.text }]}>Đã gửi {dayjs(item.createdAt).fromNow()}</Text>
           </View>
+          <Button
+          mode="outlined"
+          onPress={() => handleCancelRequest(item._id)}
+          style={{color: 'white' }}
+          disabled={loadingAction[item._id] === "remove"}
+          loading={loadingAction[item._id] === "remove"}
+        >
+          Hủy
+        </Button>
         </View>
+        
       </View>
     );
   });

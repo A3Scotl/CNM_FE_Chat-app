@@ -38,7 +38,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
-  const { sendRequest } = useFriendRequest();
+  const { sendRequest,fetchRequests,fetchSentRequests } = useFriendRequest();
   const [currentUser, setCurrentUser] = useState(null);
   const [visibleProfile, setVisibleProfile] = useState(false);
   const [visibleSettings, setVisibleSettings] = useState(false);
@@ -231,7 +231,9 @@ const HomeScreen = ({ navigation, route }) => {
       Alert.alert("Thành công", "Lời mời kết bạn đã được gửi!");
       setMessage("Lời mời kết bạn đã được gửi!");
       setTimeout(() => setMessage(""), 3000);
-      fetchFriends();
+      await fetchFriends();
+      await fetchSentRequests();
+      await fetchRequests();
     } catch (error) {
       setTimeout(() => setMessage(""), 3000);
       Alert.alert("Lời mời kết bạn đã được gửi trước đó!");
