@@ -15,8 +15,12 @@ const ConversationList = ({ currentUser }) => {
 
   const sortConversations = (convoList) => {
     return convoList.sort((a, b) => {
-      const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
-      const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      const aTime = a.lastMessage?.createdAt
+        ? new Date(a.lastMessage.createdAt).getTime()
+        : 0;
+      const bTime = b.lastMessage?.createdAt
+        ? new Date(b.lastMessage.createdAt).getTime()
+        : 0;
       return bTime - aTime;
     });
   };
@@ -33,7 +37,10 @@ const ConversationList = ({ currentUser }) => {
         if (convo.type === "group") {
           return {
             _id: convo._id,
-            user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
+            user: {
+              fullName: convo.name,
+              avatar: convo.avatar || "https://i.pravatar.cc/150",
+            },
             lastMessage: convo.lastMessage || null,
             type: "group",
             unreadCount: convo.unreadCount || 0,
@@ -63,7 +70,6 @@ const ConversationList = ({ currentUser }) => {
     }
   }, [currentUser]);
 
- 
   // const debouncedFetchConversations = debounce(fetchConversations, 1000);
 
   useEffect(() => {
@@ -73,11 +79,13 @@ const ConversationList = ({ currentUser }) => {
       const token = await AsyncStorage.getItem("token");
       const userId = await AsyncStorage.getItem("userId");
       if (!token || !userId) {
-        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        console.warn(
+          "Token hoặc userId không tồn tại, không thể kết nối socket"
+        );
         return;
       }
 
-      socketConnection = io("http://192.168.1.189:5000", {
+      socketConnection = io("http://192.168.1.9:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
@@ -89,10 +97,16 @@ const ConversationList = ({ currentUser }) => {
         socketConnection.emit("register", userId);
       });
 
-      socketConnection.on("newConversation", ({ conversationId, participants }) => {
-        console.log("Nhận sự kiện newConversation:", { conversationId, participants });
-        fetchConversations();
-      });
+      socketConnection.on(
+        "newConversation",
+        ({ conversationId, participants }) => {
+          console.log("Nhận sự kiện newConversation:", {
+            conversationId,
+            participants,
+          });
+          fetchConversations();
+        }
+      );
 
       socketConnection.on("groupCreated", ({ group, message }) => {
         try {
@@ -119,10 +133,13 @@ const ConversationList = ({ currentUser }) => {
                 ...convo,
                 lastMessage: {
                   _id: msg._id,
-                  content: msg.content || (
-                    msg.type === "image" ? "Hình ảnh" :
-                    msg.type === "audio" ? "Tin nhắn âm thanh" : "Tệp"
-                  ),
+                  content:
+                    msg.content ||
+                    (msg.type === "image"
+                      ? "Hình ảnh"
+                      : msg.type === "audio"
+                      ? "Tin nhắn âm thanh"
+                      : "Tệp"),
                   sender: msg.sender,
                   createdAt: msg.createdAt,
                   type: msg.type,
@@ -130,7 +147,9 @@ const ConversationList = ({ currentUser }) => {
                   replyTo: msg.replyTo,
                   isRevoke: msg.isRevoke || false,
                 },
-                unreadCount: isCurrentUser ? convo.unreadCount : (convo.unreadCount || 0) + 1,
+                unreadCount: isCurrentUser
+                  ? convo.unreadCount
+                  : (convo.unreadCount || 0) + 1,
               };
             }
             return convo;
@@ -141,70 +160,84 @@ const ConversationList = ({ currentUser }) => {
         // debouncedFetchConversations();
       });
 
-      socketConnection.on("message-recalled", ({ conversationId, messageId, updatedMessage }) => {
-        setConversations((prev) => {
-          const updatedConversations = prev.map((convo) => {
-            if (convo._id === conversationId && convo.lastMessage?._id === messageId) {
-              return {
-                ...convo,
-                lastMessage: {
-                  ...convo.lastMessage,
-                  content: updatedMessage.content,
-                  isRevoke: true,
-                  fileMeta: [],
-                  type: "text",
-                },
-              };
-            }
-            return convo;
-          });
+      socketConnection.on(
+        "message-recalled",
+        ({ conversationId, messageId, updatedMessage }) => {
+          setConversations((prev) => {
+            const updatedConversations = prev.map((convo) => {
+              if (
+                convo._id === conversationId &&
+                convo.lastMessage?._id === messageId
+              ) {
+                return {
+                  ...convo,
+                  lastMessage: {
+                    ...convo.lastMessage,
+                    content: updatedMessage.content,
+                    isRevoke: true,
+                    fileMeta: [],
+                    type: "text",
+                  },
+                };
+              }
+              return convo;
+            });
 
-          return sortConversations([...updatedConversations]);
-        });
-      });
+            return sortConversations([...updatedConversations]);
+          });
+        }
+      );
 
       socketConnection.on("conversation-hidden", ({ conversationId }) => {
         setConversations((prev) => {
-          const updatedConversations = prev.filter((convo) => convo._id !== conversationId);
+          const updatedConversations = prev.filter(
+            (convo) => convo._id !== conversationId
+          );
           return sortConversations([...updatedConversations]);
         });
       });
 
-      socketConnection.on("group:member-added", ({ groupId, addedUserId, addedBy }) => {
-        fetchConversations();
-        if (addedBy !== userId) {
-          try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
+      socketConnection.on(
+        "group:member-added",
+        ({ groupId, addedUserId, addedBy }) => {
+          fetchConversations();
+          if (addedBy !== userId) {
+            try {
+              Audio.Sound.createAsync(
+                require("../assets/sounds/invite-group.mp3")
+              ).then(({ sound }) => {
+                sound.playAsync();
+                sound.setOnPlaybackStatusUpdate((status) => {
+                  if (status.didJustFinish) sound.unloadAsync();
+                });
               });
-            });
-          } catch (err) {
-            console.error("Lỗi phát âm thanh thông báo:", err);
+            } catch (err) {
+              console.error("Lỗi phát âm thanh thông báo:", err);
+            }
           }
         }
-      });
+      );
 
-      socketConnection.on("group:member-removed", ({ groupId, removedUserId, removedBy }) => {
-        fetchConversations();
-        if (removedBy !== userId && removedUserId !== userId) {
-          try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
+      socketConnection.on(
+        "group:member-removed",
+        ({ groupId, removedUserId, removedBy }) => {
+          fetchConversations();
+          if (removedBy !== userId && removedUserId !== userId) {
+            try {
+              Audio.Sound.createAsync(
+                require("../assets/sounds/invite-group.mp3")
+              ).then(({ sound }) => {
+                sound.playAsync();
+                sound.setOnPlaybackStatusUpdate((status) => {
+                  if (status.didJustFinish) sound.unloadAsync();
+                });
               });
-            });
-          } catch (err) {
-            console.error("Lỗi phát âm thanh thông báo:", err);
+            } catch (err) {
+              console.error("Lỗi phát âm thanh thông báo:", err);
+            }
           }
         }
-      });
+      );
 
       socketConnection.on("group:memberLeft", ({ groupId, leftUserId }) => {
         fetchConversations();
@@ -218,7 +251,10 @@ const ConversationList = ({ currentUser }) => {
                 if (status.didJustFinish) sound.unloadAsync();
               });
             });
-            Alert.alert("Thành viên rời nhóm", `Một thành viên đã rời khỏi nhóm.`);
+            Alert.alert(
+              "Thành viên rời nhóm",
+              `Một thành viên đã rời khỏi nhóm.`
+            );
           } catch (err) {
             console.error("Lỗi phát âm thanh thông báo:", err);
           }
@@ -227,7 +263,9 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("group:deleted", ({ groupId }) => {
         setConversations((prev) => {
-          const updatedConversations = prev.filter((convo) => convo._id !== groupId);
+          const updatedConversations = prev.filter(
+            (convo) => convo._id !== groupId
+          );
           return sortConversations([...updatedConversations]);
         });
         try {
@@ -261,47 +299,64 @@ const ConversationList = ({ currentUser }) => {
           });
           return sortConversations([...updatedConversations]);
         });
-       
       });
 
-      socketConnection.on("group:memberRoleChanged", ({ groupId, userId: affectedUserId, newRole }) => {
-        fetchConversations();
-        if (affectedUserId !== userId) {
-          const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-         
+      socketConnection.on(
+        "group:memberRoleChanged",
+        ({ groupId, userId: affectedUserId, newRole }) => {
+          fetchConversations();
+          if (affectedUserId !== userId) {
+            const roleText =
+              newRole === "owner"
+                ? "chủ nhóm"
+                : newRole === "admin"
+                ? "quản trị viên"
+                : "thành viên";
+          }
         }
-      });
+      );
 
-      socketConnection.on("group:requireApprovalChanged", ({ groupId, requireApproval }) => {
-        setConversations((prev) => {
-          const updatedConversations = prev.map((convo) => {
-            if (convo._id === groupId) {
-              return {
-                ...convo,
-                requireApproval,
-              };
-            }
-            return convo;
-          });
-          return sortConversations([...updatedConversations]);
-        });
-        try {
-          Audio.Sound.createAsync(
-            require("../assets/sounds/invite-group.mp3")
-          ).then(({ sound }) => {
-            sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if (status.didJustFinish) sound.unloadAsync();
+      socketConnection.on(
+        "group:requireApprovalChanged",
+        ({ groupId, requireApproval }) => {
+          setConversations((prev) => {
+            const updatedConversations = prev.map((convo) => {
+              if (convo._id === groupId) {
+                return {
+                  ...convo,
+                  requireApproval,
+                };
+              }
+              return convo;
             });
+            return sortConversations([...updatedConversations]);
           });
-          Alert.alert("Cập nhật nhóm", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
-        } catch (err) {
-          console.error("Lỗi phát âm thanh thông báo:", err);
+          try {
+            Audio.Sound.createAsync(
+              require("../assets/sounds/invite-group.mp3")
+            ).then(({ sound }) => {
+              sound.playAsync();
+              sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.didJustFinish) sound.unloadAsync();
+              });
+            });
+            Alert.alert(
+              "Cập nhật nhóm",
+              `Yêu cầu duyệt thành viên đã được ${
+                requireApproval ? "bật" : "tắt"
+              }.`
+            );
+          } catch (err) {
+            console.error("Lỗi phát âm thanh thông báo:", err);
+          }
         }
-      });
+      );
 
       socketConnection.on("disconnect", (reason) => {
-        console.log("Ngắt kết nối Socket.IO trong ConversationList. Lý do:", reason);
+        console.log(
+          "Ngắt kết nối Socket.IO trong ConversationList. Lý do:",
+          reason
+        );
       });
 
       socketConnection.on("connect_error", (error) => {
@@ -321,9 +376,7 @@ const ConversationList = ({ currentUser }) => {
   const handleChatSelect = (chat) => {
     setConversations((prev) =>
       sortConversations(
-        prev.map((c) =>
-          c._id === chat._id ? { ...c, unreadCount: 0 } : c
-        )
+        prev.map((c) => (c._id === chat._id ? { ...c, unreadCount: 0 } : c))
       )
     );
     navigation.navigate("Chat", {

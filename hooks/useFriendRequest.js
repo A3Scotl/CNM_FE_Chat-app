@@ -73,7 +73,14 @@ export const useFriendRequest = () => {
   });
 
   // Hàm fetch chung
-  const fetchData = async (fetchFn, setState, cacheKey, setLoading, setError, skipCache = false) => {
+  const fetchData = async (
+    fetchFn,
+    setState,
+    cacheKey,
+    setLoading,
+    setError,
+    skipCache = false
+  ) => {
     if (!userId) return;
     setLoading(true);
     setError(null);
@@ -86,7 +93,9 @@ export const useFriendRequest = () => {
         // Cập nhật nền
         try {
           const data = await fetchFn();
-          const uniqueData = Array.from(new Map(data.map(item => [item._id, item])).values());
+          const uniqueData = Array.from(
+            new Map(data.map((item) => [item._id, item])).values()
+          );
           setState(uniqueData || []);
           await cacheData(cacheKey, uniqueData || []);
         } catch (err) {
@@ -98,7 +107,9 @@ export const useFriendRequest = () => {
 
     try {
       const data = await fetchFn();
-      const uniqueData = Array.from(new Map(data.map(item => [item._id, item])).values());
+      const uniqueData = Array.from(
+        new Map(data.map((item) => [item._id, item])).values()
+      );
       setState(uniqueData || []);
       await cacheData(cacheKey, uniqueData || []);
     } catch (err) {
@@ -166,7 +177,9 @@ export const useFriendRequest = () => {
           createdAt: new Date().toISOString(), // Thêm createdAt để hiển thị thời gian
         };
         const updatedRequests = [...prev, newRequest];
-        const uniqueRequests = Array.from(new Map(updatedRequests.map((item) => [item._id, item])).values());
+        const uniqueRequests = Array.from(
+          new Map(updatedRequests.map((item) => [item._id, item])).values()
+        );
         cacheData("sentRequests", uniqueRequests);
         console.log("Updated sentRequests:", uniqueRequests);
         return uniqueRequests;

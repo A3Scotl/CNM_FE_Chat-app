@@ -73,11 +73,13 @@ const HomeScreen = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem("token");
       const userId = await AsyncStorage.getItem("userId");
       if (!token || !userId) {
-        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        console.warn(
+          "Token hoặc userId không tồn tại, không thể kết nối socket"
+        );
         return;
       }
 
-      socketConnection = io("http://192.168.1.189:5000", {
+      socketConnection = io("http://192.168.1.9:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
@@ -90,11 +92,17 @@ const HomeScreen = ({ navigation, route }) => {
       socketConnection.on("friend-request", (data) => {
         Alert.alert("Thông báo", data.message);
       });
-      socketConnection.on("friend-request-accepted", async ({ requestId, userId }) => {
-        // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
-        Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
-        await Promise.all([fetchFriends(), fetchSentRequests(true)]);
-      });
+      socketConnection.on(
+        "friend-request-accepted",
+        async ({ requestId, userId }) => {
+          // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
+          Alert.alert(
+            "Thông báo",
+            `Lời mời kết bạn của bạn đã được chấp nhận.`
+          );
+          await Promise.all([fetchFriends(), fetchSentRequests(true)]);
+        }
+      );
       socketConnection.on("friend-removed", (data) => {
         console.log("Thông báo", data.message);
       });
@@ -249,7 +257,10 @@ const HomeScreen = ({ navigation, route }) => {
       setSearchResults([]);
     } catch (error) {
       setTimeout(() => setMessage(""), 3000);
-      Alert.alert("Lỗi", error.message || "Lời mời kết bạn đã được gửi trước đó!");
+      Alert.alert(
+        "Lỗi",
+        error.message || "Lời mời kết bạn đã được gửi trước đó!"
+      );
     } finally {
       setIsSearching(false);
     }

@@ -77,14 +77,21 @@ const ContactsScreen = () => {
         .filter((convo) => convo.type === "group")
         .map((convo) => ({
           _id: convo._id,
-          user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
+          user: {
+            fullName: convo.name,
+            avatar: convo.avatar || "https://i.pravatar.cc/150",
+          },
           lastMessage: convo.lastMessage || null,
           type: "group",
           unreadCount: convo.unreadCount || 0,
         }))
         .sort((a, b) => {
-          const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt) : 0;
-          const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt) : 0;
+          const aTime = a.lastMessage?.createdAt
+            ? new Date(a.lastMessage.createdAt)
+            : 0;
+          const bTime = b.lastMessage?.createdAt
+            ? new Date(b.lastMessage.createdAt)
+            : 0;
           return bTime - aTime;
         });
       setGroups(mappedGroups);
@@ -104,11 +111,13 @@ const ContactsScreen = () => {
       const token = await AsyncStorage.getItem("token");
       const userId = await AsyncStorage.getItem("userId");
       if (!token || !userId) {
-        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        console.warn(
+          "Token hoặc userId không tồn tại, không thể kết nối socket"
+        );
         return;
       }
 
-      socketConnection = io("http://192.168.1.189:5000", {
+      socketConnection = io("http://192.168.1.9:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
@@ -126,11 +135,14 @@ const ContactsScreen = () => {
         await fetchRequests();
       });
 
-      socketConnection.on("friend-request-accepted", async ({ requestId, userId }) => {
-        // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
-        // Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
-        await Promise.all([fetchFriends(), fetchSentRequests(true)]);
-      });
+      socketConnection.on(
+        "friend-request-accepted",
+        async ({ requestId, userId }) => {
+          // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
+          // Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
+          await Promise.all([fetchFriends(), fetchSentRequests(true)]);
+        }
+      );
 
       socketConnection.on("friend-removed", async ({ userId }) => {
         console.log("Người bạn bị hủy kết bạn:", { userId });
@@ -138,7 +150,10 @@ const ContactsScreen = () => {
       });
 
       socketConnection.on("disconnect", (reason) => {
-        console.log("Ngắt kết nối Socket.IO trong ContactsScreen. Lý do:", reason);
+        console.log(
+          "Ngắt kết nối Socket.IO trong ContactsScreen. Lý do:",
+          reason
+        );
       });
 
       socketConnection.on("connect_error", (error) => {
@@ -158,8 +173,12 @@ const ContactsScreen = () => {
   // Refresh data
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    Promise.all([fetchRequests(), fetchSentRequests(), fetchFriends(), fetchGroups()])
-      .finally(() => setRefreshing(false));
+    Promise.all([
+      fetchRequests(),
+      fetchSentRequests(),
+      fetchFriends(),
+      fetchGroups(),
+    ]).finally(() => setRefreshing(false));
   }, [fetchRequests, fetchSentRequests, fetchFriends, fetchGroups]);
 
   // Refresh data on focus
@@ -211,7 +230,11 @@ const ContactsScreen = () => {
       setLoadingAction((prev) => ({ ...prev, [requestId]: "remove" }));
       await deleteFriendShip(requestId);
       Alert.alert("Thành công", "Hủy thành công!");
-      await Promise.all([fetchFriends(), fetchRequests(), fetchSentRequests(true)]);
+      await Promise.all([
+        fetchFriends(),
+        fetchRequests(),
+        fetchSentRequests(true),
+      ]);
     } catch (error) {
       console.error("Lỗi khi hủy kết bạn:", error);
       Alert.alert("Lỗi", error.message || "Không thể hủy.");
@@ -238,16 +261,19 @@ const ContactsScreen = () => {
   const handleChat = async (friend) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      const response = await fetch("http://192.168.1.189:5000/api/conversation/detail", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          to: friend._id,
-        }),
-      });
+      const response = await fetch(
+        "http://192.168.1.9:3000/api/conversation/detail",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            to: friend._id,
+          }),
+        }
+      );
 
       const data = await response.json();
       if (!response.ok) {
@@ -269,62 +295,82 @@ const ContactsScreen = () => {
   const fetchUserInfo = async (userId) => {
     try {
       const user = await findUserById(userId);
-      return user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" };
+      return (
+        user || {
+          fullName: "Người dùng ẩn danh",
+          avatar: "https://i.pravatar.cc/150",
+        }
+      );
     } catch (error) {
       console.error("Lỗi khi lấy thông tin người dùng:", error);
-      return { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" };
+      return {
+        fullName: "Người dùng ẩn danh",
+        avatar: "https://i.pravatar.cc/150",
+      };
     }
   };
 
-  const RequestItem = React.memo(({ item, handleAccept, handleReject, colors }) => {
-    const [userInfo, setUserInfo] = useState(
-      item.user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" }
-    );
+  const RequestItem = React.memo(
+    ({ item, handleAccept, handleReject, colors }) => {
+      const [userInfo, setUserInfo] = useState(
+        item.user || {
+          fullName: "Người dùng ẩn danh",
+          avatar: "https://i.pravatar.cc/150",
+        }
+      );
 
-    React.useEffect(() => {
-      if (item.user && typeof item.user === "string") {
-        fetchUserInfo(item.user).then(setUserInfo);
-      } else if (item.from && !item.user?.fullName) {
-        fetchUserInfo(item.from._id || item.from).then(setUserInfo);
-      }
-    }, [item.from]);
+      React.useEffect(() => {
+        if (item.user && typeof item.user === "string") {
+          fetchUserInfo(item.user).then(setUserInfo);
+        } else if (item.from && !item.user?.fullName) {
+          fetchUserInfo(item.from._id || item.from).then(setUserInfo);
+        }
+      }, [item.from]);
 
-    return (
-      <View style={styles.itemContainer}>
-        <View style={styles.rowTop}>
-          <Avatar.Image size={48} source={{ uri: userInfo.avatar }} />
-          <View style={styles.infoContainer}>
-            <Text style={[styles.name, { color: colors.text }]}>{userInfo.fullName}</Text>
-            <Text style={[styles.subText, { color: colors.text }]}>{dayjs(item.createdAt).fromNow()}</Text>
+      return (
+        <View style={styles.itemContainer}>
+          <View style={styles.rowTop}>
+            <Avatar.Image size={48} source={{ uri: userInfo.avatar }} />
+            <View style={styles.infoContainer}>
+              <Text style={[styles.name, { color: colors.text }]}>
+                {userInfo.fullName}
+              </Text>
+              <Text style={[styles.subText, { color: colors.text }]}>
+                {dayjs(item.createdAt).fromNow()}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.rowBottom}>
+            <Button
+              mode="contained"
+              onPress={() => handleAccept(item.requestId || item._id)}
+              style={[styles.button, { backgroundColor: colors.primary }]}
+              disabled={loadingAction[item.requestId || item._id] === "accept"}
+              loading={loadingAction[item.requestId || item._id] === "accept"}
+            >
+              Chấp nhận
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => handleReject(item.requestId || item._id)}
+              style={styles.button}
+              disabled={loadingAction[item.requestId || item._id] === "reject"}
+              loading={loadingAction[item.requestId || item._id] === "reject"}
+            >
+              Từ chối
+            </Button>
           </View>
         </View>
-        <View style={styles.rowBottom}>
-          <Button
-            mode="contained"
-            onPress={() => handleAccept(item.requestId || item._id)}
-            style={[styles.button, { backgroundColor: colors.primary }]}
-            disabled={loadingAction[item.requestId || item._id] === "accept"}
-            loading={loadingAction[item.requestId || item._id] === "accept"}
-          >
-            Chấp nhận
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() => handleReject(item.requestId || item._id)}
-            style={styles.button}
-            disabled={loadingAction[item.requestId || item._id] === "reject"}
-            loading={loadingAction[item.requestId || item._id] === "reject"}
-          >
-            Từ chối
-          </Button>
-        </View>
-      </View>
-    );
-  });
+      );
+    }
+  );
 
   const SentRequestItem = React.memo(({ item, colors }) => {
     const [userInfo, setUserInfo] = useState(
-      item.to || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" }
+      item.to || {
+        fullName: "Người dùng ẩn danh",
+        avatar: "https://i.pravatar.cc/150",
+      }
     );
 
     React.useEffect(() => {
@@ -340,8 +386,12 @@ const ContactsScreen = () => {
         <View style={styles.rowTop}>
           <Avatar.Image size={48} source={{ uri: userInfo.avatar }} />
           <View style={styles.infoContainer}>
-            <Text style={[styles.name, { color: colors.text }]}>{userInfo.fullName}</Text>
-            <Text style={[styles.subText, { color: colors.text }]}>Đã gửi {dayjs(item.createdAt).fromNow()}</Text>
+            <Text style={[styles.name, { color: colors.text }]}>
+              {userInfo.fullName}
+            </Text>
+            <Text style={[styles.subText, { color: colors.text }]}>
+              Đã gửi {dayjs(item.createdAt).fromNow()}
+            </Text>
           </View>
           <Button
             mode="outlined"
@@ -360,9 +410,14 @@ const ContactsScreen = () => {
   const FriendItem = React.memo(({ item, colors, onChatPress }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
-        <Avatar.Image size={48} source={{ uri: item.avatar || "https://i.pravatar.cc/150" }} />
+        <Avatar.Image
+          size={48}
+          source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+        />
         <View style={styles.infoContainer}>
-          <Text style={[styles.name, { color: colors.text }]}>{item.fullName || "Người dùng ẩn danh"}</Text>
+          <Text style={[styles.name, { color: colors.text }]}>
+            {item.fullName || "Người dùng ẩn danh"}
+          </Text>
           <Text style={[styles.subText, { color: colors.text }]}>Bạn bè</Text>
         </View>
       </View>
@@ -377,7 +432,7 @@ const ContactsScreen = () => {
         <Button
           mode="outlined"
           onPress={() => handleRemoveFriend(item.fs_id)}
-          style={[styles.button, { backgroundColor: 'red', color: 'white' }]}
+          style={[styles.button, { backgroundColor: "red", color: "white" }]}
           disabled={loadingAction[item.fs_id] === "remove"}
           loading={loadingAction[item.fs_id] === "remove"}
         >
@@ -388,7 +443,12 @@ const ContactsScreen = () => {
   ));
 
   const renderRequestItem = ({ item }) => (
-    <RequestItem item={item} handleAccept={handleAccept} handleReject={handleReject} colors={colors} />
+    <RequestItem
+      item={item}
+      handleAccept={handleAccept}
+      handleReject={handleReject}
+      colors={colors}
+    />
   );
 
   const renderSentRequestItem = ({ item }) => (
@@ -396,7 +456,11 @@ const ContactsScreen = () => {
   );
 
   const renderFriendItem = ({ item }) => (
-    <FriendItem item={item} colors={colors} onChatPress={() => handleChat(item)} />
+    <FriendItem
+      item={item}
+      colors={colors}
+      onChatPress={() => handleChat(item)}
+    />
   );
 
   const friendSections = [
@@ -404,7 +468,9 @@ const ContactsScreen = () => {
       title: `Lời mời kết bạn (${requests?.length || 0})`,
       data: requests || [],
       renderItem: renderRequestItem,
-      emptyMessage: errorRequests ? `Lỗi: ${errorRequests}` : "Không có lời mời kết bạn.",
+      emptyMessage: errorRequests
+        ? `Lỗi: ${errorRequests}`
+        : "Không có lời mời kết bạn.",
       isLoading: loadingRequests,
       error: errorRequests,
     },
@@ -412,7 +478,9 @@ const ContactsScreen = () => {
       title: `Lời mời đã gửi (${sentRequests?.length || 0})`,
       data: sentRequests || [],
       renderItem: renderSentRequestItem,
-      emptyMessage: errorSentRequests ? `Lỗi: ${errorSentRequests}` : "Bạn chưa gửi lời mời kết bạn nào.",
+      emptyMessage: errorSentRequests
+        ? `Lỗi: ${errorSentRequests}`
+        : "Bạn chưa gửi lời mời kết bạn nào.",
       isLoading: loadingSentRequests,
       error: errorSentRequests,
     },
@@ -428,19 +496,33 @@ const ContactsScreen = () => {
 
   const renderSectionHeader = ({ section }) => (
     <View style={styles.sectionHeader}>
-      <Text style={[styles.sectionTitle, { color: colors.primary }]}>{section.title}</Text>
+      <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+        {section.title}
+      </Text>
     </View>
   );
 
   const renderSectionItem = ({ item, section }) => {
     if (section.isLoading) {
-      return <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>;
+      return (
+        <Text style={[styles.emptyText, { color: colors.text }]}>
+          Đang tải...
+        </Text>
+      );
     }
     if (section.error) {
-      return <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {section.error}</Text>;
+      return (
+        <Text style={[styles.errorText, { color: colors.error }]}>
+          Lỗi: {section.error}
+        </Text>
+      );
     }
     if (!section.data || section.data.length === 0) {
-      return <Text style={[styles.emptyText, { color: colors.text }]}>{section.emptyMessage}</Text>;
+      return (
+        <Text style={[styles.emptyText, { color: colors.text }]}>
+          {section.emptyMessage}
+        </Text>
+      );
     }
     return section.renderItem({ item });
   };
@@ -452,24 +534,46 @@ const ContactsScreen = () => {
           style={[styles.tab, activeTab === "friends" && styles.activeTab]}
           onPress={() => setActiveTab("friends")}
         >
-          <Text style={[styles.tabText, activeTab === "friends" && { color: colors.primary }]}>Bạn bè</Text>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "friends" && { color: colors.primary },
+            ]}
+          >
+            Bạn bè
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "groups" && styles.activeTab]}
           onPress={() => setActiveTab("groups")}
         >
-          <Text style={[styles.tabText, activeTab === "groups" && { color: colors.primary }]}>Nhóm</Text>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "groups" && { color: colors.primary },
+            ]}
+          >
+            Nhóm
+          </Text>
         </TouchableOpacity>
       </View>
 
       {activeTab === "friends" && (
         <SectionList
           sections={friendSections}
-          keyExtractor={(item, index) => `${item._id || item.fs_id || item.requestId}-${index}`}
+          keyExtractor={(item, index) =>
+            `${item._id || item.fs_id || item.requestId}-${index}`
+          }
           renderSectionHeader={renderSectionHeader}
           renderItem={renderSectionItem}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.text }]}>Không có dữ liệu.</Text>}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: colors.text }]}>
+              Không có dữ liệu.
+            </Text>
+          }
           extraData={sentRequests} // Buộc render lại khi sentRequests thay đổi
         />
       )}
@@ -477,12 +581,18 @@ const ContactsScreen = () => {
       {activeTab === "groups" && (
         <View style={{ flex: 1 }}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>Danh sách nhóm ({groups?.length || 0})</Text>
+            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+              Danh sách nhóm ({groups?.length || 0})
+            </Text>
           </View>
           {loadingGroups ? (
-            <Text style={[styles.emptyText, { color: colors.text }]}>Đang tải...</Text>
+            <Text style={[styles.emptyText, { color: colors.text }]}>
+              Đang tải...
+            </Text>
           ) : errorGroups ? (
-            <Text style={[styles.errorText, { color: colors.error }]}>Lỗi: {errorGroups}</Text>
+            <Text style={[styles.errorText, { color: colors.error }]}>
+              Lỗi: {errorGroups}
+            </Text>
           ) : groups && groups.length > 0 ? (
             <ChatList
               chats={groups}
@@ -490,7 +600,9 @@ const ContactsScreen = () => {
               currentUserId={currentUserId}
             />
           ) : (
-            <Text style={[styles.emptyText, { color: colors.text }]}>Chưa tham gia nhóm nào.</Text>
+            <Text style={[styles.emptyText, { color: colors.text }]}>
+              Chưa tham gia nhóm nào.
+            </Text>
           )}
         </View>
       )}
