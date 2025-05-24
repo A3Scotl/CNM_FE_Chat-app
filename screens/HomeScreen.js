@@ -90,8 +90,10 @@ const HomeScreen = ({ navigation, route }) => {
       socketConnection.on("friend-request", (data) => {
         Alert.alert("Thông báo", data.message);
       });
-      socketConnection.on("friend-request-accepted", (data) => {
-        Alert.alert("Thông báo", data.message);
+      socketConnection.on("friend-request-accepted", async ({ requestId, userId }) => {
+        // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
+        Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
+        await Promise.all([fetchFriends(), fetchSentRequests(true)]);
       });
       socketConnection.on("friend-removed", (data) => {
         console.log("Thông báo", data.message);
@@ -167,7 +169,7 @@ const HomeScreen = ({ navigation, route }) => {
       setShowDropdown(false);
       await clearCache();
       await logout();
-      Socket.disconnect();
+
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
@@ -202,7 +204,7 @@ const HomeScreen = ({ navigation, route }) => {
       } finally {
         setIsSearching(false);
       }
-    }, 500),
+    }, 2500),
     []
   );
 
