@@ -162,6 +162,16 @@ export const useFriendRequest = () => {
       throw new Error(err.message);
     }
   };
+  // Từ chối lời mời
+  const deleteFriendShip = async (requestId) => {
+    try {
+      await friendRequest.deleteFriendShip(requestId);
+      setRequests((prev) => prev.filter((req) => req._id !== requestId));
+      fetchFriends();
+    } catch (err) {
+      throw new Error(err.message);
+    }
+  };
 
   // Tự động fetch khi có userId
   useEffect(() => {
@@ -188,5 +198,6 @@ export const useFriendRequest = () => {
     fetchRequests,
     fetchSentRequests,
     fetchFriends,
+    deleteFriendShip
   };
 };

@@ -35,11 +35,6 @@ import { createGroup } from "../apis/conversationGroup.api";
 import { getFriends } from "../apis/contact.api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Khởi tạo Socket.IO client
-const socket = io("http://192.168.1.189:5000", {
-  autoConnect: false,
-});
-
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
@@ -64,7 +59,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [groupSearchResults, setGroupSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false); // State mới cho loading nút Tạo nhóm
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false); 
 
   const routes = [
     { key: "messages", title: "Messages", icon: "message-text" },
@@ -75,15 +70,30 @@ const HomeScreen = ({ navigation, route }) => {
   useEffect(() => {
     const connectSocket = async () => {
       const token = await AsyncStorage.getItem("token");
-      socket.auth = { token };
-      socket.connect();
+      const userId = await AsyncStorage.getItem("userId");
+      if (!token || !userId) {
+        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        return;
+      }
 
+      socket = io("http://192.168.1.189:5000", {
+        auth: { token },
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+      });
+      socket.on("connect", () => {
+        console.log("✅ Socket kết nối thành công");
+        socketConnection.emit("register", userId);
+      });
       socket.on("friend-request", (data) => {
         Alert.alert("Thông báo", data.message);
       });
-
       socket.on("friend-request-accepted", (data) => {
         Alert.alert("Thông báo", data.message);
+      });
+      socket.on("friend-removed", (data) => {
+        console.log("Thông báo", data.message);
       });
 
       socket.on("group:member-added", (data) => {
@@ -94,8 +104,12 @@ const HomeScreen = ({ navigation, route }) => {
         console.log("Nhận lời mời nhóm:", data);
       });
 
-      socket.on("connect_error", (err) => {
-        console.error("Socket connection error:", err);
+       socketConnection.on("disconnect", (reason) => {
+        console.log("Ngắt kết nối Socket.IO. Lý do:", reason);
+      });
+
+      socketConnection.on("connect_error", (error) => {
+        console.error("Lỗi kết nối Socket.IO", error);
       });
     };
 
@@ -217,14 +231,10 @@ const HomeScreen = ({ navigation, route }) => {
       Alert.alert("Thành công", "Lời mời kết bạn đã được gửi!");
       setMessage("Lời mời kết bạn đã được gửi!");
       setTimeout(() => setMessage(""), 3000);
+      fetchFriends();
     } catch (error) {
-      const errorMsg =
-        error.message === "Friend request already exists"
-          ? "Lời mời kết bạn đã được gửi trước đó!"
-          : "Không thể gửi lời mời kết bạn.";
-      setMessage(errorMsg);
       setTimeout(() => setMessage(""), 3000);
-      console.error("Error sending friend request:", error);
+      Alert.alert("Lời mời kết bạn đã được gửi trước đó!");
     }
   };
 
@@ -238,7 +248,7 @@ const HomeScreen = ({ navigation, route }) => {
       return;
     }
 
-    setIsCreatingGroup(true); // Bắt đầu loading
+    setIsCreatingGroup(true);
 
     try {
       const groupData = {
@@ -416,7 +426,7 @@ const HomeScreen = ({ navigation, route }) => {
             mode="contained"
             onPress={handleCreateGroup}
             style={styles.modalButton}
-            disabled={isCreatingGroup} // Vô hiệu hóa nút khi đang loading
+            disabled={isCreatingGroup}
             contentStyle={styles.createButtonContent}
           >
             {isCreatingGroup ? (
@@ -429,7 +439,7 @@ const HomeScreen = ({ navigation, route }) => {
             mode="outlined"
             onPress={() => setShowCreateGroupModal(false)}
             style={styles.modalButton}
-            disabled={isCreatingGroup} // Vô hiệu hóa nút Hủy khi đang loading
+            disabled={isCreatingGroup} 
           >
             Hủy
           </Button>

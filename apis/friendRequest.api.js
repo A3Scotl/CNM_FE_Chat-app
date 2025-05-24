@@ -38,6 +38,14 @@ const friendRequest = {
       throw new Error(handleApiError(error) || "Failed to reject friend request");
     }
   },
+  deleteFriendShip: async (requestId) => {
+    try {
+      const response = await axiosInstance.delete(`/friend-request/${requestId}`);
+      return response.data.data || response.data;
+    } catch (error) {
+      throw new Error(handleApiError(error) || "Failed to delete friend request");
+    }
+  },
 
   getFriends: async () => {
     try {
