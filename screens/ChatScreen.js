@@ -69,7 +69,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -638,7 +638,7 @@ const startRecording = async () => {
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      setSelectedFile({
+      setSelectedFiles({
         uri,
         name: `recording-${Date.now()}.mp3`,
         type: "audio/mp3",
@@ -717,7 +717,7 @@ const startRecording = async () => {
           size: asset.fileSize || 0,
         }));
         setSelectedMedia(selectedImages);
-        setSelectedFile(null);
+        setSelectedFiles(null);
       }
     } catch (error) {
       console.error("Lỗi chọn hình ảnh:", error);
@@ -726,145 +726,173 @@ const startRecording = async () => {
   };
 
   const pickDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-        copyToCacheDirectory: true,
-      });
+  try {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*", // hoặc ['application/pdf'] nếu chỉ muốn PDF
+      copyToCacheDirectory: true,
+      multiple: true,
+    });
 
-      if (result.type === "success") {
-        setSelectedFile({
-          uri: result.uri,
-          name: result.name,
-          type: mime.getType(result.name) || "application/octet-stream",
-          size: result.size,
-        });
-        setSelectedMedia([]);
-      }
-    } catch (error) {
-      console.error("Lỗi chọn tài liệu:", error);
-      Alert.alert("Lỗi", "Không thể chọn tài liệu, vui lòng thử lại.");
+    if (result.canceled) {
+      console.log("User cancelled file picker");
+      return;
     }
-  };
+
+    const files = result.assets || [result];
+    console.log("Picked files:", files);
+
+    // Cập nhật vào state
+    setSelectedFiles((prev) => [...prev, ...files]);
+  } catch (error) {
+    console.error("Error picking document:", error);
+  }
+};
 
   const removeMediaItem = (uriToRemove) => {
     setSelectedMedia((prevMedia) =>
       prevMedia.filter((media) => media.uri !== uriToRemove)
     );
   };
-
+  const removeFileItem = (uri) => {
+    setSelectedFiles((prev) => prev.filter((item) => item.uri !== uri));
+  };
   const cancelMediaSelection = () => {
     setSelectedMedia([]);
-    setSelectedFile(null);
+    setSelectedFiles(null);
   };
 
   const uploadToS3 = async (file) => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      const formData = new FormData();
-      formData.append("file", {
+  try {
+    const token = await AsyncStorage.getItem("token");
+    const formData = new FormData();
+
+    formData.append("file", {
         uri: Platform.OS === "ios" ? file.uri.replace("file://", "") : file.uri,
         name: file.name,
         type: file.type,
       });
 
-      const response = await fetch(`${API_URL}/upload`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+    const response = await fetch(`${API_URL}/upload`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        // KHÔNG set Content-Type
+      },
+      body: formData,
+    });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Lỗi tải lên tệp");
-      }
+    const data = await response.json();
 
-      return data.data.url;
-    } catch (error) {
-      console.error("Lỗi tải lên S3:", error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(data.message || "Lỗi tải lên tệp");
     }
-  };
+
+    return data.data.url;
+  } catch (error) {
+    console.error("Lỗi tải lên S3:", error);
+    throw error;
+  }
+};
+
 
   const uploadMedia = async () => {
-    if (!chat._id) {
-      console.error("uploadMedia: conversationId không hợp lệ", { chatId: chat._id });
-      Alert.alert("Lỗi", "Hội thoại không tồn tại.");
+  if (!chat?._id) {
+    console.error("uploadMedia: conversationId không hợp lệ", { chatId: chat._id });
+    Alert.alert("Lỗi", "Hội thoại không tồn tại.");
+    return;
+  }
+
+  try {
+    setIsSending(true);
+    const token = await AsyncStorage.getItem("token");
+
+    const hasImages = selectedMedia?.length > 0;
+    const hasFiles = selectedFiles?.length > 0;
+
+    if (!hasImages && !hasFiles) {
+      Alert.alert("Lỗi", "Không có tệp nào để gửi.");
       return;
     }
 
-    try {
-      setIsSending(true);
-      const token = await AsyncStorage.getItem("token");
+    // Gộp media + files lại
+    const allFiles = [
+      ...(selectedMedia || []),
+      ...(selectedFiles || [])
+    ];
 
-      let payload = {
-        conversationId: chat._id,
-        sender: user._id,
-        type: selectedMedia.length > 0 ? "image" : "audio",
-        content: message.trim() || (selectedMedia.length > 0 ? "Đã gửi hình ảnh" : "Đã gửi âm thanh"),
-      };
+    if (!allFiles || !Array.isArray(allFiles) || allFiles.length === 0) {
+  console.warn("Không có file nào để upload");
+  return; // Hoặc xử lý khác phù hợp
+}
 
-      if (replyingTo) {
-        payload.replyTo = replyingTo._id;
-      }
+const fileMeta = await Promise.all(
+  allFiles.map(async (file) => {
+    const url = await uploadToS3(file);
+    let duration = 0;
 
-      if (selectedMedia.length > 0 || selectedFile) {
-        const files = selectedMedia.length > 0 ? selectedMedia : [selectedFile];
-        const fileMeta = await Promise.all(
-          files.map(async (file) => {
-            const url = await uploadToS3(file);
-            let duration = 0;
-            if (file.type.startsWith("audio")) {
-              duration = await getAudioDuration(file.uri);
-            }
-            return {
-              name: file.name,
-              size: file.size || 0,
-              mimeType: file.type,
-              duration: duration || undefined,
-              url,
-            };
-          })
-        );
-
-        payload.fileMeta = fileMeta;
-      }
-
-      const response = await fetch(`${API_URL}/message/send`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const responseData = await response.json();
-
-      if (response.ok) {
-        setMessage("");
-        setSelectedMedia([]);
-        setSelectedFile(null);
-        setReplyingTo(null);
-      } else {
-        console.error("Lỗi server:", responseData);
-        Alert.alert("Lỗi", responseData.message || "Không thể gửi tệp");
-      }
-    } catch (error) {
-      console.error("Lỗi tải lên tệp:", error);
-      Alert.alert("Lỗi", "Không thể gửi tệp, vui lòng thử lại.");
-    } finally {
-      setIsSending(false);
+    if (file?.type?.startsWith("audio")) {
+      duration = await getAudioDuration(file.uri);
     }
-  };
+
+    return {
+      name: file.name,
+      size: file.size || 0,
+      mimeType: file.type || "application/octet-stream",
+      duration: duration || undefined,
+      url,
+    };
+  })
+);
+
+
+    const payload = {
+      conversationId: chat._id,
+      sender: user._id,
+      type: hasImages ? "image" : hasFiles ? "file" : "unknown",
+      content:
+        message.trim() ||
+        (hasImages ? "Đã gửi hình ảnh" : hasFiles ? "Đã gửi tài liệu" : ""),
+      fileMeta,
+    };
+
+    if (replyingTo) {
+      payload.replyTo = replyingTo._id;
+    }
+
+    const response = await fetch(`${API_URL}/message/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok) {
+      setMessage("");
+      setSelectedMedia([]);
+      setSelectedFiles([]); 
+      setReplyingTo(null);
+    } else {
+      console.error("Lỗi server:", responseData);
+      Alert.alert("Lỗi", responseData.message || "Không thể gửi tệp");
+    }
+  } catch (error) {
+    console.error("Lỗi tải lên tệp:", error);
+    Alert.alert("Lỗi", "Không thể gửi tệp, vui lòng thử lại.");
+  } finally {
+    setIsSending(false);
+  }
+};
+
 
   const handleSend = async () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage && selectedMedia.length === 0 && !selectedFile) return;
+    if (!trimmedMessage && selectedMedia.length === 0 && !selectedFiles) return;
 
-    if (selectedMedia.length > 0 || selectedFile) {
+    if (selectedMedia.length > 0 || selectedFiles) {
       await uploadMedia();
       return;
     }
@@ -1274,10 +1302,10 @@ const startRecording = async () => {
         </ScrollView>
         <ReplyPreview replyingTo={replyingTo} onCancel={cancelReply} />
         <MediaPreview
-          selectedMedia={selectedMedia}
-          selectedFile={selectedFile}
-          onCancel={cancelMediaSelection}
-          onRemoveMediaItem={removeMediaItem}
+          selectedMedia={selectedMedia}          
+          selectedFiles={selectedFiles}         
+          onRemoveMediaItem={removeMediaItem}  
+          onRemoveFileItem={removeFileItem}      
         />
         <InputBar
           message={message}
@@ -1287,7 +1315,7 @@ const startRecording = async () => {
           isRecording={isRecording}
           isSending={isSending}
           selectedMedia={selectedMedia}
-          selectedFile={selectedFile}
+          selectedFiles={selectedFiles}
           onSend={handleSend}
           onPickImage={pickImage}
           onPickDocument={pickDocument}

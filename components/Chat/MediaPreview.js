@@ -1,34 +1,92 @@
-import React from "react";
-import { View, Image, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { View, Image, StyleSheet, ScrollView, TouchableOpacity, Text } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
-const MediaPreview = ({ selectedMedia, selectedFile, onCancel, onRemoveMediaItem }) => {
-  if (!selectedMedia.length && !selectedFile) return null;
+const getFileExtension = (filename) => {
+  const parts = filename.split(".");
+  return parts.length > 1 ? parts.pop().toLowerCase() : "";
+};
+
+const fileTypeIcons = {
+  pdf: "picture-as-pdf",
+  doc: "description",
+  docx: "description",
+  xls: "grid-on",
+  xlsx: "grid-on",
+  ppt: "slideshow",
+  pptx: "slideshow",
+  txt: "notes",
+  default: "insert-drive-file",
+};
+
+const MediaPreview = ({
+  selectedMedia = [],
+  selectedFiles = [],
+  onCancel,
+  onRemoveMediaItem,
+  onRemoveFileItem,
+}) => {
+  // State để track lỗi load ảnh
+  const [imageLoadErrorUris, setImageLoadErrorUris] = useState([]);
+
+  const handleImageError = (uri) => {
+    setImageLoadErrorUris((prev) => [...prev, uri]);
+  };
+
+  if (selectedMedia.length === 0 && selectedFiles.length === 0) return null;
 
   return (
     <View style={styles.previewContainer}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {selectedMedia.map((media, index) => (
-          <View key={index} style={styles.previewItem}>
-            <Image source={{ uri: media.uri }} style={styles.previewImage} />
-            <TouchableOpacity
-              style={styles.removeButton}
-              onPress={() => onRemoveMediaItem(media.uri)}
-            >
-              <MaterialIcons name="close" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-        ))}
-        {selectedFile && (
-          <View style={styles.previewItem}>
-            <View style={styles.filePlaceholder}>
-              <MaterialIcons name="insert-drive-file" size={40} color="#666" />
+        {/* Hiển thị ảnh */}
+        {selectedMedia.map((media, index) => {
+          const hasError = imageLoadErrorUris.includes(media.uri);
+          return (
+            <View key={index} style={styles.previewItem}>
+              {hasError ? (
+                <View style={[styles.previewImage, styles.imageError]}>
+                  <MaterialIcons name="broken-image" size={40} color="#999" />
+                  <Text style={styles.errorText}>Không thể tải ảnh</Text>
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: media.uri }}
+                  style={styles.previewImage}
+                  onError={() => handleImageError(media.uri)}
+                />
+              )}
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => onRemoveMediaItem(media.uri)}
+              >
+                <MaterialIcons name="close" size={20} color="white" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.removeButton} onPress={onCancel}>
-              <MaterialIcons name="close" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-        )}
+          );
+        })}
+
+        {/* Hiển thị file */}
+        {selectedFiles.map((file, index) => {
+          const ext = getFileExtension(file.name);
+          const iconName = fileTypeIcons[ext] || fileTypeIcons.default;
+
+          return (
+            <View key={index} style={styles.previewItem}>
+              <View style={styles.filePlaceholder}>
+                <MaterialIcons name={iconName} size={40} color="#666" />
+                <Text style={styles.fileName} numberOfLines={1}>
+                  {file.name}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => onRemoveFileItem(file.uri)}
+              >
+                <MaterialIcons name="close" size={20} color="white" />
+              </TouchableOpacity>
+            </View>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -44,11 +102,24 @@ const styles = StyleSheet.create({
   previewItem: {
     marginRight: 10,
     position: "relative",
+    width: 100,
   },
   previewImage: {
     width: 100,
     height: 100,
     borderRadius: 8,
+    resizeMode: "cover",
+  },
+  imageError: {
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 5,
+    textAlign: "center",
   },
   filePlaceholder: {
     width: 100,
@@ -57,6 +128,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#f0f0f0",
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 5,
+  },
+  fileName: {
+    marginTop: 5,
+    fontSize: 12,
+    color: "#333",
+    textAlign: "center",
   },
   removeButton: {
     position: "absolute",
@@ -65,6 +143,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: 12,
     padding: 4,
+    zIndex: 10,
   },
 });
 
