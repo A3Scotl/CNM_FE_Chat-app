@@ -346,10 +346,10 @@ const ChatScreen = ({ navigation, route }) => {
           if (groupId === chat._id) {
             fetchMemberInGroupDetails();
             if (addedBy !== userId) {
-              Alert.alert(
-                "Thành viên mới",
-                `Một người dùng đã được thêm vào nhóm.`
-              );
+              // Alert.alert(
+              //   "Thành viên mới",
+              //   `Một người dùng đã được thêm vào nhóm.`
+              // );
               try {
                 Audio.Sound.createAsync(
                   require("../assets/sounds/invite-group.mp3")
@@ -585,22 +585,22 @@ const ChatScreen = ({ navigation, route }) => {
       socketConnection.on(
         "require-approval-toggled",
         ({ groupId, requireApproval }) => {
-          console.log("Nhận sự kiện require-approval-toggled:", {
-            groupId,
-            requireApproval,
-          });
+          // console.log("Nhận sự kiện require-approval-toggled:", {
+          //   groupId,
+          //   requireApproval,
+          // });
           if (groupId === chat._id) {
             setConversationDetails((prev) => ({
               ...prev,
               requireApproval,
             }));
             if (!isTogglingApproval) {
-              Alert.alert(
-                "Cập nhật cài đặt",
-                `Yêu cầu duyệt thành viên đã được ${
-                  requireApproval ? "bật" : "tắt"
-                }.`
-              );
+              // Alert.alert(
+              //   "Cập nhật cài đặt",
+              //   `Yêu cầu duyệt thành viên đã được ${
+              //     requireApproval ? "bật" : "tắt"
+              //   }.`
+              // );
               try {
                 Audio.Sound.createAsync(
                   require("../assets/sounds/invite-group.mp3")
@@ -1407,16 +1407,6 @@ const ChatScreen = ({ navigation, route }) => {
         ...prev,
         requireApproval: result.requireApproval,
       }));
-      Alert.alert(
-        "Thành công",
-        `Đã ${result.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
-      );
-      // if (socket) {
-      //   socket.emit("group:requireApprovalChanged", {
-      //     groupId: chat._id,
-      //     requireApproval: result.requireApproval,
-      //   });
-      // }
     } catch (error) {
       console.error("Lỗi bật/tắt yêu cầu duyệt:", error);
 
@@ -1424,7 +1414,7 @@ const ChatScreen = ({ navigation, route }) => {
         ...prev,
         requireApproval: !prev.requireApproval,
       }));
-      Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
+      // Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
     } finally {
       setIsTogglingApproval(false);
     }

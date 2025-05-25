@@ -100,10 +100,6 @@ const ChatInfoModal = ({
         "https://i.pravatar.cc/150";
 
   useEffect(() => {
-    console.log("ChatInfoModal: conversationDetails:", conversationDetails);
-  }, [conversationDetails]);
-
-  useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin) && isEditingName) {
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -128,76 +124,6 @@ const ChatInfoModal = ({
     }).start();
   }, [membersExpanded]);
 
-  ///////////////////thêm các handle xử lý thêm thành viên vào nhóm
-  const fetchPendingInvites = async () => {
-    try {
-      const invites = await getPendingGroupInvites();
-      setPendingInvites(invites.data);
-    } catch (error) {
-      console.error("Lỗi tải danh sách lời mời:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách lời mời.");
-    }
-  };
-
-  const fetchFriends = async () => {
-    try {
-      await onFetchAvailableFriends();
-      setFriendsLoaded(true);
-    } catch (error) {
-      console.error("Lỗi tải danh sách bạn bè:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
-    }
-  };
-
-  const handleInviteSent = (invitedUserIds) => {
-    invitedUserIds.forEach((userId) => {
-      socket?.emit("new-group-invite", {
-        groupId: chat._id,
-        invitedUser: userId,
-        invitedBy: user._id,
-        inviteId: `temp-${Date.now()}-${userId}`,
-      });
-    });
-  };
-
-  // const handleAcceptInvite = async (inviteId) => {
-  //   try {
-  //     await acceptGroupInvite(inviteId);
-  //     setPendingInvites((prev) =>
-  //       prev.filter((invite) => invite._id !== inviteId)
-  //     );
-  //     socket?.emit("group-invite-accepted", {
-  //       groupId: chat._id,
-  //       userId: pendingInvites.find((inv) => inv._id === inviteId)?.invitedUser
-  //         ._id,
-  //       inviteId,
-  //     });
-  //     Alert.alert("Thành công", "Đã chấp nhận lời mời.");
-  //   } catch (error) {
-  //     console.error("Lỗi chấp nhận lời mời:", error);
-  //     Alert.alert("Lỗi", "Không thể chấp nhận lời mời.");
-  //   }
-  // };
-
-  // const handleRejectInvite = async (inviteId) => {
-  //   try {
-  //     await rejectGroupInvite(inviteId);
-  //     setPendingInvites((prev) =>
-  //       prev.filter((invite) => invite._id !== inviteId)
-  //     );
-  //     socket?.emit("group-invite-rejected", {
-  //       groupId: chat._id,
-  //       userId: pendingInvites.find((inv) => inv._id === inviteId)?.invitedUser
-  //         ._id,
-  //       inviteId,
-  //     });
-  //     Alert.alert("Thành công", "Đã từ chối lời mời.");
-  //   } catch (error) {
-  //     console.error("Lỗi từ chối lời mời:", error);
-  //     Alert.alert("Lỗi", "Không thể từ chối lời mời.");
-  //   }
-  // };
-  /////////////////////////////////////////////////////////////
   const handleUpdate = async () => {
     if (!newGroupName.trim() && !newGroupAvatar) {
       setError("Vui lòng nhập tên nhóm hoặc chọn ảnh mới");
@@ -345,7 +271,9 @@ const ChatInfoModal = ({
                   <Text style={styles.modalSectionTitle}>
                     Danh sách duyệt vào nhóm ({pendingInvites.length})
                   </Text>
-                  {pendingInvites.length === 0 ? (
+                  {loadingInvites ? (
+                    <ActivityIndicator size="small" color="#0098f9" />
+                  ) : pendingInvites.length === 0 ? (
                     <Text style={styles.emptyText}>
                       Không có lời mời nào đang chờ.
                     </Text>
@@ -491,10 +419,10 @@ const ChatInfoModal = ({
                   <TouchableOpacity
                     onPress={() => {
                       if (showInviteButton) {
-                        fetchFriends();
+                        fetchAvailableFriends();
                         setShowInviteModal(true);
                       } else {
-                        onFetchAvailableFriends();
+                        fetchAvailableFriends();
                         setShowAddMemberModal(true);
                       }
                     }}
@@ -665,10 +593,6 @@ const ChatInfoModal = ({
         onDismiss={() => setShowInviteModal(false)}
         chatId={chat._id}
         userId={user._id}
-        friends={availableFriends}
-        friendsLoaded={friendsLoaded}
-        onFetchFriends={fetchFriends}
-        onInviteSent={handleInviteSent}
         socket={socket}
       />
     </Portal>

@@ -56,10 +56,8 @@ const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
 
     setLoading(true);
     try {
-      const invitedUserIds = [];
       for (const invitedUserId of selectedUsers) {
-        const inviteId = await handleSendInvite(invitedUserId);
-        invitedUserIds.push({ userId: invitedUserId, inviteId });
+        await handleSendInvite(invitedUserId);
       }
       setSelectedUsers([]);
       onDismiss();

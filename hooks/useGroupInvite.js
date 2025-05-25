@@ -20,11 +20,10 @@ export const useGroupInvite = (userId, chatId, socket) => {
     if (!chatId) return;
     setLoadingInvites(true);
     try {
-      const invites = await getPendingGroupInvites();
+      const invites = await getPendingGroupInvites(chatId); // Truyền chatId (groupId)
       setPendingInvites(invites.data || []);
     } catch (error) {
-      //   console.error("Error fetching pending invites:", error);
-      //   Alert.alert("Error", "Unable to load pending invites.");
+      // Alert.alert("Lỗi", "Không thể tải danh sách lời mời.");
     } finally {
       setLoadingInvites(false);
     }
@@ -39,76 +38,88 @@ export const useGroupInvite = (userId, chatId, socket) => {
       setAvailableFriends(friends.data || []);
       setFriendsLoaded(true);
     } catch (error) {
-      //   console.error("Error fetching available friends:", error);
-      //   Alert.alert("Error", "Unable to load friends list.");
+      // Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
     } finally {
       setLoadingFriends(false);
     }
   }, [chatId]);
 
   // Send group invite
-  const handleSendInvite = async (invitedUserId) => {
-    try {
-      await sendGroupInvite(chatId, invitedUserId, userId);
-      const inviteId = `temp-${Date.now()}-${invitedUserId}`;
-      socket?.emit("new-group-invite", {
-        groupId: chatId,
-        invitedUser: invitedUserId,
-        invitedBy: userId,
-        inviteId,
-      });
-      Alert.alert("Success", "Group invite sent.");
-      return inviteId;
-    } catch (error) {
-      console.error("Error sending group invite:", error);
-      Alert.alert("Error", "Unable to send group invite.");
-      throw error;
-    }
-  };
+  const handleSendInvite = useCallback(
+    async (invitedUserId) => {
+      if (!chatId || !invitedUserId) return;
+      try {
+        const response = await sendGroupInvite(chatId, invitedUserId);
+        const inviteId = response._id || `temp-${Date.now()}-${invitedUserId}`;
+        if (socket?.connected) {
+          socket.emit("new-group-invite", {
+            groupId: chatId,
+            invitedUser: invitedUserId,
+            invitedBy: userId,
+            inviteId,
+          });
+        }
+        Alert.alert("Thành công", "Đã gửi lời mời tham gia nhóm.");
+        return inviteId;
+      } catch (error) {
+        Alert.alert("Lỗi", "Không thể gửi lời mời tham gia nhóm.");
+        throw error;
+      }
+    },
+    [chatId, userId, socket]
+  );
 
   // Accept group invite
-  const handleAcceptInvite = async (inviteId) => {
-    try {
-      await acceptGroupInvite(inviteId);
-      setPendingInvites((prev) =>
-        prev.filter((invite) => invite._id !== inviteId)
-      );
-      const invite = pendingInvites.find((inv) => inv._id === inviteId);
-      socket?.emit("group-invite-accepted", {
-        groupId: chatId,
-        userId: invite?.invitedUser._id,
-        inviteId,
-      });
-      Alert.alert("Success", "Group invite accepted.");
-    } catch (error) {
-      console.error("Error accepting group invite:", error);
-      Alert.alert("Error", "Unable to accept group invite.");
-    }
-  };
+  const handleAcceptInvite = useCallback(
+    async (inviteId) => {
+      try {
+        await acceptGroupInvite(inviteId);
+        setPendingInvites((prev) =>
+          prev.filter((invite) => invite._id !== inviteId)
+        );
+        const invite = pendingInvites.find((inv) => inv._id === inviteId);
+        if (socket?.connected && invite) {
+          socket.emit("group-invite-accepted", {
+            groupId: chatId,
+            userId: invite.invitedUser._id,
+            inviteId,
+          });
+        }
+        Alert.alert("Thành công", "Đã chấp nhận lời mời nhóm.");
+      } catch (error) {
+        Alert.alert("Lỗi", "Không thể chấp nhận lời mời nhóm.");
+      }
+    },
+    [chatId, socket, pendingInvites]
+  );
 
   // Reject group invite
-  const handleRejectInvite = async (inviteId) => {
-    try {
-      await rejectGroupInvite(inviteId);
-      setPendingInvites((prev) =>
-        prev.filter((invite) => invite._id !== inviteId)
-      );
-      const invite = pendingInvites.find((inv) => inv._id === inviteId);
-      socket?.emit("group-invite-rejected", {
-        groupId: chatId,
-        userId: invite?.invitedUser._id,
-        inviteId,
-      });
-      Alert.alert("Success", "Group invite rejected.");
-    } catch (error) {
-      console.error("Error rejecting group invite:", error);
-      Alert.alert("Error", "Unable to reject group invite.");
-    }
-  };
+  const handleRejectInvite = useCallback(
+    async (inviteId) => {
+      try {
+        await rejectGroupInvite(inviteId);
+        setPendingInvites((prev) =>
+          prev.filter((invite) => invite._id !== inviteId)
+        );
+        const invite = pendingInvites.find((inv) => inv._id === inviteId);
+        if (socket?.connected && invite) {
+          socket.emit("group-invite-rejected", {
+            groupId: chatId,
+            userId: invite.invitedUser._id,
+            inviteId,
+          });
+        }
+        Alert.alert("Thành công", "Đã từ chối lời mời nhóm.");
+      } catch (error) {
+        Alert.alert("Lỗi", "Không thể từ chối lời mời nhóm.");
+      }
+    },
+    [chatId, socket, pendingInvites]
+  );
 
   // Socket event listeners
   useEffect(() => {
-    if (!socket || !chatId) return;
+    if (!socket?.connected || !chatId) return;
 
     const handleNewGroupInvite = ({
       groupId,
@@ -128,9 +139,13 @@ export const useGroupInvite = (userId, chatId, socket) => {
               avatar: "https://i.pravatar.cc/150",
             },
             invitedBy,
+            status: "pending",
           },
         ]);
-        Alert.alert("New Invite", `New group invite from ${invitedBy}.`);
+        Alert.alert(
+          "Lời mời mới",
+          `Có lời mời nhóm mới từ người dùng ${invitedBy}.`
+        );
       }
     };
 

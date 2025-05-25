@@ -316,41 +316,41 @@ const ConversationList = ({ currentUser }) => {
         }
       );
 
-      socketConnection.on(
-        "group:requireApprovalChanged",
-        ({ groupId, requireApproval }) => {
-          setConversations((prev) => {
-            const updatedConversations = prev.map((convo) => {
-              if (convo._id === groupId) {
-                return {
-                  ...convo,
-                  requireApproval,
-                };
-              }
-              return convo;
-            });
-            return sortConversations([...updatedConversations]);
-          });
-          try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
-              });
-            });
-            Alert.alert(
-              "Cập nhật nhóm",
-              `Yêu cầu duyệt thành viên đã được ${
-                requireApproval ? "bật" : "tắt"
-              }.`
-            );
-          } catch (err) {
-            console.error("Lỗi phát âm thanh thông báo:", err);
-          }
-        }
-      );
+      // socketConnection.on(
+      //   "group:requireApprovalChanged",
+      //   ({ groupId, requireApproval }) => {
+      //     setConversations((prev) => {
+      //       const updatedConversations = prev.map((convo) => {
+      //         if (convo._id === groupId) {
+      //           return {
+      //             ...convo,
+      //             requireApproval,
+      //           };
+      //         }
+      //         return convo;
+      //       });
+      //       return sortConversations([...updatedConversations]);
+      //     });
+      //     try {
+      //       Audio.Sound.createAsync(
+      //         require("../assets/sounds/invite-group.mp3")
+      //       ).then(({ sound }) => {
+      //         sound.playAsync();
+      //         sound.setOnPlaybackStatusUpdate((status) => {
+      //           if (status.didJustFinish) sound.unloadAsync();
+      //         });
+      //       });
+      //       // Alert.alert(
+      //       //   "Cập nhật nhóm",
+      //       //   `Yêu cầu duyệt thành viên đã được ${
+      //       //     requireApproval ? "bật" : "tắt"
+      //       //   }.`
+      //       // );
+      //     } catch (err) {
+      //       console.error("Lỗi phát âm thanh thông báo:", err);
+      //     }
+      //   }
+      // );
 
       socketConnection.on("disconnect", (reason) => {
         console.log(
