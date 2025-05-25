@@ -767,10 +767,11 @@ const startRecording = async () => {
     const formData = new FormData();
 
     formData.append("file", {
-        uri: Platform.OS === "ios" ? file.uri.replace("file://", "") : file.uri,
-        name: file.name,
-        type: file.type,
-      });
+      uri: Platform.OS === "ios" ? file.uri.replace("file://", "") : file.uri,
+      name: file.name,
+      type: file.mimeType || file.type || "application/octet-stream",
+    });
+
 
     const response = await fetch(`${API_URL}/upload`, {
       method: "POST",
