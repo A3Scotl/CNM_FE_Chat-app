@@ -21,6 +21,7 @@ import { getMyConversations } from "../apis/conversation.api";
 import ChatList from "../components/Chat/ChatList";
 import io from "socket.io-client";
 import { Audio } from "expo-av";
+import {API_URL,SOCKET_URL} from "@env";
 
 dayjs.extend(relativeTime);
 
@@ -108,7 +109,7 @@ const ContactsScreen = () => {
         return;
       }
 
-      socketConnection = io("http://192.168.1.189:5000", {
+      socketConnection = io(SOCKET_URL, {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
@@ -238,7 +239,7 @@ const ContactsScreen = () => {
   const handleChat = async (friend) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      const response = await fetch("http://192.168.1.189:5000/api/conversation/detail", {
+      const response = await fetch(`${API_URL}/conversation/detail`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -7,6 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import { Audio } from "expo-av";
 import { debounce } from "lodash";
+import {API_URL,SOCKET_URL} from "@env";
 
 const ConversationList = ({ currentUser }) => {
   const [conversations, setConversations] = useState([]);
@@ -77,7 +78,7 @@ const ConversationList = ({ currentUser }) => {
         return;
       }
 
-      socketConnection = io("http://192.168.1.189:5000", {
+      socketConnection = io(SOCKET_URL, {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,

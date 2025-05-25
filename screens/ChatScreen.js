@@ -40,6 +40,8 @@ import ReplyPreview from "../components/Chat/ReplyPreview";
 import MediaPreview from "../components/Chat/MediaPreview";
 import InputBar from "../components/Chat/InputBar";
 import ImagePreviewModal from "../components/Chat/ImagePreviewModal";
+import {API_URL,SOCKET_URL} from "@env";
+
 
 const ChatScreen = ({ navigation, route }) => {
   if (!route?.params || !route.params.chat || !route.params.user) {
@@ -200,7 +202,7 @@ const ChatScreen = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const socketConnection = io("http://192.168.1.189:5000", {
+      const socketConnection = io(SOCKET_URL, {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 5,
@@ -778,7 +780,7 @@ const ChatScreen = ({ navigation, route }) => {
         type: file.type,
       });
 
-      const response = await fetch("http://192.168.1.189:5000/api/upload", {
+      const response = await fetch(`${API_URL}/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -842,7 +844,7 @@ const ChatScreen = ({ navigation, route }) => {
         payload.fileMeta = fileMeta;
       }
 
-      const response = await fetch("http://192.168.1.189:5000/api/message/send", {
+      const response = await fetch(`${API_URL}/message/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -900,7 +902,7 @@ const ChatScreen = ({ navigation, route }) => {
         payload.replyTo = replyingTo._id;
       }
 
-      const response = await fetch("http://192.168.1.189:5000/api/message/send", {
+      const response = await fetch(`${API_URL}/message/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
