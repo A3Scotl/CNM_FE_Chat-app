@@ -77,7 +77,6 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
 
 const renderMedia = () => {
   if (!msg.fileMeta || msg.fileMeta.length === 0) return null;
-  console.log('msg.content:', msg.content); // Log để kiểm tra
 
   return (
     <View style={styles.mediaContainer}>
