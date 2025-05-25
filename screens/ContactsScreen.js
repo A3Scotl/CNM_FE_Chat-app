@@ -117,7 +117,7 @@ const ContactsScreen = () => {
         return;
       }
 
-      socketConnection = io("http://192.168.1.9:5000", {
+      socketConnection = io("http://192.168.1.8:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
@@ -262,7 +262,7 @@ const ContactsScreen = () => {
     try {
       const token = await AsyncStorage.getItem("token");
       const response = await fetch(
-        "http://192.168.1.9:3000/api/conversation/detail",
+        "http://192.168.1.8:3000/api/conversation/detail",
         {
           method: "POST",
           headers: {

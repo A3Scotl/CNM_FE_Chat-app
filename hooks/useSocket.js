@@ -75,34 +75,14 @@ export const useSocket = (
           }
         });
 
-        if (onNewGroupInvite) {
-          socket.on("new-group-invite", (data) => {
-            onNewGroupInvite(data);
-          });
-        }
-
-        if (onGroupInviteAccepted) {
-          socket.on("group-invite-accepted", (data) => {
-            onGroupInviteAccepted(data);
-          });
-        }
-
-        if (onGroupInviteRejected) {
-          socket.on("group-invite-rejected", (data) => {
-            onGroupInviteRejected(data);
-          });
-        }
-
         socketRef.current.on(
           "require-approval-toggled",
-          ({ groupId, requireApproval, message }) => {
-            console.log("Trạng thái duyệt thành viên thay đổi:", {
-              groupId,
-              requireApproval,
-              message,
-            });
-            if (onRequireApprovalToggled) {
-              onRequireApprovalToggled({ groupId, requireApproval, message });
+          ({ groupId, requireApproval }) => {
+            if (groupId === chatId) {
+              setConversationDetails((prev) => ({
+                ...prev,
+                requireApproval,
+              }));
             }
           }
         );
@@ -152,10 +132,6 @@ export const useSocket = (
     onNewMessage,
     onTyping,
     onStopTyping,
-    onNewGroupInvite,
-    onGroupInviteAccepted,
-    onGroupInviteRejected,
-    onRequireApprovalToggled,
   ]);
 
   const joinRoom = (conversationId) => {

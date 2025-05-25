@@ -23,12 +23,8 @@ import {
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AddMemberModal from "./AddMemberModal";
 import InviteMemberModal from "./InviteMemberModal";
-import {
-  getPendingGroupInvites,
-  acceptGroupInvite,
-  rejectGroupInvite,
-} from "../../apis/pendingGroupInvite.api";
-import { getFriendsNotInGroup } from "../../apis/conversationGroup.api";
+import { useGroupInvite } from "../../hooks/useGroupInvite";
+
 const ChatInfoModal = ({
   visible,
   onDismiss,
@@ -45,7 +41,6 @@ const ChatInfoModal = ({
   setNewGroupAvatar,
   showAddMemberModal,
   setShowAddMemberModal,
-  availableFriends,
   onPickAvatar,
   onUpdateGroupInfo,
   onToggleRequireApproval,
@@ -54,9 +49,9 @@ const ChatInfoModal = ({
   onAddMember,
   onRemoveMember,
   onChangeMemberRole,
-  onFetchAvailableFriends,
   onOpenImagePreview,
   isTogglingApproval,
+  socket,
 }) => {
   const isGroup = chat.type === "group";
   const images = messages.filter(
@@ -72,14 +67,22 @@ const ChatInfoModal = ({
   const [error, setError] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [pendingInvites, setPendingInvites] = useState([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [friendsLoaded, setFriendsLoaded] = useState(false);
   const inputRef = useRef(null);
 
   const isMember = !isOwner && !isAdmin;
   const showInviteButton =
     isGroup && isMember && conversationDetails?.requireApproval;
+
+  const {
+    pendingInvites,
+    availableFriends,
+    friendsLoaded,
+    loadingInvites,
+    fetchAvailableFriends,
+    handleAcceptInvite,
+    handleRejectInvite,
+  } = useGroupInvite(user._id, chat._id, socket);
 
   const displayName =
     conversationDetails?.user?.fullName ||
@@ -157,43 +160,43 @@ const ChatInfoModal = ({
     });
   };
 
-  const handleAcceptInvite = async (inviteId) => {
-    try {
-      await acceptGroupInvite(inviteId);
-      setPendingInvites((prev) =>
-        prev.filter((invite) => invite._id !== inviteId)
-      );
-      socket?.emit("group-invite-accepted", {
-        groupId: chat._id,
-        userId: pendingInvites.find((inv) => inv._id === inviteId)?.invitedUser
-          ._id,
-        inviteId,
-      });
-      Alert.alert("Thành công", "Đã chấp nhận lời mời.");
-    } catch (error) {
-      console.error("Lỗi chấp nhận lời mời:", error);
-      Alert.alert("Lỗi", "Không thể chấp nhận lời mời.");
-    }
-  };
+  // const handleAcceptInvite = async (inviteId) => {
+  //   try {
+  //     await acceptGroupInvite(inviteId);
+  //     setPendingInvites((prev) =>
+  //       prev.filter((invite) => invite._id !== inviteId)
+  //     );
+  //     socket?.emit("group-invite-accepted", {
+  //       groupId: chat._id,
+  //       userId: pendingInvites.find((inv) => inv._id === inviteId)?.invitedUser
+  //         ._id,
+  //       inviteId,
+  //     });
+  //     Alert.alert("Thành công", "Đã chấp nhận lời mời.");
+  //   } catch (error) {
+  //     console.error("Lỗi chấp nhận lời mời:", error);
+  //     Alert.alert("Lỗi", "Không thể chấp nhận lời mời.");
+  //   }
+  // };
 
-  const handleRejectInvite = async (inviteId) => {
-    try {
-      await rejectGroupInvite(inviteId);
-      setPendingInvites((prev) =>
-        prev.filter((invite) => invite._id !== inviteId)
-      );
-      socket?.emit("group-invite-rejected", {
-        groupId: chat._id,
-        userId: pendingInvites.find((inv) => inv._id === inviteId)?.invitedUser
-          ._id,
-        inviteId,
-      });
-      Alert.alert("Thành công", "Đã từ chối lời mời.");
-    } catch (error) {
-      console.error("Lỗi từ chối lời mời:", error);
-      Alert.alert("Lỗi", "Không thể từ chối lời mời.");
-    }
-  };
+  // const handleRejectInvite = async (inviteId) => {
+  //   try {
+  //     await rejectGroupInvite(inviteId);
+  //     setPendingInvites((prev) =>
+  //       prev.filter((invite) => invite._id !== inviteId)
+  //     );
+  //     socket?.emit("group-invite-rejected", {
+  //       groupId: chat._id,
+  //       userId: pendingInvites.find((inv) => inv._id === inviteId)?.invitedUser
+  //         ._id,
+  //       inviteId,
+  //     });
+  //     Alert.alert("Thành công", "Đã từ chối lời mời.");
+  //   } catch (error) {
+  //     console.error("Lỗi từ chối lời mời:", error);
+  //     Alert.alert("Lỗi", "Không thể từ chối lời mời.");
+  //   }
+  // };
   /////////////////////////////////////////////////////////////
   const handleUpdate = async () => {
     if (!newGroupName.trim() && !newGroupAvatar) {

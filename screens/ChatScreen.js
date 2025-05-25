@@ -47,6 +47,7 @@ import MediaPreview from "../components/Chat/MediaPreview";
 import InputBar from "../components/Chat/InputBar";
 import ImagePreviewModal from "../components/Chat/ImagePreviewModal";
 import { useSocket } from "../hooks/useSocket";
+import { useGroupInvite } from "../hooks/useGroupInvite";
 
 const ChatScreen = ({ navigation, route }) => {
   if (!route?.params || !route.params.chat || !route.params.user) {
@@ -95,7 +96,6 @@ const ChatScreen = ({ navigation, route }) => {
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupAvatar, setNewGroupAvatar] = useState(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [availableFriends, setAvailableFriends] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [returnToChatInfo, setReturnToChatInfo] = useState(false);
@@ -107,7 +107,12 @@ const ChatScreen = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [additionalContent, setAdditionalContent] = useState("");
   const [isTogglingApproval, setIsTogglingApproval] = useState(false);
-  const [pendingInvites, setPendingInvites] = useState([]);
+
+  const { availableFriends, fetchAvailableFriends } = useGroupInvite(
+    user._id,
+    chat._id,
+    socket
+  );
 
   useEffect(() => {
     if (!chat?._id) {
@@ -139,26 +144,26 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
-  const fetchPendingInvites = async () => {
-    if (isOwner || isAdmin) {
-      try {
-        const invites = await getPendingGroupInvites();
-        setPendingInvites(invites.data);
-      } catch (error) {
-        console.error("Lỗi tải danh sách lời mời:", error);
-      }
-    }
-  };
+  // const fetchPendingInvites = async () => {
+  //   if (isOwner || isAdmin) {
+  //     try {
+  //       const invites = await getPendingGroupInvites();
+  //       setPendingInvites(invites.data);
+  //     } catch (error) {
+  //       console.error("Lỗi tải danh sách lời mời:", error);
+  //     }
+  //   }
+  // };
 
-  const fetchAvailableFriends = async () => {
-    try {
-      const friends = await getFriendsNotInGroup(chat._id);
-      setAvailableFriends(friends.data);
-    } catch (error) {
-      console.error("Lỗi lấy danh sách bạn bè:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
-    }
-  };
+  // const fetchAvailableFriends = async () => {
+  //   try {
+  //     const friends = await getFriendsNotInGroup(chat._id);
+  //     setAvailableFriends(friends.data);
+  //   } catch (error) {
+  //     console.error("Lỗi lấy danh sách bạn bè:", error);
+  //     Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
+  //   }
+  // };
 
   const fetchConversations = async () => {
     try {
@@ -250,7 +255,7 @@ const ChatScreen = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const socketConnection = io("http://192.168.1.9:5000", {
+      const socketConnection = io("http://192.168.1.8:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 5,
@@ -1007,7 +1012,7 @@ const ChatScreen = ({ navigation, route }) => {
         type: file.type,
       });
 
-      const response = await fetch("http://192.168.1.9:3000/api/upload", {
+      const response = await fetch("http://192.168.1.8:3000/api/upload", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1075,7 +1080,7 @@ const ChatScreen = ({ navigation, route }) => {
         payload.fileMeta = fileMeta;
       }
 
-      const response = await fetch("http://192.168.1.9:3000/api/message/send", {
+      const response = await fetch("http://192.168.1.8:3000/api/message/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1135,7 +1140,7 @@ const ChatScreen = ({ navigation, route }) => {
         payload.replyTo = replyingTo._id;
       }
 
-      const response = await fetch("http://192.168.1.9:3000/api/message/send", {
+      const response = await fetch("http://192.168.1.8:3000/api/message/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -79,7 +79,7 @@ const HomeScreen = ({ navigation, route }) => {
         return;
       }
 
-      socketConnection = io("http://192.168.1.9:5000", {
+      socketConnection = io("http://192.168.1.8:5000", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,

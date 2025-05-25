@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -10,8 +10,8 @@ import {
 } from "react-native";
 import { Portal, Modal, Text, Avatar, Button } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { getFriendsNotInGroup } from "../../apis/conversationGroup.api";
-import { sendGroupInvite } from "../../apis/pendingGroupInvite.api";
+import { useGroupInvite } from "../../hooks/useGroupInvite";
+
 const { width, height } = Dimensions.get("window");
 const baseWidth = 375;
 const baseHeight = 667;
@@ -23,38 +23,22 @@ const normalize = (size, isHeight = false) => {
   return Math.round(size * scale);
 };
 
-const InviteMemberModal = ({
-  visible,
-  onDismiss,
-  chatId,
-  userId,
-  friends,
-  friendsLoaded,
-  onFetchFriends,
-  onInviteSent,
-  socket,
-}) => {
+const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingFriends, setLoadingFriends] = useState(false);
+  const {
+    availableFriends,
+    friendsLoaded,
+    loadingFriends,
+    fetchAvailableFriends,
+    handleSendInvite,
+  } = useGroupInvite(userId, chatId, socket);
 
   useEffect(() => {
     if (visible && !friendsLoaded) {
-      fetchFriends();
+      fetchAvailableFriends();
     }
-  }, [visible, friendsLoaded]);
-
-  const fetchFriends = async () => {
-    setLoadingFriends(true);
-    try {
-      await onFetchFriends();
-    } catch (error) {
-      console.error("Lỗi tải danh sách bạn bè:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
-    } finally {
-      setLoadingFriends(false);
-    }
-  };
+  }, [visible, friendsLoaded, fetchAvailableFriends]);
 
   const toggleUserSelection = (userId) => {
     setSelectedUsers((prev) =>
@@ -72,16 +56,15 @@ const InviteMemberModal = ({
 
     setLoading(true);
     try {
+      const invitedUserIds = [];
       for (const invitedUserId of selectedUsers) {
-        await sendGroupInvite(chatId, invitedUserId, userId);
+        const inviteId = await handleSendInvite(invitedUserId);
+        invitedUserIds.push({ userId: invitedUserId, inviteId });
       }
-      Alert.alert("Thành công", "Đã gửi lời mời tham gia nhóm.");
       setSelectedUsers([]);
-      onInviteSent(selectedUsers);
       onDismiss();
     } catch (error) {
-      console.error("Lỗi gửi lời mời:", error);
-      Alert.alert("Lỗi", "Không thể gửi lời mời nhóm.");
+      // Error is handled in handleSendInvite
     } finally {
       setLoading(false);
     }
@@ -130,11 +113,11 @@ const InviteMemberModal = ({
             color="#0098f9"
             style={styles.loader}
           />
-        ) : friends.length === 0 ? (
+        ) : availableFriends.length === 0 ? (
           <Text style={styles.emptyText}>Không có bạn bè để mời.</Text>
         ) : (
           <FlatList
-            data={friends}
+            data={availableFriends}
             keyExtractor={(item) => item._id.toString()}
             renderItem={renderFriendItem}
             style={styles.friendList}
