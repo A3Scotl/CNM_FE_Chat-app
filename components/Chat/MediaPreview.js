@@ -26,20 +26,24 @@ const MediaPreview = ({
   onRemoveMediaItem,
   onRemoveFileItem,
 }) => {
-  // State để track lỗi load ảnh
+  // Ensure arrays even if null is passed
+  const safeMedia = Array.isArray(selectedMedia) ? selectedMedia : [];
+  const safeFiles = Array.isArray(selectedFiles) ? selectedFiles : [];
+
+  // State to track image load errors
   const [imageLoadErrorUris, setImageLoadErrorUris] = useState([]);
 
   const handleImageError = (uri) => {
     setImageLoadErrorUris((prev) => [...prev, uri]);
   };
 
-  if (selectedMedia.length === 0 && selectedFiles.length === 0) return null;
+  if (safeMedia.length === 0 && safeFiles.length === 0) return null;
 
   return (
     <View style={styles.previewContainer}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {/* Hiển thị ảnh */}
-        {selectedMedia.map((media, index) => {
+        {/* Display images */}
+        {safeMedia.map((media, index) => {
           const hasError = imageLoadErrorUris.includes(media.uri);
           return (
             <View key={index} style={styles.previewItem}>
@@ -65,8 +69,8 @@ const MediaPreview = ({
           );
         })}
 
-        {/* Hiển thị file */}
-        {selectedFiles.map((file, index) => {
+        {/* Display files */}
+        {safeFiles.map((file, index) => {
           const ext = getFileExtension(file.name);
           const iconName = fileTypeIcons[ext] || fileTypeIcons.default;
 
@@ -91,7 +95,6 @@ const MediaPreview = ({
     </View>
   );
 };
-
 const styles = StyleSheet.create({
   previewContainer: {
     padding: 10,

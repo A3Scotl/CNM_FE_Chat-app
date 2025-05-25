@@ -644,6 +644,7 @@ const startRecording = async () => {
         type: "audio/mp3",
         size: 0,
       });
+      
       setSelectedMedia([]);
       setRecording(null);
       setIsRecording(false);
