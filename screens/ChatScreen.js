@@ -16,7 +16,7 @@ import {
 import { Text, Avatar } from "react-native-paper";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
-import { getMessages, hideConversation, recallMessage, forwardMessage, forwardManyMessage } from "../apis/message.api";
+import { getMessages, hideConversation, recallMessage, forwardMessage, forwardManyMessage, sendEmoji, revokeEmoji } from "../apis/message.api";
 import {
   leaveGroup,
   getGroupMembersWithRoles,
@@ -236,6 +236,7 @@ const ChatScreen = ({ navigation, route }) => {
           isRevoke: msg.isRevoke || false,
           forwardedMessage: msg.forwardedMessage || null,
           additionalContent: msg.additionalContent || "",
+          emoji: msg.emoji || {},
         };
 
         setMessages((prev) => [...prev, newMessage]);
@@ -415,6 +416,15 @@ const ChatScreen = ({ navigation, route }) => {
           }
         }
       });
+      socketConnection.on("emoji-updated", (updatedMessage) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === updatedMessage._id
+              ? { ...msg, emoji: updatedMessage.emoji || {} }
+              : msg
+          )
+        );
+      });
       socketConnection.on("group:requireApprovalChanged", ({ groupId, requireApproval }) => {
         console.log("Nhận sự kiện group:requireApprovalChanged:", { groupId, requireApproval });
         if (groupId === chat._id) {
@@ -474,6 +484,7 @@ const ChatScreen = ({ navigation, route }) => {
             isRevoke: msg.isRevoke || false,
             forwardedMessage: msg.forwardedMessage || null,
             additionalContent: msg.additionalContent || "",
+            emoji: msg.emoji || {},
           };
         });
         setMessages(formattedMessages);
@@ -942,7 +953,29 @@ const ChatScreen = ({ navigation, route }) => {
       setIsSending(false);
     }
   };
+  const handleSendEmoji = async (messageId, emojiType) => {
+    try {
+      await sendEmoji(messageId, emojiType);
+      if (socket) {
+        socket.emit("emoji-updated", { conversationId: chat._id, messageId, emojiType, userId });
+      }
+    } catch (error) {
+      console.error("Lỗi khi gửi cảm xúc:", error);
+      Alert.alert("Lỗi", "Không thể gửi cảm xúc.");
+    }
+  };
 
+  const handleRevokeEmoji = async (messageId, emojiType) => {
+    try {
+      await revokeEmoji(messageId, emojiType);
+      if (socket) {
+        socket.emit("emoji-updated", { conversationId: chat._id, messageId, emojiType, userId, revoke: true });
+      }
+    } catch (error) {
+      console.error("Lỗi khi gỡ cảm xúc:", error);
+      Alert.alert("Lỗi", "Không thể gỡ cảm xúc.");
+    }
+  };
   const handleLeaveGroup = async () => {
     if (!chat._id) {
       Alert.alert("Lỗi", "Không thể rời nhóm: ID nhóm không hợp lệ.");
@@ -1262,6 +1295,8 @@ const ChatScreen = ({ navigation, route }) => {
                 viewRefs={viewRefs}
                 playAudio={playAudio}
                 focusedMessageId={focusedMessage}
+                onSendEmoji={handleSendEmoji}
+                onRevokeEmoji={handleRevokeEmoji}
               />
             ))
           )}
@@ -1270,8 +1305,8 @@ const ChatScreen = ({ navigation, route }) => {
         <MediaPreview
           selectedMedia={selectedMedia}
           selectedFile={selectedFile}
-          onCancel={cancelMediaSelection} 
-          onRemoveMediaItem={removeMediaItem} 
+          onCancel={cancelMediaSelection}
+          onRemoveMediaItem={removeMediaItem}
         />
         <InputBar
           message={message}
