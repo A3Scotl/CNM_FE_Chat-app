@@ -24,7 +24,7 @@ const normalize = (size, isHeight = false) => {
 };
 
 const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
-  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const {
     availableFriends,
@@ -38,31 +38,39 @@ const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
     if (visible && !friendsLoaded) {
       fetchAvailableFriends();
     }
+    if (visible) {
+      setSelectedUser(null);
+    }
   }, [visible, friendsLoaded, fetchAvailableFriends]);
 
   const toggleUserSelection = (userId) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
+    setSelectedUser((prev) => (prev === userId ? null : userId));
   };
 
-  const handleSendInvites = async () => {
-    if (selectedUsers.length === 0) {
-      Alert.alert("Thông báo", "Vui lòng chọn ít nhất một người để mời.");
+  const sendInvite = async () => {
+    if (!selectedUser) {
+      Alert.alert("Thông báo", "Vui lòng chọn một người để mời.");
+      return;
+    }
+
+    console.log("InviteMemberModal - sendInvite:", {
+      chatId,
+      selectedUser,
+      invitedBy: userId,
+    });
+
+    if (!selectedUser || typeof selectedUser !== "string") {
+      Alert.alert("Lỗi", "Người dùng được chọn không hợp lệ.");
       return;
     }
 
     setLoading(true);
     try {
-      for (const invitedUserId of selectedUsers) {
-        await handleSendInvite(invitedUserId);
-      }
-      setSelectedUsers([]);
+      await handleSendInvite(selectedUser);
+      setSelectedUser(null);
       onDismiss();
     } catch (error) {
-      // Error is handled in handleSendInvite
+      // Lỗi đã được xử lý trong handleSendInvite
     } finally {
       setLoading(false);
     }
@@ -82,7 +90,7 @@ const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
       <View style={styles.friendInfo}>
         <Text style={styles.friendName}>{item.fullName || "Không rõ"}</Text>
       </View>
-      {selectedUsers.includes(item._id) && (
+      {selectedUser === item._id && (
         <MaterialIcons
           name="check-circle"
           size={normalize(24)}
@@ -123,8 +131,8 @@ const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
         )}
         <Button
           mode="contained"
-          onPress={handleSendInvites}
-          disabled={loading || selectedUsers.length === 0}
+          onPress={sendInvite}
+          disabled={loading || !selectedUser}
           loading={loading}
           style={styles.inviteButton}
           labelStyle={styles.inviteButtonLabel}

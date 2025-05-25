@@ -144,27 +144,6 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
-  // const fetchPendingInvites = async () => {
-  //   if (isOwner || isAdmin) {
-  //     try {
-  //       const invites = await getPendingGroupInvites();
-  //       setPendingInvites(invites.data);
-  //     } catch (error) {
-  //       console.error("Lỗi tải danh sách lời mời:", error);
-  //     }
-  //   }
-  // };
-
-  // const fetchAvailableFriends = async () => {
-  //   try {
-  //     const friends = await getFriendsNotInGroup(chat._id);
-  //     setAvailableFriends(friends.data);
-  //   } catch (error) {
-  //     console.error("Lỗi lấy danh sách bạn bè:", error);
-  //     Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
-  //   }
-  // };
-
   const fetchConversations = async () => {
     try {
       const response = await getMyConversations();
@@ -345,6 +324,7 @@ const ChatScreen = ({ navigation, route }) => {
         ({ groupId, addedUserId, addedBy }) => {
           if (groupId === chat._id) {
             fetchMemberInGroupDetails();
+            fetchAvailableFriends();
             if (addedBy !== userId) {
               // Alert.alert(
               //   "Thành viên mới",
@@ -417,6 +397,7 @@ const ChatScreen = ({ navigation, route }) => {
       socketConnection.on("group:memberLeft", ({ groupId, leftUserId }) => {
         if (groupId === chat._id) {
           fetchMemberInGroupDetails();
+          fetchAvailableFriends();
           if (leftUserId === userId) {
             navigation.goBack();
           } else {
@@ -520,6 +501,7 @@ const ChatScreen = ({ navigation, route }) => {
               },
             ]);
             Alert.alert("Lời mời mới", `Có lời mời mới từ ${invitedBy}.`);
+            fetchMemberInGroupDetails();
             try {
               Audio.Sound.createAsync(
                 require("../assets/sounds/invite-group.mp3")
@@ -544,6 +526,7 @@ const ChatScreen = ({ navigation, route }) => {
               prev.filter((inv) => inv._id !== inviteId)
             );
             fetchMemberInGroupDetails();
+            fetchAvailableFriends();
             try {
               Audio.Sound.createAsync(
                 require("../assets/sounds/invite-group.mp3")
@@ -575,6 +558,8 @@ const ChatScreen = ({ navigation, route }) => {
                   if (status.didJustFinish) sound.unloadAsync();
                 });
               });
+              fetchMemberInGroupDetails();
+              fetchAvailableFriends();
             } catch (err) {
               console.error("Lỗi phát âm thanh thông báo:", err);
             }
@@ -1355,7 +1340,8 @@ const ChatScreen = ({ navigation, route }) => {
             try {
               await removeGroupMember(chat._id, memberId);
               Alert.alert("Thành công", "Xóa thành viên thành công.");
-              await fetchMemberInGroupDetails();
+              await fetchMemberInGroupDetails(); // Tải lại danh sách thành viên
+              await fetchAvailableFriends(); // Tải lại danh sách bạn bè
               if (socket) {
                 socket.emit("group:member-removed", {
                   groupId: chat._id,

@@ -79,9 +79,11 @@ const ChatInfoModal = ({
     availableFriends,
     friendsLoaded,
     loadingInvites,
+    fetchPendingInvites,
     fetchAvailableFriends,
     handleAcceptInvite,
     handleRejectInvite,
+    handleSendInvite,
   } = useGroupInvite(user._id, chat._id, socket);
 
   const displayName =
@@ -123,6 +125,13 @@ const ChatInfoModal = ({
       useNativeDriver: false,
     }).start();
   }, [membersExpanded]);
+
+  useEffect(() => {
+    if (visible && isGroup) {
+      fetchPendingInvites();
+      fetchAvailableFriends();
+    }
+  }, [visible, isGroup, fetchPendingInvites, fetchAvailableFriends]);
 
   const handleUpdate = async () => {
     if (!newGroupName.trim() && !newGroupAvatar) {
