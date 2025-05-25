@@ -638,12 +638,12 @@ const startRecording = async () => {
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      setSelectedFiles({
+      setSelectedFiles([{
         uri,
         name: `recording-${Date.now()}.mp3`,
         type: "audio/mp3",
         size: 0,
-      });
+      }]);
       
       setSelectedMedia([]);
       setRecording(null);
@@ -808,10 +808,12 @@ const startRecording = async () => {
     setIsSending(true);
     const token = await AsyncStorage.getItem("token");
 
-    const hasImages = selectedMedia?.length > 0;
+    // Kiểm tra loại file trong selectedMedia
+    const hasImages = selectedMedia?.some(file => file.type?.startsWith("image")) ?? false;
+    const hasAudio = selectedMedia?.some(file => file.type?.startsWith("audio")) ?? false;
     const hasFiles = selectedFiles?.length > 0;
 
-    if (!hasImages && !hasFiles) {
+    if (!hasImages && !hasFiles && !hasAudio) {
       Alert.alert("Lỗi", "Không có tệp nào để gửi.");
       return;
     }
@@ -823,37 +825,48 @@ const startRecording = async () => {
     ];
 
     if (!allFiles || !Array.isArray(allFiles) || allFiles.length === 0) {
-  console.warn("Không có file nào để upload");
-  return; // Hoặc xử lý khác phù hợp
-}
-
-const fileMeta = await Promise.all(
-  allFiles.map(async (file) => {
-    const url = await uploadToS3(file);
-    let duration = 0;
-
-    if (file?.type?.startsWith("audio")) {
-      duration = await getAudioDuration(file.uri);
+      console.warn("Không có file nào để upload");
+      return; // Hoặc xử lý khác phù hợp
     }
 
-    return {
-      name: file.name,
-      size: file.size || 0,
-      mimeType: file.type || "application/octet-stream",
-      duration: duration || undefined,
-      url,
-    };
-  })
-);
+    const fileMeta = await Promise.all(
+      allFiles.map(async (file) => {
+        const url = await uploadToS3(file);
+        let duration = 0;
 
+        if (file?.type?.startsWith("audio")) {
+          duration = await getAudioDuration(file.uri);
+        }
+
+        return {
+          name: file.name,
+          size: file.size || 0,
+          mimeType: file.type || "application/octet-stream",
+          duration: duration || undefined,
+          url,
+        };
+      })
+    );
+
+    // Xác định type ưu tiên: image > audio > file
+    let type = "unknown";
+    if (hasImages) type = "image";
+    else if (hasAudio) type = "audio";
+    else if (hasFiles) type = "file";
+
+    // Nội dung mặc định theo type
+    let content = message.trim();
+    if (!content) {
+      if (hasImages) content = "Đã gửi hình ảnh";
+      else if (hasAudio) content = "Đã gửi audio";
+      else if (hasFiles) content = "Đã gửi tài liệu";
+    }
 
     const payload = {
       conversationId: chat._id,
       sender: user._id,
-      type: hasImages ? "image" : hasFiles ? "file" : "unknown",
-      content:
-        message.trim() ||
-        (hasImages ? "Đã gửi hình ảnh" : hasFiles ? "Đã gửi tài liệu" : ""),
+      type,
+      content,
       fileMeta,
     };
 
@@ -875,7 +888,7 @@ const fileMeta = await Promise.all(
     if (response.ok) {
       setMessage("");
       setSelectedMedia([]);
-      setSelectedFiles([]); 
+      setSelectedFiles([]);
       setReplyingTo(null);
     } else {
       console.error("Lỗi server:", responseData);
@@ -888,6 +901,7 @@ const fileMeta = await Promise.all(
     setIsSending(false);
   }
 };
+
 
 
   const handleSend = async () => {

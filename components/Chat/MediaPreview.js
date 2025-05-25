@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Image, StyleSheet, ScrollView, TouchableOpacity, Text } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 
 const getFileExtension = (filename) => {
   const parts = filename.split(".");
@@ -19,6 +20,46 @@ const fileTypeIcons = {
   default: "insert-drive-file",
 };
 
+// Component riêng cho audio
+const AudioPreview = ({ file, onRemove }) => {
+  const [sound, setSound] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const togglePlayback = async () => {
+    if (isPlaying) {
+      await sound?.pauseAsync();
+      setIsPlaying(false);
+    } else {
+      if (!sound) {
+        const { sound: newSound } = await Audio.Sound.createAsync({ uri: file.uri });
+        setSound(newSound);
+        await newSound.playAsync();
+        setIsPlaying(true);
+        newSound.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+          }
+        });
+      } else {
+        await sound.playAsync();
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  return (
+    <View style={styles.previewItem}>
+      <TouchableOpacity style={styles.audioContainer} onPress={togglePlayback}>
+        <MaterialIcons name={isPlaying ? "pause-circle-filled" : "play-circle-filled"} size={40} color="#666" />
+        <Text style={styles.audioText} numberOfLines={1}>{file.name}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.removeButton} onPress={onRemove}>
+        <MaterialIcons name="close" size={20} color="white" />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 const MediaPreview = ({
   selectedMedia = [],
   selectedFiles = [],
@@ -26,11 +67,9 @@ const MediaPreview = ({
   onRemoveMediaItem,
   onRemoveFileItem,
 }) => {
-  // Ensure arrays even if null is passed
   const safeMedia = Array.isArray(selectedMedia) ? selectedMedia : [];
   const safeFiles = Array.isArray(selectedFiles) ? selectedFiles : [];
 
-  // State to track image load errors
   const [imageLoadErrorUris, setImageLoadErrorUris] = useState([]);
 
   const handleImageError = (uri) => {
@@ -42,7 +81,7 @@ const MediaPreview = ({
   return (
     <View style={styles.previewContainer}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {/* Display images */}
+        {/* Images */}
         {safeMedia.map((media, index) => {
           const hasError = imageLoadErrorUris.includes(media.uri);
           return (
@@ -69,9 +108,21 @@ const MediaPreview = ({
           );
         })}
 
-        {/* Display files */}
+        {/* Files (Document + Audio) */}
         {safeFiles.map((file, index) => {
           const ext = getFileExtension(file.name);
+          const isAudio = file.mimeType?.startsWith("audio") || file.type?.startsWith("audio");
+
+          if (isAudio) {
+            return (
+              <AudioPreview
+                key={index}
+                file={file}
+                onRemove={() => onRemoveFileItem(file.uri)}
+              />
+            );
+          }
+
           const iconName = fileTypeIcons[ext] || fileTypeIcons.default;
 
           return (
@@ -95,6 +146,7 @@ const MediaPreview = ({
     </View>
   );
 };
+
 const styles = StyleSheet.create({
   previewContainer: {
     padding: 10,
@@ -137,6 +189,21 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 12,
     color: "#333",
+    textAlign: "center",
+  },
+  audioContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 5,
+  },
+  audioText: {
+    fontSize: 12,
+    color: "#333",
+    marginTop: 5,
     textAlign: "center",
   },
   removeButton: {
