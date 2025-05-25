@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator, Alert, Text } from "react-native";
 import ChatList from "../components/Chat/ChatList";
-import { getMyConversations } from "../apis/conversation.api"; 
+import { getMyConversations } from "../apis/conversation.api";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import { Audio } from "expo-audio";
-import { debounce } from "lodash";
-import { API_URL, SOCKET_URL } from "@env";
+import { API_URL, SOCKET_URL } from "@env"; 
 
 const ConversationList = ({ currentUser }) => {
   const [conversations, setConversations] = useState([]);
@@ -58,20 +57,19 @@ const ConversationList = ({ currentUser }) => {
       const sortedConversations = sortConversations(mappedConversations);
       setConversations(sortedConversations);
     } catch (error) {
-      // console.error("❌ Lỗi khi tải cuộc trò chuyện:", error);
+      console.error("❌ Lỗi khi tải cuộc trò chuyện:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách cuộc trò chuyện.");
     } finally {
       setLoading(false);
     }
   }, [currentUser]);
 
-  // This function will now be responsible for removing the conversation from the list
   const handleDeleteConversationLocally = useCallback((conversationId) => {
     setConversations((prev) => {
       const updatedConvos = prev.filter((convo) => convo._id !== conversationId);
       return sortConversations(updatedConvos);
     });
   }, []);
-
 
   useEffect(() => {
     let socketConnection;
@@ -98,7 +96,7 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("newConversation", ({ conversationId, participants }) => {
         console.log("Nhận sự kiện newConversation:", { conversationId, participants });
-        fetchConversations();
+        fetchConversations(); // Gọi lại fetch để cập nhật danh sách
       });
 
       socketConnection.on("groupCreated", ({ group, message }) => {
@@ -109,7 +107,7 @@ const ConversationList = ({ currentUser }) => {
               sound.unloadAsync();
             });
           });
-          fetchConversations();
+          fetchConversations(); // Gọi lại fetch để cập nhật danh sách
         } catch (err) {
           console.error("Lỗi phát âm thanh nhóm mới:", err);
         }
@@ -140,36 +138,19 @@ const ConversationList = ({ currentUser }) => {
             }
             return convo;
           });
-
           return sortConversations([...updatedConversations]);
         });
       });
 
+      // CẬP NHẬT QUAN TRỌNG TẠI ĐÂY
       socketConnection.on("message-recalled", ({ conversationId, messageId, updatedMessage }) => {
-        setConversations((prev) => {
-          const updatedConversations = prev.map((convo) => {
-            if (convo._id === conversationId && convo.lastMessage?._id === messageId) {
-              return {
-                ...convo,
-                lastMessage: {
-                  ...convo.lastMessage,
-                  content: updatedMessage.content,
-                  isRevoke: true,
-                  fileMeta: [],
-                  type: "text",
-                },
-              };
-            }
-            return convo;
-          });
-
-          return sortConversations([...updatedConversations]);
-        });
+        console.log(`Socket 'message-recalled' received for convo: ${conversationId}, msg: ${messageId}`);
+        // Kích hoạt lại fetchConversations để đảm bảo dữ liệu luôn đồng bộ với backend
+        // Vì backend đã cập nhật lastMessage đúng khi reload trang.
+        fetchConversations();
       });
 
       socketConnection.on("conversation-hidden", ({ conversationId }) => {
-        // This event handler remains important, as it handles removal if the backend
-        // specifically broadcasts a hide/delete event.
         setConversations((prev) => {
           const updatedConversations = prev.filter((convo) => convo._id !== conversationId);
           return sortConversations([...updatedConversations]);
@@ -177,7 +158,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:member-added", ({ groupId, addedUserId, addedBy }) => {
-        fetchConversations();
+        fetchConversations(); // Gọi lại fetch để cập nhật danh sách
         if (addedBy !== userId) {
           try {
             const sound = new Audio.Sound();
@@ -193,7 +174,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:member-removed", ({ groupId, removedUserId, removedBy }) => {
-        fetchConversations();
+        fetchConversations(); // Gọi lại fetch để cập nhật danh sách
         if (removedBy !== userId && removedUserId !== userId) {
           try {
             const sound = new Audio.Sound();
@@ -209,7 +190,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:memberLeft", ({ groupId, leftUserId }) => {
-        fetchConversations();
+        fetchConversations(); // Gọi lại fetch để cập nhật danh sách
         if (leftUserId !== userId) {
           try {
             const sound = new Audio.Sound();
@@ -262,9 +243,11 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:memberRoleChanged", ({ groupId, userId: affectedUserId, newRole }) => {
-        fetchConversations();
+        fetchConversations(); // Gọi lại fetch để cập nhật danh sách
         if (affectedUserId !== userId) {
           const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
+          // If you want to show an alert, put it here, wrapped in Text if needed
+          // Alert.alert("Cập nhật vai trò", `Thành viên đã được đặt làm ${roleText}.`);
         }
       });
 
@@ -310,7 +293,7 @@ const ConversationList = ({ currentUser }) => {
         socketConnection.disconnect();
       }
     };
-  }, [fetchConversations]);
+  }, [fetchConversations]); // Đảm bảo fetchConversations là dependency
 
   const handleChatSelect = (chat) => {
     setConversations((prev) =>
@@ -331,7 +314,7 @@ const ConversationList = ({ currentUser }) => {
     if (currentUser?._id) {
       fetchConversations();
     }
-  }, [fetchConversations, currentUser]);
+  }, [fetchConversations, currentUser]); // Thêm fetchConversations vào dependency array
 
   return (
     <View style={styles.container}>
@@ -353,8 +336,7 @@ const ConversationList = ({ currentUser }) => {
           chats={conversations}
           onChatSelect={handleChatSelect}
           currentUserId={currentUser?._id}
-          // Removed onUpdateConversation since we're now fully deleting from the list
-          onDeleteConversation={handleDeleteConversationLocally} // Pass the delete prop
+          onDeleteConversation={handleDeleteConversationLocally}
         />
       )}
     </View>
