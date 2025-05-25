@@ -24,7 +24,10 @@ export const useGroupInvite = (
   const fetchPendingInvites = useCallback(async () => {
     setLoadingInvites(true);
     try {
-      const invites = await getPendingGroupInvitesByGroup(chatId);
+      const response = await getPendingGroupInvitesByGroup(chatId);
+      console.log("fetchPendingInvites response:", response); // Debug log
+      // Ensure response is an array
+      const invites = Array.isArray(response) ? response : response?.data || [];
       setPendingInvites(
         invites.filter((invite) => invite.status === "pending")
       );
@@ -41,8 +44,9 @@ export const useGroupInvite = (
     if (!chatId) return;
     setLoadingFriends(true);
     try {
-      const friends = await getFriendsNotInGroup(chatId);
-      setAvailableFriends(friends.data || []);
+      const response = await getFriendsNotInGroup(chatId);
+      console.log("fetchAvailableFriends response:", response); // Debug log
+      setAvailableFriends(Array.isArray(response?.data) ? response.data : []);
       setFriendsLoaded(true);
     } catch (error) {
       console.error("Lỗi tải danh sách bạn bè:", error);

@@ -130,7 +130,6 @@ const ChatScreen = ({ navigation, route }) => {
   const fetchMemberInGroupDetails = async () => {
     try {
       setIsLoading(true);
-      setConversationDetails(chat);
       const members = await getGroupMembersWithRoles(chat._id);
       setGroupMembers(members.data);
       const currentMember = members.data.find(
