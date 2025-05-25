@@ -100,7 +100,6 @@ const ChatInfoModal = ({
       : conversationDetails?.user?.avatar ||
         chat?.user?.avatar ||
         "https://i.pravatar.cc/150";
-
   useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin) && isEditingName) {
       Animated.timing(fadeAnim, {
@@ -117,7 +116,56 @@ const ChatInfoModal = ({
       }).start();
     }
   }, [visible, isGroup, isOwner, isAdmin, isEditingName]);
+  useEffect(() => {
+    if (visible && isGroup && (isOwner || isAdmin) && socket) {
+      const handleNewGroupInvite = (data) => {
+        console.log("New group invite in ChatInfoModal:", data);
+        const eventData = Array.isArray(data) ? data[0] : data;
+        const { groupId, invitedUser, invitedBy, inviteId } = eventData;
 
+        if (groupId === chat._id) {
+          // Cập nhật danh sách pendingInvites
+          fetchPendingInvites(); // Gọi API để làm mới danh sách
+          // Hoặc thêm trực tiếp vào state (nếu API trả về chậm)
+          /*
+        setPendingInvites((prev) => [
+          ...prev,
+          {
+            _id: inviteId,
+            groupId,
+            invitedUser: {
+              _id: invitedUser,
+              fullName: invitedBy?.fullName || "Unknown",
+              avatar: invitedBy?.avatar || "https://i.pravatar.cc/150",
+            },
+            invitedBy: {
+              _id: invitedBy,
+              fullName: invitedBy?.fullName || "Unknown",
+              avatar: invitedBy?.avatar || "https://i.pravatar.cc/150",
+            },
+            status: "pending",
+          },
+        ]);
+        */
+        }
+      };
+
+      socket.on("new-group-invite", handleNewGroupInvite);
+
+      // Cleanup
+      return () => {
+        socket.off("new-group-invite", handleNewGroupInvite);
+      };
+    }
+  }, [
+    visible,
+    isGroup,
+    isOwner,
+    isAdmin,
+    socket,
+    chat._id,
+    fetchPendingInvites,
+  ]);
   useEffect(() => {
     Animated.timing(membersHeightAnim, {
       toValue: membersExpanded ? 200 : 0,
@@ -304,7 +352,10 @@ const ChatInfoModal = ({
                             <Text style={styles.inviteName}>
                               {item.invitedUser.fullName}
                             </Text>
-                            <Text style={styles.inviteStatus}>Đang chờ</Text>
+                            <Text style={styles.inviteStatus}>
+                              Được mời bởi:{" "}
+                              {item.invitedBy?.fullName || "Unknown"}
+                            </Text>
                           </View>
                           <View style={styles.inviteActions}>
                             <IconButton
@@ -371,6 +422,7 @@ const ChatInfoModal = ({
                         <View style={styles.participantInfo}>
                           <Text style={styles.participantName}>
                             {item.fullName}
+                            {item._id === user._id && " (Bạn)"}
                           </Text>
                           <Text style={styles.participantRole}>
                             {item.role === "owner"
@@ -594,15 +646,18 @@ const ChatInfoModal = ({
         visible={showAddMemberModal}
         onDismiss={() => setShowAddMemberModal(false)}
         availableFriends={availableFriends}
+        friendsLoaded={friendsLoaded}
         onAddMember={onAddMember}
       />
       {/*Gọi các tham số vào modal inviteMemberModal */}
       <InviteMemberModal
         visible={showInviteModal}
         onDismiss={() => setShowInviteModal(false)}
-        chatId={chat._id}
-        userId={user._id}
-        socket={socket}
+        availableFriends={availableFriends}
+        friendsLoaded={friendsLoaded}
+        onSendInvite={handleSendInvite}
+        requireApproval={conversationDetails?.requireApproval}
+        isMember={isMember}
       />
     </Portal>
   );

@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { Portal, Modal, Text, Avatar, Button } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useGroupInvite } from "../../hooks/useGroupInvite";
 
 const { width, height } = Dimensions.get("window");
 const baseWidth = 375;
@@ -23,54 +22,53 @@ const normalize = (size, isHeight = false) => {
   return Math.round(size * scale);
 };
 
-const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
+const InviteMemberModal = ({
+  visible,
+  onDismiss,
+  availableFriends,
+  friendsLoaded,
+  onSendInvite,
+  requireApproval,
+  isMember,
+}) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(false);
-  const {
-    availableFriends,
-    friendsLoaded,
-    loadingFriends,
-    fetchAvailableFriends,
-    handleSendInvite,
-  } = useGroupInvite(userId, chatId, socket);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (visible && !friendsLoaded) {
-      fetchAvailableFriends();
-    }
     if (visible) {
       setSelectedUser(null);
+      setError("");
     }
-  }, [visible, friendsLoaded, fetchAvailableFriends]);
+  }, [visible]);
 
   const toggleUserSelection = (userId) => {
     setSelectedUser((prev) => (prev === userId ? null : userId));
+    setError("");
   };
 
   const sendInvite = async () => {
     if (!selectedUser) {
-      Alert.alert("Thông báo", "Vui lòng chọn một người để mời.");
+      setError("Vui lòng chọn một người để mời.");
       return;
     }
 
-    console.log("InviteMemberModal - sendInvite:", {
-      chatId,
-      selectedUser,
-      invitedBy: userId,
-    });
-
     if (!selectedUser || typeof selectedUser !== "string") {
-      Alert.alert("Lỗi", "Người dùng được chọn không hợp lệ.");
+      setError("Người dùng được chọn không hợp lệ.");
       return;
     }
 
     setLoading(true);
+    setError("");
     try {
-      await handleSendInvite(selectedUser);
+      await onSendInvite(selectedUser);
       setSelectedUser(null);
       onDismiss();
     } catch (error) {
-      // Lỗi đã được xử lý trong handleSendInvite
+      const errorMessage =
+        error?.response?.data?.message ||
+        "Không thể gửi lời mời tham gia nhóm.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -108,12 +106,23 @@ const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
         contentContainerStyle={styles.modalContainer}
       >
         <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Mời thành viên vào nhóm</Text>
+          <Text style={styles.modalTitle}>
+            {requireApproval && isMember
+              ? "Gửi yêu cầu vào nhóm"
+              : "Mời thành viên vào nhóm"}
+          </Text>
           <TouchableOpacity onPress={onDismiss}>
             <Text style={styles.closeText}>Đóng</Text>
           </TouchableOpacity>
         </View>
-        {loadingFriends ? (
+        {requireApproval && (
+          <Text style={styles.infoText}>
+            {isMember
+              ? "Yêu cầu của bạn sẽ được gửi đến chủ nhóm hoặc quản trị viên để duyệt."
+              : "Lời mời sẽ cần được người được mời chấp nhận."}
+          </Text>
+        )}
+        {!friendsLoaded ? (
           <ActivityIndicator
             size="large"
             color="#0098f9"
@@ -129,15 +138,16 @@ const InviteMemberModal = ({ visible, onDismiss, chatId, userId, socket }) => {
             style={styles.friendList}
           />
         )}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <Button
           mode="contained"
           onPress={sendInvite}
-          disabled={loading || !selectedUser}
+          disabled={loading || !selectedUser || !friendsLoaded}
           loading={loading}
           style={styles.inviteButton}
           labelStyle={styles.inviteButtonLabel}
         >
-          Gửi lời mời
+          {requireApproval && isMember ? "Gửi yêu cầu" : "Gửi lời mời"}
         </Button>
       </Modal>
     </Portal>
@@ -167,6 +177,12 @@ const styles = StyleSheet.create({
     fontSize: normalize(16),
     color: "#0098f9",
   },
+  infoText: {
+    fontSize: normalize(14),
+    color: "#666",
+    marginBottom: normalize(10),
+    textAlign: "center",
+  },
   friendList: {
     maxHeight: normalize(300, true),
   },
@@ -190,6 +206,12 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
     marginVertical: normalize(20),
+  },
+  errorText: {
+    fontSize: normalize(14),
+    color: "#ff4444",
+    textAlign: "center",
+    marginVertical: normalize(10),
   },
   inviteButton: {
     marginTop: normalize(10),

@@ -18,26 +18,26 @@ export const sendGroupInvite = async (
   retries = 2
 ) => {
   try {
-    if (!groupId || !invitedUser || !invitedBy) {
-      throw new Error("groupId, invitedUser hoặc invitedBy không hợp lệ");
-    }
-    if (
-      typeof groupId !== "string" ||
-      typeof invitedUser !== "string" ||
-      typeof invitedBy !== "string"
-    ) {
-      throw new Error("groupId, invitedUser và invitedBy phải là chuỗi");
-    }
+    // if (!groupId || !invitedUser || !invitedBy) {
+    //   throw new Error("groupId, invitedUser hoặc invitedBy không hợp lệ");
+    // }
+    // if (
+    //   typeof groupId !== "string" ||
+    //   typeof invitedUser !== "string" ||
+    //   typeof invitedBy !== "string"
+    // ) {
+    //   throw new Error("groupId, invitedUser và invitedBy phải là chuỗi");
+    // }
 
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    console.log("pendingGroupInvite.api - token:", token.slice(0, 10) + "...");
-    console.log("pendingGroupInvite.api - sendGroupInvite:", {
-      groupId,
-      invitedUser,
-      invitedBy,
-    });
+    // console.log("pendingGroupInvite.api - token:", token.slice(0, 10) + "...");
+    // console.log("pendingGroupInvite.api - sendGroupInvite:", {
+    //   groupId,
+    //   invitedUser,
+    //   invitedBy,
+    // });
 
     const res = await axiosInstance.post(
       `/pendingGroupInvite/`,
@@ -50,11 +50,11 @@ export const sendGroupInvite = async (
     );
     return res.data.data || res.data;
   } catch (error) {
-    console.error(
-      "❌ Lỗi khi gửi lời mời nhóm:",
-      error?.response?.data || error
-    );
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi gửi lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };
 
@@ -75,11 +75,11 @@ export const acceptGroupInvite = async (inviteId) => {
     );
     return res.data.data || res.data;
   } catch (error) {
-    console.error(
-      "❌ Lỗi khi chấp nhận lời mời nhóm:",
-      error?.response?.data || error
-    );
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi chấp nhận lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };
 
@@ -100,11 +100,11 @@ export const rejectGroupInvite = async (inviteId) => {
     );
     return res.data.data || res.data;
   } catch (error) {
-    console.error(
-      "❌ Lỗi khi từ chối lời mời nhóm:",
-      error?.response?.data || error
-    );
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi từ chối lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };
 
@@ -117,17 +117,17 @@ export const getPendingGroupInvitesByGroup = async (groupId) => {
     const res = await axiosInstance.get(`/pendingGroupInvite/${groupId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    console.log("API response:", JSON.stringify(res.data, null, 2));
+    // console.log("API response:", JSON.stringify(res.data, null, 2));
     // Filter only pending invites on the client side
     const pendingInvites = Array.isArray(res.data)
       ? res.data.filter((invite) => invite.status === "pending")
       : [];
     return pendingInvites;
   } catch (error) {
-    console.error(
-      "❌ Lỗi khi lấy danh sách lời mời nhóm:",
-      error?.response?.data || error
-    );
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi lấy danh sách lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };

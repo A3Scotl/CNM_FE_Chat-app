@@ -1,8 +1,62 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet, TouchableOpacity, FlatList } from "react-native";
 import { Modal, Avatar, Text } from "react-native-paper";
+import { getUserById } from "../../apis/user.api"; // Adjust the import path
 
-const AddMemberModal = ({ visible, onDismiss, availableFriends, onAddMember }) => {
+const AddMemberModal = ({
+  visible,
+  onDismiss,
+  availableFriends,
+  onAddMember,
+}) => {
+  const [friendsWithDetails, setFriendsWithDetails] = useState([]);
+
+  // Fetch user details if necessary
+  useEffect(() => {
+    const fetchFriendDetails = async () => {
+      try {
+        const updatedFriends = await Promise.all(
+          availableFriends.map(async (friend) => {
+            // If friend already has avatar and userName, use them
+            if (friend.avatar && friend.userName) {
+              return friend;
+            }
+            // Fetch user details by ID
+            const userDetails = await getUserById(friend._id);
+            return {
+              ...friend,
+              avatar: userDetails.avatar || "https://i.pravatar.cc/150",
+              userName: userDetails.userName || "Unknown User",
+            };
+          })
+        );
+        setFriendsWithDetails(updatedFriends);
+      } catch (error) {
+        console.error("Error fetching friend details:", error);
+        // Fallback to original data with default values
+        setFriendsWithDetails(
+          availableFriends.map((friend) => ({
+            ...friend,
+            avatar: friend.avatar || "https://i.pravatar.cc/150",
+            userName: friend.userName || "Unknown User",
+          }))
+        );
+      }
+    };
+
+    if (visible && availableFriends.length > 0) {
+      fetchFriendDetails();
+    } else {
+      setFriendsWithDetails(
+        availableFriends.map((friend) => ({
+          ...friend,
+          avatar: friend.avatar || "https://i.pravatar.cc/150",
+          userName: friend.userName || "Unknown User",
+        }))
+      );
+    }
+  }, [visible, availableFriends]);
+
   return (
     <Modal
       visible={visible}
@@ -16,18 +70,20 @@ const AddMemberModal = ({ visible, onDismiss, availableFriends, onAddMember }) =
         </TouchableOpacity>
       </View>
       <FlatList
-        data={availableFriends}
+        data={friendsWithDetails}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.participantItem}
-            onPress={() => onAddMember(item._id)}
+            onPress={() => onAddMember(item)} // Pass the entire user object
           >
             <Avatar.Image
               size={40}
               source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
             />
-            <Text style={styles.participantName}>{item.username}</Text>
+            <Text style={styles.participantName}>
+              {item.userName || "Unknown User"}
+            </Text>
           </TouchableOpacity>
         )}
         ListEmptyComponent={<Text>Không có bạn bè nào để thêm.</Text>}

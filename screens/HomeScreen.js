@@ -107,14 +107,6 @@ const HomeScreen = ({ navigation, route }) => {
         console.log("Thông báo", data.message);
       });
 
-      socketConnection.on("group:member-added", (data) => {
-        console.log("Đã được thêm vào nhóm:", data);
-      });
-
-      socketConnection.on("new-group-invite", (data) => {
-        console.log("Nhận lời mời nhóm:", data);
-      });
-
       socketConnection.on("disconnect", (reason) => {
         console.log("Ngắt kết nối Socket.IO. Lý do:", reason);
       });
