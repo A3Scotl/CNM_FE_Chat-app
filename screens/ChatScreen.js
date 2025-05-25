@@ -40,7 +40,7 @@ import ReplyPreview from "../components/Chat/ReplyPreview";
 import MediaPreview from "../components/Chat/MediaPreview";
 import InputBar from "../components/Chat/InputBar";
 import ImagePreviewModal from "../components/Chat/ImagePreviewModal";
-import {API_URL,SOCKET_URL} from "@env";
+import { API_URL, SOCKET_URL } from "@env";
 
 
 const ChatScreen = ({ navigation, route }) => {
@@ -764,7 +764,11 @@ const ChatScreen = ({ navigation, route }) => {
       Alert.alert("Lỗi", "Không thể chọn tài liệu, vui lòng thử lại.");
     }
   };
-
+  const removeMediaItem = (uriToRemove) => {
+    setSelectedMedia((prevMedia) =>
+      prevMedia.filter((media) => media.uri !== uriToRemove)
+    );
+  };
   const cancelMediaSelection = () => {
     setSelectedMedia([]);
     setSelectedFile(null);
@@ -1001,71 +1005,71 @@ const ChatScreen = ({ navigation, route }) => {
     );
   };
 
-const handleUpdateGroupInfo = async () => {
-  if (!newGroupName && !newGroupAvatar) {
-    Alert.alert("Lỗi", "Vui lòng nhập tên nhóm hoặc chọn ảnh mới.");
-    return;
-  }
-
-  try {
-    // Cập nhật giao diện ngay lập tức
-    setConversationDetails((prev) => {
-      const newDetails = {
-        ...prev,
-        user: {
-          ...prev.user,
-          fullName: newGroupName || prev.user.fullName,
-          avatar: newGroupAvatar ? newGroupAvatar.uri : prev.user.avatar,
-        },
-      };
-      console.log("Immediate update conversationDetails:", newDetails);
-      return newDetails;
-    });
-
-    const payload = {};
-    if (newGroupName) payload.name = newGroupName;
-    if (newGroupAvatar) {
-      const url = await uploadToS3(newGroupAvatar);
-      payload.avatar = url;
+  const handleUpdateGroupInfo = async () => {
+    if (!newGroupName && !newGroupAvatar) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên nhóm hoặc chọn ảnh mới.");
+      return;
     }
 
-    const updatedGroup = await updateGroupInfo(chat._id, payload.name, payload.avatar);
-    console.log("API updateGroupInfo response:", updatedGroup);
-
-    // Cập nhật với dữ liệu từ server
-    setConversationDetails((prev) => {
-      const newDetails = {
-        ...prev,
-        name: updatedGroup.data.name || prev.name,
-        avatar: updatedGroup.data.avatar || prev.avatar,
-        user: {
-          ...prev.user,
-          fullName: updatedGroup.data.name || newGroupName || prev.user.fullName,
-          avatar: updatedGroup.data.avatar || payload.avatar || prev.user.avatar,
-        },
-      };
-      console.log("Server update conversationDetails:", newDetails);
-      return newDetails;
-    });
-
-    setNewGroupName("");
-    setNewGroupAvatar(null);
-    Alert.alert("Thành công", "Cập nhật thông tin nhóm thành công.");
-
-    if (socket) {
-      socket.emit("group:infoUpdated", {
-        groupId: chat._id,
-        name: payload.name || updatedGroup.data.name,
-        avatar: payload.avatar || updatedGroup.data.avatar,
+    try {
+      // Cập nhật giao diện ngay lập tức
+      setConversationDetails((prev) => {
+        const newDetails = {
+          ...prev,
+          user: {
+            ...prev.user,
+            fullName: newGroupName || prev.user.fullName,
+            avatar: newGroupAvatar ? newGroupAvatar.uri : prev.user.avatar,
+          },
+        };
+        console.log("Immediate update conversationDetails:", newDetails);
+        return newDetails;
       });
+
+      const payload = {};
+      if (newGroupName) payload.name = newGroupName;
+      if (newGroupAvatar) {
+        const url = await uploadToS3(newGroupAvatar);
+        payload.avatar = url;
+      }
+
+      const updatedGroup = await updateGroupInfo(chat._id, payload.name, payload.avatar);
+      console.log("API updateGroupInfo response:", updatedGroup);
+
+      // Cập nhật với dữ liệu từ server
+      setConversationDetails((prev) => {
+        const newDetails = {
+          ...prev,
+          name: updatedGroup.data.name || prev.name,
+          avatar: updatedGroup.data.avatar || prev.avatar,
+          user: {
+            ...prev.user,
+            fullName: updatedGroup.data.name || newGroupName || prev.user.fullName,
+            avatar: updatedGroup.data.avatar || payload.avatar || prev.user.avatar,
+          },
+        };
+        console.log("Server update conversationDetails:", newDetails);
+        return newDetails;
+      });
+
+      setNewGroupName("");
+      setNewGroupAvatar(null);
+      Alert.alert("Thành công", "Cập nhật thông tin nhóm thành công.");
+
+      if (socket) {
+        socket.emit("group:infoUpdated", {
+          groupId: chat._id,
+          name: payload.name || updatedGroup.data.name,
+          avatar: payload.avatar || updatedGroup.data.avatar,
+        });
+      }
+    } catch (error) {
+      console.error("Lỗi cập nhật thông tin nhóm:", error);
+      // Khôi phục trạng thái cũ nếu lỗi
+      setConversationDetails(chat);
+      Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
     }
-  } catch (error) {
-    console.error("Lỗi cập nhật thông tin nhóm:", error);
-    // Khôi phục trạng thái cũ nếu lỗi
-    setConversationDetails(chat);
-    Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
-  }
-};
+  };
   const cancelReply = () => {
     setReplyingTo(null);
   };
@@ -1266,7 +1270,8 @@ const handleUpdateGroupInfo = async () => {
         <MediaPreview
           selectedMedia={selectedMedia}
           selectedFile={selectedFile}
-          onCancel={cancelMediaSelection}
+          onCancel={cancelMediaSelection} 
+          onRemoveMediaItem={removeMediaItem} 
         />
         <InputBar
           message={message}

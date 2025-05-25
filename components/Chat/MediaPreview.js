@@ -2,7 +2,7 @@ import React from "react";
 import { View, Image, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
-const MediaPreview = ({ selectedMedia, selectedFile, onCancel }) => {
+const MediaPreview = ({ selectedMedia, selectedFile, onCancel, onRemoveMediaItem }) => {
   if (!selectedMedia.length && !selectedFile) return null;
 
   return (
@@ -13,10 +13,7 @@ const MediaPreview = ({ selectedMedia, selectedFile, onCancel }) => {
             <Image source={{ uri: media.uri }} style={styles.previewImage} />
             <TouchableOpacity
               style={styles.removeButton}
-              onPress={() => {
-                selectedMedia.splice(index, 1);
-                onCancel();
-              }}
+              onPress={() => onRemoveMediaItem(media.uri)}
             >
               <MaterialIcons name="close" size={20} color="white" />
             </TouchableOpacity>
