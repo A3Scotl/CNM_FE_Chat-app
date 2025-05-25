@@ -21,6 +21,7 @@ import {
   Button,
 } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { io, Socket } from "socket.io-client";
 import ConversationList from "../components/ConversationList";
 import ProfileModal from "../components/Modal/ProfileModal";
@@ -209,27 +210,27 @@ const HomeScreen = ({ navigation, route }) => {
     []
   );
 
-const handleGroupSearch = useCallback(
-  debounce(async (query) => {
-    const formattedQuery = query.replace(/[^0-9]/g, "");
-    if (!formattedQuery.trim()) {
-      setGroupSearchResults([]);
-      return;
-    }
-    try {
-      const results = await findUserByPhone(formattedQuery);
-      const resultsArray = Array.isArray(results) ? results : [results];
-      const filteredResults = resultsArray.filter(
-        (result) => !selectedMembers.includes(result._id)
-      );
-      setGroupSearchResults(filteredResults);
-    } catch (error) {
-      console.error("Lỗi tìm kiếm nhóm:", error);
-      setGroupSearchResults([]);
-    }
-  }, 500),
-  [selectedMembers]
-);
+  const handleGroupSearch = useCallback(
+    debounce(async (query) => {
+      const formattedQuery = query.replace(/[^0-9]/g, "");
+      if (!formattedQuery.trim()) {
+        setGroupSearchResults([]);
+        return;
+      }
+      try {
+        const results = await findUserByPhone(formattedQuery);
+        const resultsArray = Array.isArray(results) ? results : [results];
+        const filteredResults = resultsArray.filter(
+          (result) => !selectedMembers.includes(result._id)
+        );
+        setGroupSearchResults(filteredResults);
+      } catch (error) {
+        console.error("Lỗi tìm kiếm nhóm:", error);
+        setGroupSearchResults([]);
+      }
+    }, 500),
+    [selectedMembers]
+  );
   const handleSearchChange = (query) => {
     setSearchQuery(query);
     handleSearch(query);
@@ -258,68 +259,68 @@ const handleGroupSearch = useCallback(
     }
   };
 
-const handleCreateGroup = async () => {
-  if (!groupName.trim()) {
-    Alert.alert("Lỗi", "Vui lòng nhập tên nhóm");
-    return;
-  }
-  if (selectedMembers.length < 2) {
-    Alert.alert("Lỗi", "Nhóm phải có ít nhất 2 thành viên");
-    return;
-  }
-
-  setIsCreatingGroup(true);
-
-  try {
-    const groupData = {
-      name: groupName,
-      members: selectedMembers,
-    };
-    const response = await createGroup(groupData);
-    setShowCreateGroupModal(false);
-    setGroupName("");
-    setSelectedMembers([]);
-    setSelectedMembersDetails([]);
-    setGroupSearchQuery("");
-    setGroupSearchResults([]);
-    navigation.navigate("Chat", {
-      conversationId: response.data.group._id,
-      chat: {
-        _id: response.data.group._id,
-        user: {
-          fullName: response.data.group.name,
-          avatar: response.data.group.avatar,
-        },
-        type: "group",
-      },
-      user: currentUser,
-    });
-  } catch (error) {
-    console.error("Lỗi tạo nhóm:", error?.response?.data || error);
-    const errorMsg =
-      error?.response?.data?.message ||
-      "Không thể tạo nhóm, vui lòng thử lại.";
-    Alert.alert("Lỗi", errorMsg);
-  } finally {
-    setIsCreatingGroup(false);
-  }
-};
-
-const toggleMember = (userId, user = null) => {
-  setSelectedMembers((prev) => {
-    if (prev.includes(userId)) {
-      setSelectedMembersDetails((prevDetails) =>
-        prevDetails.filter((member) => member._id !== userId)
-      );
-      return prev.filter((id) => id !== userId);
-    } else {
-      if (user) {
-        setSelectedMembersDetails((prevDetails) => [...prevDetails, user]);
-      }
-      return [...prev, userId];
+  const handleCreateGroup = async () => {
+    if (!groupName.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên nhóm");
+      return;
     }
-  });
-};
+    if (selectedMembers.length < 2) {
+      Alert.alert("Lỗi", "Nhóm phải có ít nhất 2 thành viên");
+      return;
+    }
+
+    setIsCreatingGroup(true);
+
+    try {
+      const groupData = {
+        name: groupName,
+        members: selectedMembers,
+      };
+      const response = await createGroup(groupData);
+      setShowCreateGroupModal(false);
+      setGroupName("");
+      setSelectedMembers([]);
+      setSelectedMembersDetails([]);
+      setGroupSearchQuery("");
+      setGroupSearchResults([]);
+      navigation.navigate("Chat", {
+        conversationId: response.data.group._id,
+        chat: {
+          _id: response.data.group._id,
+          user: {
+            fullName: response.data.group.name,
+            avatar: response.data.group.avatar,
+          },
+          type: "group",
+        },
+        user: currentUser,
+      });
+    } catch (error) {
+      console.error("Lỗi tạo nhóm:", error?.response?.data || error);
+      const errorMsg =
+        error?.response?.data?.message ||
+        "Không thể tạo nhóm, vui lòng thử lại.";
+      Alert.alert("Lỗi", errorMsg);
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
+
+  const toggleMember = (userId, user = null) => {
+    setSelectedMembers((prev) => {
+      if (prev.includes(userId)) {
+        setSelectedMembersDetails((prevDetails) =>
+          prevDetails.filter((member) => member._id !== userId)
+        );
+        return prev.filter((id) => id !== userId);
+      } else {
+        if (user) {
+          setSelectedMembersDetails((prevDetails) => [...prevDetails, user]);
+        }
+        return [...prev, userId];
+      }
+    });
+  };
 
   const renderSearchResults = () => {
     if (!searchQuery.trim()) return null;
@@ -374,162 +375,162 @@ const toggleMember = (userId, user = null) => {
     );
   };
 
-const renderGroupModal = () => (
-  <Portal>
-    <Modal
-      visible={showCreateGroupModal}
-      onDismiss={() => {
-        setShowCreateGroupModal(false);
-        setGroupName("");
-        setSelectedMembers([]);
-        setSelectedMembersDetails([]);
-        setGroupSearchQuery("");
-        setGroupSearchResults([]);
-      }}
-      contentContainerStyle={styles.modalContainer}
-    >
-      <Text style={styles.modalTitle}>Tạo nhóm mới</Text>
-      <TextInput
-        style={styles.modalInput}
-        placeholder="Nhập tên nhóm"
-        value={groupName}
-        onChangeText={setGroupName}
-      />
-      <TextInput
-        style={styles.modalInput}
-        placeholder="Tìm kiếm theo số điện thoại"
-        value={groupSearchQuery}
-        onChangeText={handleGroupSearchChange}
-      />
-      {/* Hiển thị thành viên đã chọn */}
-      {selectedMembersDetails.length > 0 && (
-        <View style={styles.selectedMembersContainer}>
-          <Text style={styles.sectionTitle}>Thành viên đã chọn</Text>
-          <FlatList
-            data={selectedMembersDetails}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => (
-              <View style={styles.userItem}>
-                <Avatar.Image
-                  size={40}
-                  source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.fullName}</Text>
-                  <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+  const renderGroupModal = () => (
+    <Portal>
+      <Modal
+        visible={showCreateGroupModal}
+        onDismiss={() => {
+          setShowCreateGroupModal(false);
+          setGroupName("");
+          setSelectedMembers([]);
+          setSelectedMembersDetails([]);
+          setGroupSearchQuery("");
+          setGroupSearchResults([]);
+        }}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <Text style={styles.modalTitle}>Tạo nhóm mới</Text>
+        <TextInput
+          style={styles.modalInput}
+          placeholder="Nhập tên nhóm"
+          value={groupName}
+          onChangeText={setGroupName}
+        />
+        <TextInput
+          style={styles.modalInput}
+          placeholder="Tìm kiếm theo số điện thoại"
+          value={groupSearchQuery}
+          onChangeText={handleGroupSearchChange}
+        />
+        {/* Hiển thị thành viên đã chọn */}
+        {selectedMembersDetails.length > 0 && (
+          <View style={styles.selectedMembersContainer}>
+            <Text style={styles.sectionTitle}>Thành viên đã chọn</Text>
+            <FlatList
+              data={selectedMembersDetails}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item }) => (
+                <View style={styles.userItem}>
+                  <Avatar.Image
+                    size={40}
+                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                  />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{item.fullName}</Text>
+                    <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => toggleMember(item._id)}>
+                    <MaterialCommunityIcons
+                      name="checkbox-marked"
+                      size={24}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => toggleMember(item._id)}>
+              )}
+              style={styles.selectedMembersList}
+            />
+          </View>
+        )}
+        {/* Kết quả tìm kiếm */}
+        {groupSearchResults.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Kết quả tìm kiếm</Text>
+            <FlatList
+              data={groupSearchResults}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.userItem}
+                  onPress={() => toggleMember(item._id, item)}
+                >
+                  <Avatar.Image
+                    size={40}
+                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                  />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{item.fullName}</Text>
+                    <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                  </View>
                   <MaterialCommunityIcons
-                    name="checkbox-marked"
+                    name={
+                      selectedMembers.includes(item._id)
+                        ? "checkbox-marked"
+                        : "checkbox-blank-outline"
+                    }
                     size={24}
                     color={colors.primary}
                   />
                 </TouchableOpacity>
-              </View>
-            )}
-            style={styles.selectedMembersList}
-          />
-        </View>
-      )}
-      {/* Kết quả tìm kiếm */}
-      {groupSearchResults.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>Kết quả tìm kiếm</Text>
-          <FlatList
-            data={groupSearchResults}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.userItem}
-                onPress={() => toggleMember(item._id, item)}
-              >
-                <Avatar.Image
-                  size={40}
-                  source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
-                />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.fullName}</Text>
-                  <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-                </View>
-                <MaterialCommunityIcons
-                  name={
-                    selectedMembers.includes(item._id)
-                      ? "checkbox-marked"
-                      : "checkbox-blank-outline"
-                  }
-                  size={24}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            )}
-            style={styles.searchResults}
-          />
-        </>
-      )}
-      {/* Danh sách bạn bè */}
-      <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
-      <FlatList
-        data={friends}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.userItem}
-            onPress={() => toggleMember(item._id, item)}
-          >
-            <Avatar.Image
-              size={40}
-              source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+              )}
+              style={styles.searchResults}
             />
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{item.fullName}</Text>
-              <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-            </View>
-            <MaterialCommunityIcons
-              name={
-                selectedMembers.includes(item._id)
-                  ? "checkbox-marked"
-                  : "checkbox-blank-outline"
-              }
-              size={24}
-              color={colors.primary}
-            />
-          </TouchableOpacity>
+          </>
         )}
-        style={styles.friendsList}
-      />
-      <View style={styles.modalButtons}>
-        <Button
-          mode="contained"
-          onPress={handleCreateGroup}
-          style={styles.modalButton}
-          disabled={isCreatingGroup}
-          contentStyle={styles.createButtonContent}
-        >
-          {isCreatingGroup ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.createButtonText}>Tạo nhóm</Text>
+        {/* Danh sách bạn bè */}
+        <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
+        <FlatList
+          data={friends}
+          keyExtractor={(item) => item._id}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.userItem}
+              onPress={() => toggleMember(item._id, item)}
+            >
+              <Avatar.Image
+                size={40}
+                source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+              />
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{item.fullName}</Text>
+                <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+              </View>
+              <MaterialCommunityIcons
+                name={
+                  selectedMembers.includes(item._id)
+                    ? "checkbox-marked"
+                    : "checkbox-blank-outline"
+                }
+                size={24}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
           )}
-        </Button>
-        <Button
-          mode="outlined"
-          onPress={() => {
-            setShowCreateGroupModal(false);
-            setGroupName("");
-            setSelectedMembers([]);
-            setSelectedMembersDetails([]);
-            setGroupSearchQuery("");
-            setGroupSearchResults([]);
-          }}
-          style={styles.modalButton}
-          disabled={isCreatingGroup}
-        >
-          Hủy
-        </Button>
-      </View>
-    </Modal>
-  </Portal>
-);
+          style={styles.friendsList}
+        />
+        <View style={styles.modalButtons}>
+          <Button
+            mode="contained"
+            onPress={handleCreateGroup}
+            style={styles.modalButton}
+            disabled={isCreatingGroup}
+            contentStyle={styles.createButtonContent}
+          >
+            {isCreatingGroup ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.createButtonText}>Tạo nhóm</Text>
+            )}
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={() => {
+              setShowCreateGroupModal(false);
+              setGroupName("");
+              setSelectedMembers([]);
+              setSelectedMembersDetails([]);
+              setGroupSearchQuery("");
+              setGroupSearchResults([]);
+            }}
+            style={styles.modalButton}
+            disabled={isCreatingGroup}
+          >
+            Hủy
+          </Button>
+        </View>
+      </Modal>
+    </Portal>
+  );
 
   const renderScene = () => {
     if (loading) {
@@ -568,7 +569,10 @@ const renderGroupModal = () => (
     }
     return <ContactsScreen navigation={navigation} />;
   };
-
+  const onDismissProfile = () => {
+    console.log("Closing ProfileModal, current state:", { visibleProfile });
+    setVisibleProfile(false);
+  };
   return (
     <Pressable
       onPress={() => {
@@ -662,9 +666,10 @@ const renderGroupModal = () => (
       <ProfileModal
         visible={visibleProfile}
         user={currentUser}
-        onDismiss={() => setVisibleProfile(false)}
+        onDismiss={onDismissProfile}
         onUpdateSuccess={handleProfileUpdateSuccess}
       />
+
       <SettingsModal
         visible={visibleSettings}
         user={currentUser}
