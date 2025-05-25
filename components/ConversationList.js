@@ -58,7 +58,7 @@ const ConversationList = ({ currentUser }) => {
       const sortedConversations = sortConversations(mappedConversations);
       setConversations(sortedConversations);
     } catch (error) {
-      console.error("❌ Lỗi khi tải cuộc trò chuyện:", error);
+      // console.error("❌ Lỗi khi tải cuộc trò chuyện:", error);
     } finally {
       setLoading(false);
     }
@@ -306,7 +306,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("connect_error", (error) => {
-        console.error("Lỗi kết nối Socket.IO trong ConversationList:", error);
+        // console.error("Lỗi kết nối Socket.IO trong ConversationList:", error);
       });
     };
 

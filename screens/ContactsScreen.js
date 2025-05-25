@@ -90,7 +90,7 @@ const ContactsScreen = () => {
         });
       setGroups(mappedGroups);
     } catch (error) {
-      console.error("❌ Lỗi khi tải danh sách nhóm:", error);
+      // console.error("❌ Lỗi khi tải danh sách nhóm:", error);
       setErrorGroups("Không thể tải danh sách nhóm.");
     } finally {
       setLoadingGroups(false);
@@ -139,11 +139,11 @@ const ContactsScreen = () => {
       });
 
       socketConnection.on("disconnect", (reason) => {
-        console.log("Ngắt kết nối Socket.IO trong ContactsScreen. Lý do:", reason);
+        // console.log("Ngắt kết nối Socket.IO trong ContactsScreen. Lý do:", reason);
       });
 
       socketConnection.on("connect_error", (error) => {
-        console.error("Lỗi kết nối Socket.IO trong ContactsScreen:", error);
+        // console.error("Lỗi kết nối Socket.IO trong ContactsScreen:", error);
       });
     };
 
@@ -378,9 +378,10 @@ const ContactsScreen = () => {
         <Button
           mode="outlined"
           onPress={() => handleRemoveFriend(item.fs_id)}
-          style={[styles.button, { backgroundColor: 'red', color: 'white' }]}
+          style={[{ backgroundColor: 'red',outlineColor:'red' }]}
           disabled={loadingAction[item.fs_id] === "remove"}
           loading={loadingAction[item.fs_id] === "remove"}
+          textColor="white"
         >
           Hủy kết bạn
         </Button>

@@ -569,7 +569,10 @@ const HomeScreen = ({ navigation, route }) => {
     }
     return <ContactsScreen navigation={navigation} />;
   };
-
+  const onDismissProfile = () => {
+    console.log("Closing ProfileModal, current state:", { visibleProfile });
+    setVisibleProfile(false);
+  };
   return (
     <Pressable
       onPress={() => {
@@ -660,14 +663,12 @@ const HomeScreen = ({ navigation, route }) => {
           style={styles.bottomNav}
         />
       )}
-      <SafeAreaProvider>
-        <ProfileModal
-          visible={visibleProfile}
-          user={currentUser}
-          onDismiss={() => setVisibleProfile(false)}
-          onUpdateSuccess={handleProfileUpdateSuccess}
-        />
-      </SafeAreaProvider>
+      <ProfileModal
+        visible={visibleProfile}
+        user={currentUser}
+        onDismiss={onDismissProfile}
+        onUpdateSuccess={handleProfileUpdateSuccess}
+      />
 
       <SettingsModal
         visible={visibleSettings}
