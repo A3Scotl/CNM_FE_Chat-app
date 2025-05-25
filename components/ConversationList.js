@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator, Alert, Text } from "react-native";
 import ChatList from "../components/Chat/ChatList";
-import { getMyConversations,hide } from "../apis/conversation.api";
+import { getMyConversations } from "../apis/conversation.api"; 
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
-import { Audio } from "expo-audio"; // Updated import
+import { Audio } from "expo-audio";
 import { debounce } from "lodash";
 import { API_URL, SOCKET_URL } from "@env";
 
@@ -63,6 +63,15 @@ const ConversationList = ({ currentUser }) => {
       setLoading(false);
     }
   }, [currentUser]);
+
+  // This function will now be responsible for removing the conversation from the list
+  const handleDeleteConversationLocally = useCallback((conversationId) => {
+    setConversations((prev) => {
+      const updatedConvos = prev.filter((convo) => convo._id !== conversationId);
+      return sortConversations(updatedConvos);
+    });
+  }, []);
+
 
   useEffect(() => {
     let socketConnection;
@@ -159,6 +168,8 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("conversation-hidden", ({ conversationId }) => {
+        // This event handler remains important, as it handles removal if the backend
+        // specifically broadcasts a hide/delete event.
         setConversations((prev) => {
           const updatedConversations = prev.filter((convo) => convo._id !== conversationId);
           return sortConversations([...updatedConversations]);
@@ -342,6 +353,8 @@ const ConversationList = ({ currentUser }) => {
           chats={conversations}
           onChatSelect={handleChatSelect}
           currentUserId={currentUser?._id}
+          // Removed onUpdateConversation since we're now fully deleting from the list
+          onDeleteConversation={handleDeleteConversationLocally} // Pass the delete prop
         />
       )}
     </View>

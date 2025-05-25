@@ -28,6 +28,7 @@ const SearchBar = ({
         onFocus={() => setIsSearchFocused(true)}
         onBlur={() => setIsSearchFocused(false)}
         onSubmitEditing={() => onSearch(searchQuery)}
+        dense
       />
       {searchQuery.length > 0 && (
         <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIconContainer}>

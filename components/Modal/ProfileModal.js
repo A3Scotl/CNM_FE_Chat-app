@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import {
   Modal, Portal, Card, Avatar, Text, Button,
@@ -31,19 +31,34 @@ const ProfileModal = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showGenderMenu, setShowGenderMenu] = useState(false);
 
+  // Initialize original data for comparison
+  const originalData = useMemo(() => ({
+    fullName: user?.fullName || '',
+    userName: user?.userName || '',
+    phoneNumber: user?.phoneNumber || '',
+    email: user?.email || '',
+    dob: user?.dob ? new Date(user.dob).toISOString() : new Date().toISOString(),
+    gender: user?.gender || ''
+  }), [user]);
+
+  // Sync editFormData with user prop
   useEffect(() => {
-    if (user) {
-      setEditFormData({
+    if (user && visible) {
+      const newFormData = {
         fullName: user.fullName || '',
         userName: user.userName || '',
         phoneNumber: user.phoneNumber || '',
         email: user.email || '',
         dob: user.dob ? new Date(user.dob) : new Date(),
         gender: user.gender || ''
-      });
+      };
+      setEditFormData(newFormData);
+      setTempAvatar(null);
+      console.log('Synced editFormData:', newFormData);
     }
-  }, [user]);
+  }, [user, visible]);
 
+  // Request image picker permissions
   useEffect(() => {
     (async () => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -52,6 +67,29 @@ const ProfileModal = ({
       }
     })();
   }, []);
+
+  // Check if there are changes in editFormData or tempAvatar
+  const hasChanges = useMemo(() => {
+    const currentDob = editFormData?.dob ? new Date(editFormData.dob).toISOString() : '';
+    const originalDob = originalData?.dob || '';
+    const changes = (
+      (editFormData?.fullName || '') !== (originalData?.fullName || '') ||
+      (editFormData?.userName || '') !== (originalData?.userName || '') ||
+      (editFormData?.phoneNumber || '') !== (originalData?.phoneNumber || '') ||
+      (editFormData?.email || '') !== (originalData?.email || '') ||
+      currentDob !== originalDob ||
+      (editFormData?.gender || '') !== (originalData?.gender || '') ||
+      tempAvatar !== null
+    );
+    console.log('hasChanges:', changes, {
+      fullName: { current: editFormData?.fullName, original: originalData?.fullName },
+      userName: { current: editFormData?.userName, original: originalData?.userName },
+      dob: { current: currentDob, original: originalDob },
+      gender: { current: editFormData?.gender, original: originalData?.gender },
+      tempAvatar
+    });
+    return changes;
+  }, [editFormData, originalData, tempAvatar]);
 
   const handleImagePick = async () => {
     try {
@@ -78,35 +116,55 @@ const ProfileModal = ({
     setIsLoading(true);
     try {
       await uploadAvatar(tempAvatar, user._id);
-      const updatedUser = await getMyProfile(); // Lấy dữ liệu người dùng mới nhất
+      const updatedUser = await getMyProfile();
+      console.log('Avatar updated, new user data:', updatedUser);
       Alert.alert('Thành công', 'Cập nhật ảnh đại diện thành công');
       onUpdateSuccess(updatedUser);
-      setTempAvatar(null); // Xóa tempAvatar sau khi cập nhật
+      setTempAvatar(null);
+      setIsEditing(false);
     } catch (error) {
-      console.error('Lỗi cập nhật:', error);
+      console.error('Lỗi cập nhật avatar:', error);
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi cập nhật ảnh đại diện');
     } finally {
       setIsLoading(false);
-      setIsEditing(false);
     }
   };
 
   const handleProfileUpdate = async () => {
-    if (!user?._id) return;
+    if (!user?._id || !hasChanges) {
+      console.log('handleProfileUpdate skipped: No changes or invalid user ID');
+      return;
+    }
 
     setIsLoading(true);
     try {
       const formattedData = {
-        ...editFormData,
-        dob: editFormData.dob.toISOString()
+        fullName: editFormData.fullName,
+        userName: editFormData.userName,
+        dob: editFormData.dob.toISOString(),
+        gender: editFormData.gender
       };
+      console.log('Sending updateProfile payload:', formattedData);
 
-      const updatedUser = await updateProfile(formattedData);
+      await updateProfile(formattedData);
+      const updatedUser = await getMyProfile();
+      console.log('Profile updated, fetched user data:', updatedUser);
+
       Alert.alert('Thành công', 'Cập nhật thông tin thành công');
       onUpdateSuccess(updatedUser);
       setIsEditingProfile(false);
+
+      setEditFormData({
+        fullName: updatedUser.fullName || '',
+        userName: updatedUser.userName || '',
+        phoneNumber: updatedUser.phoneNumber || '',
+        email: updatedUser.email || '',
+        dob: updatedUser.dob ? new Date(updatedUser.dob) : new Date(),
+        gender: updatedUser.gender || ''
+      });
+      setTempAvatar(null);
     } catch (error) {
-      console.error('Lỗi cập nhật:', error);
+      console.error('Lỗi cập nhật profile:', error);
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi cập nhật thông tin');
     } finally {
       setIsLoading(false);
@@ -117,20 +175,23 @@ const ProfileModal = ({
     setIsEditingProfile(!isEditingProfile);
     if (isEditingProfile) {
       setEditFormData({
-        fullName: user.fullName || '',
-        userName: user.userName || '',
-        phoneNumber: user.phoneNumber || '',
-        email: user.email || '',
-        dob: user.dob ? new Date(user.dob) : new Date(),
-        gender: user.gender || ''
+        fullName: user?.fullName || '',
+        userName: user?.userName || '',
+        phoneNumber: user?.phoneNumber || '',
+        email: user?.email || '',
+        dob: user?.dob ? new Date(user.dob) : new Date(),
+        gender: user?.gender || ''
       });
+      setTempAvatar(null);
+      setIsEditing(false);
+      console.log('Exited edit mode, reset editFormData');
     }
   };
 
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      setEditFormData({...editFormData, dob: selectedDate});
+      setEditFormData({ ...editFormData, dob: selectedDate });
     }
   };
 
@@ -151,180 +212,181 @@ const ProfileModal = ({
               <ActivityIndicator animating size="large" color={colors.primary} />
             </View>
           )}
+          <View style={styles.cardContent}>
+            <ScrollView>
+              {isEditingProfile ? (
+                <>
+                  <View style={styles.editHeader}>
+                    <TouchableOpacity onPress={handleImagePick}>
+                      <Avatar.Image
+                        size={100}
+                        source={{ uri: tempAvatar || user?.avatar || 'https://i.pravatar.cc/150' }}
+                        style={styles.avatar}
+                      />
+                      <Avatar.Icon icon="camera" size={28} style={styles.cameraIcon} />
+                    </TouchableOpacity>
+                  </View>
 
-          <ScrollView>
-            {isEditingProfile ? (
-              <>
-                <View style={styles.editHeader}>
-                  <TouchableOpacity onPress={handleImagePick}>
-                    <Avatar.Image
-                      size={100}
-                      source={{ uri: tempAvatar || user?.avatar || 'https://i.pravatar.cc/150' }}
-                      style={styles.avatar}
-                    />
-                    <Avatar.Icon icon="camera" size={28} style={styles.cameraIcon} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.formContainer}>
-                  <TextInput
-                    label="Họ và tên"
-                    value={editFormData.fullName}
-                    onChangeText={text => setEditFormData({...editFormData, fullName: text})}
-                    style={styles.input}
-                    mode="outlined"
-                  />
-                  <TextInput
-                    label="Tên tài khoản"
-                    value={editFormData.userName}
-                    onChangeText={text => setEditFormData({...editFormData, userName: text})}
-                    style={styles.input}
-                    mode="outlined"
-                  />
-                  <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePickerButton}>
+                  <View style={styles.formContainer}>
                     <TextInput
-                      label="Ngày sinh"
-                      value={formatDate(editFormData.dob)}
+                      label="Họ và tên"
+                      value={editFormData.fullName}
+                      onChangeText={text => setEditFormData({ ...editFormData, fullName: text })}
                       style={styles.input}
                       mode="outlined"
-                      editable={false}
-                      right={<TextInput.Icon icon="calendar" />}
                     />
-                  </TouchableOpacity>
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={editFormData.dob}
-                      mode="date"
-                      display="default"
-                      onChange={handleDateChange}
+                    <TextInput
+                      label="Tên tài khoản"
+                      value={editFormData.userName}
+                      onChangeText={text => setEditFormData({ ...editFormData, userName: text })}
+                      style={styles.input}
+                      mode="outlined"
                     />
-                  )}
-                  <Menu
-                    visible={showGenderMenu}
-                    onDismiss={() => setShowGenderMenu(false)}
-                    anchor={
-                      <TouchableOpacity onPress={() => setShowGenderMenu(true)}>
-                        <TextInput
-                          label="Giới tính"
-                          value={editFormData.gender}
-                          style={styles.input}
-                          mode="outlined"
-                          editable={false}
-                          right={<TextInput.Icon icon="chevron-down" />}
-                        />
-                      </TouchableOpacity>
-                    }
-                  >
-                    <Menu.Item
-                      onPress={() => {
-                        setEditFormData({...editFormData, gender: 'male'});
-                        setShowGenderMenu(false);
-                      }}
-                      title="Nam"
+                    <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePickerButton}>
+                      <TextInput
+                        label="Ngày sinh"
+                        value={formatDate(editFormData.dob)}
+                        style={styles.input}
+                        mode="outlined"
+                        editable={false}
+                        right={<TextInput.Icon icon="calendar" />}
+                      />
+                    </TouchableOpacity>
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={editFormData.dob}
+                        mode="date"
+                        display="default"
+                        onChange={handleDateChange}
+                      />
+                    )}
+                    <Menu
+                      visible={showGenderMenu}
+                      onDismiss={() => setShowGenderMenu(false)}
+                      anchor={
+                        <TouchableOpacity onPress={() => setShowGenderMenu(true)}>
+                          <TextInput
+                            label="Giới tính"
+                            value={editFormData.gender}
+                            style={styles.input}
+                            mode="outlined"
+                            editable={false}
+                            right={<TextInput.Icon icon="chevron-down" />}
+                          />
+                        </TouchableOpacity>
+                      }
+                    >
+                      <Menu.Item
+                        onPress={() => {
+                          setEditFormData({ ...editFormData, gender: 'male' });
+                          setShowGenderMenu(false);
+                        }}
+                        title="Nam"
+                      />
+                      <Menu.Item
+                        onPress={() => {
+                          setEditFormData({ ...editFormData, gender: 'female' });
+                          setShowGenderMenu(false);
+                        }}
+                        title="Nữ"
+                      />
+                      <Menu.Item
+                        onPress={() => {
+                          setEditFormData({ ...editFormData, gender: 'other' });
+                          setShowGenderMenu(false);
+                        }}
+                        title="Khác"
+                      />
+                    </Menu>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.header}>
+                    <TouchableOpacity onPress={handleImagePick}>
+                      <Avatar.Image
+                        size={100}
+                        source={{ uri: tempAvatar || user?.avatar || 'https://i.pravatar.cc/150' }}
+                        style={styles.avatar}
+                      />
+                      <Avatar.Icon icon="camera" size={28} style={styles.cameraIcon} />
+                    </TouchableOpacity>
+                    <Text style={styles.nameText}>{user?.fullName || user?.userName}</Text>
+                    <IconButton
+                      icon="pencil"
+                      size={20}
+                      style={styles.editButton}
+                      onPress={toggleEditMode}
                     />
-                    <Menu.Item
-                      onPress={() => {
-                        setEditFormData({...editFormData, gender: 'female'});
-                        setShowGenderMenu(false);
-                      }}
-                      title="Nữ"
-                    />
-                    <Menu.Item
-                      onPress={() => {
-                        setEditFormData({...editFormData, gender: 'other'});
-                        setShowGenderMenu(false);
-                      }}
-                      title="Khác"
-                    />
-                  </Menu>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.header}>
-                  <TouchableOpacity onPress={handleImagePick}>
-                    <Avatar.Image
-                      size={100}
-                      source={{ uri: tempAvatar || user?.avatar || 'https://i.pravatar.cc/150' }}
-                      style={styles.avatar}
-                    />
-                    <Avatar.Icon icon="camera" size={28} style={styles.cameraIcon} />
-                  </TouchableOpacity>
-                  <Text style={styles.nameText}>{user?.fullName || user?.userName}</Text>
-                  <IconButton
-                    icon="pencil"
-                    size={20}
-                    style={styles.editButton}
-                    onPress={toggleEditMode}
-                  />
-                </View>
+                  </View>
 
-                <List.Section style={{'paddingHorizontal': 20}}>
-                  <List.Item
-                    title="Tên tài khoản"
-                    description={user?.userName || 'Chưa cập nhật'}
-                    left={() => <List.Icon icon="account" />}
-                  />
-                  <List.Item
-                    title="Số điện thoại"
-                    description={user?.phoneNumber || 'Chưa cập nhật'}
-                    left={() => <List.Icon icon="phone" />}
-                  />
-                  <List.Item
-                    title="Email"
-                    description={user?.email || 'Chưa cập nhật'}
-                    left={() => <List.Icon icon="email" />}
-                  />
-                  <List.Item
-                    title="Ngày sinh"
-                    description={formatDate(user?.dob)}
-                    left={() => <List.Icon icon="calendar" />}
-                  />
-                  <List.Item
-                    title="Giới tính"
-                    description={user?.gender || 'Chưa cập nhật'}
-                    left={() => <List.Icon icon="gender-male-female" />}
-                  />
-                </List.Section>
-              </>
-            )}
-          </ScrollView>
+                  <List.Section style={{ paddingHorizontal: 20 }}>
+                    <List.Item
+                      title="Tên tài khoản"
+                      description={user?.userName || 'Chưa cập nhật'}
+                      left={() => <List.Icon icon="account" />}
+                    />
+                    <List.Item
+                      title="Số điện thoại"
+                      description={user?.phoneNumber || 'Chưa cập nhật'}
+                      left={() => <List.Icon icon="phone" />}
+                    />
+                    <List.Item
+                      title="Email"
+                      description={user?.email || 'Chưa cập nhật'}
+                      left={() => <List.Icon icon="email" />}
+                    />
+                    <List.Item
+                      title="Ngày sinh"
+                      description={formatDate(user?.dob)}
+                      left={() => <List.Icon icon="calendar" />}
+                    />
+                    <List.Item
+                      title="Giới tính"
+                      description={user?.gender || 'Chưa cập nhật'}
+                      left={() => <List.Icon icon="gender-male-female" />}
+                    />
+                  </List.Section>
+                </>
+              )}
+            </ScrollView>
 
-          <Card.Actions style={styles.actions}>
-            {isEditingProfile ? (
-              <>
-                <Button mode="outlined" onPress={toggleEditMode} disabled={isLoading}>
-                  Hủy
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={handleProfileUpdate}
-                  disabled={isLoading}
-                  loading={isLoading}
-                  style={styles.saveButton}
-                >
-                  Lưu thông tin
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button mode="outlined" onPress={onDismiss} disabled={isLoading}>
-                  Đóng
-                </Button>
-                {isEditing && (
+            <Card.Actions style={styles.actions}>
+              {isEditingProfile ? (
+                <>
+                  <Button mode="outlined" onPress={toggleEditMode} disabled={isLoading}>
+                    Hủy
+                  </Button>
                   <Button
                     mode="contained"
-                    onPress={handleAvatarUpdate}
-                    disabled={!isEditing || isLoading}
+                    onPress={handleProfileUpdate}
+                    disabled={isLoading || !hasChanges}
                     loading={isLoading}
                     style={styles.saveButton}
                   >
-                    Lưu ảnh
+                    Lưu thông tin
                   </Button>
-                )}
-              </>
-            )}
-          </Card.Actions>
+                </>
+              ) : (
+                <>
+                  <Button mode="outlined" onPress={onDismiss} disabled={isLoading}>
+                    Đóng
+                  </Button>
+                  {isEditing && (
+                    <Button
+                      mode="contained"
+                      onPress={handleAvatarUpdate}
+                      disabled={!isEditing || isLoading}
+                      loading={isLoading}
+                      style={styles.saveButton}
+                    >
+                      Lưu ảnh
+                    </Button>
+                  )}
+                </>
+              )}
+            </Card.Actions>
+          </View>
         </Card>
       </Modal>
     </Portal>
@@ -340,9 +402,11 @@ const createStyles = (colors) => StyleSheet.create({
   card: {
     margin: 20,
     borderRadius: 16,
-    overflow: 'hidden',
     backgroundColor: 'white',
     maxHeight: '100%',
+  },
+  cardContent: {
+    overflow: 'hidden', // Moved overflow: hidden here
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

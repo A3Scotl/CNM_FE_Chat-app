@@ -3,7 +3,6 @@ import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppRouter from './routes/AppRouter';
-
 const chatTheme = {
   ...DefaultTheme,
   colors: {

@@ -49,11 +49,10 @@ export const getMessages = async (conversationId) => {
     throw error;
   }
 };
-
 // Ẩn cuộc trò chuyện
 export const hideConversation = async (conversationId) => {
   try {
-    const token = await getToken();
+    const token = await AsyncStorage.getItem('token');
     if (!token) throw new Error("Token không tồn tại");
 
     const res = await axiosInstance.patch(`/message/hide/${conversationId}`, {}, {
@@ -67,6 +66,8 @@ export const hideConversation = async (conversationId) => {
     throw error;
   }
 };
+
+// Keep other functions (e.g., getMyConversations) unchanged
 
 // Thu hồi tin nhắn
 export const recallMessage = async (messageId) => {

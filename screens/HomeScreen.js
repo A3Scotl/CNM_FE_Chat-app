@@ -38,7 +38,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL, SOCKET_URL } from "@env";
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
-  const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
+  const colors = { ...theme.colors, primary: '#0098f9', accent: '#0098f9' };
   const { sendRequest, fetchRequests, fetchSentRequests } = useFriendRequest();
   const [currentUser, setCurrentUser] = useState(null);
   const [visibleProfile, setVisibleProfile] = useState(false);
@@ -574,108 +574,109 @@ const HomeScreen = ({ navigation, route }) => {
     setVisibleProfile(false);
   };
   return (
-    <Pressable
-      onPress={() => {
-        setShowDropdown(false);
-        Keyboard.dismiss();
-      }}
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      {showAppbar && (
-        <View style={{ position: "relative", zIndex: 3 }}>
-          <Appbar.Header style={styles.appBar}>
-            <SearchBar
-              searchQuery={searchQuery}
-              setSearchQuery={handleSearchChange}
-              isSearchFocused={isSearchFocused}
-              setIsSearchFocused={setIsSearchFocused}
-              colors={colors}
-            />
-            <TouchableOpacity
-              style={styles.groupIcon}
-              onPress={() => setShowCreateGroupModal(true)}
-            >
-              <MaterialCommunityIcons
-                name="account-group"
-                size={30}
-                color="white"
-              />
-            </TouchableOpacity>
-            <View style={styles.avatarContainer}>
-              <TouchableOpacity
-                onPress={(e) => {
-                  e.stopPropagation();
-                  setShowDropdown(!showDropdown);
-                }}
-              >
-                <Avatar.Image
-                  size={36}
-                  source={{
-                    uri: currentUser?.avatar || "https://i.pravatar.cc/150",
-                  }}
-                  style={styles.avatar}
-                />
-              </TouchableOpacity>
-              <DropdownMenu
-                showDropdown={showDropdown}
-                setShowDropdown={setShowDropdown}
-                currentUser={currentUser}
-                setVisibleProfile={setVisibleProfile}
-                setVisibleSettings={setVisibleSettings}
-                handleLogout={handleLogout}
+    <SafeAreaProvider>
+      <Pressable
+        onPress={() => {
+          setShowDropdown(false);
+          Keyboard.dismiss();
+        }}
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        {showAppbar && (
+          <View style={{ position: 'relative', zIndex: 3 }}>
+            <Appbar.Header style={styles.appBar}>
+              <SearchBar
+                searchQuery={searchQuery}
+                setSearchQuery={handleSearchChange}
+                isSearchFocused={isSearchFocused}
+                setIsSearchFocused={setIsSearchFocused}
                 colors={colors}
               />
-            </View>
-          </Appbar.Header>
-        </View>
-      )}
-      {renderSearchResults()}
-      {renderGroupModal()}
-      <View style={{ flex: 1, minHeight: 550 }}>{renderScene()}</View>
-      {showBottomNav && (
-        <BottomNavigation
-          navigationState={{ index, routes }}
-          onIndexChange={setIndex}
-          renderScene={() => null}
-          barStyle={styles.bottomNavBar}
-          activeColor={colors.primary}
-          inactiveColor="#888"
-          labeled={false}
-          sceneAnimationEnabled={true}
-          sceneAnimationType="shifting"
-          renderIcon={({ route, focused, color }) => {
-            let iconName;
-            if (route.key === "messages") {
-              iconName = focused ? "message-text" : "message-text-outline";
-            } else if (route.key === "contacts") {
-              iconName = focused ? "account-group" : "account-group-outline";
-            }
-            return (
-              <View style={[styles.iconContainer]}>
+              <TouchableOpacity
+                style={styles.groupIcon}
+                onPress={() => setShowCreateGroupModal(true)}
+              >
                 <MaterialCommunityIcons
-                  name={iconName}
-                  size={28}
-                  color={color}
+                  name="account-group"
+                  size={30}
+                  color="white"
+                />
+              </TouchableOpacity>
+              <View style={styles.avatarContainer}>
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setShowDropdown(!showDropdown);
+                  }}
+                >
+                  <Avatar.Image
+                    size={36}
+                    source={{
+                      uri: currentUser?.avatar || 'https://i.pravatar.cc/150',
+                    }}
+                    style={styles.avatar}
+                  />
+                </TouchableOpacity>
+                <DropdownMenu
+                  showDropdown={showDropdown}
+                  setShowDropdown={setShowDropdown}
+                  currentUser={currentUser}
+                  setVisibleProfile={setVisibleProfile}
+                  setVisibleSettings={setVisibleSettings}
+                  handleLogout={handleLogout}
+                  colors={colors}
                 />
               </View>
-            );
-          }}
-          style={styles.bottomNav}
+            </Appbar.Header>
+          </View>
+        )}
+        {renderSearchResults()}
+        {renderGroupModal()}
+        <View style={{ flex: 1, minHeight: 550 }}>{renderScene()}</View>
+        {showBottomNav && (
+          <BottomNavigation
+            navigationState={{ index, routes }}
+            onIndexChange={setIndex}
+            renderScene={() => null}
+            barStyle={styles.bottomNavBar}
+            activeColor={colors.primary}
+            inactiveColor="#888"
+            labeled={false}
+            sceneAnimationEnabled={true}
+            sceneAnimationType="shifting"
+            renderIcon={({ route, focused, color }) => {
+              let iconName;
+              if (route.key === 'messages') {
+                iconName = focused ? 'message-text' : 'message-text-outline';
+              } else if (route.key === 'contacts') {
+                iconName = focused ? 'account-group' : 'account-group-outline';
+              }
+              return (
+                <View style={[styles.iconContainer]}>
+                  <MaterialCommunityIcons
+                    name={iconName}
+                    size={28}
+                    color={color}
+                  />
+                </View>
+              );
+            }}
+            style={styles.bottomNav}
+          />
+        )}
+        <ProfileModal
+          visible={visibleProfile}
+          user={currentUser}
+          onDismiss={() => setVisibleProfile(false)}
+          onUpdateSuccess={handleProfileUpdateSuccess}
         />
-      )}
-      <ProfileModal
-        visible={visibleProfile}
-        user={currentUser}
-        onDismiss={onDismissProfile}
-        onUpdateSuccess={handleProfileUpdateSuccess}
-      />
-
-      <SettingsModal
-        visible={visibleSettings}
-        user={currentUser}
-        onDismiss={() => setVisibleSettings(false)}
-      />
-    </Pressable>
+        <SettingsModal
+          visible={visibleSettings}
+          user={currentUser}
+          onDismiss={() => setVisibleSettings(false)}
+        />
+      </Pressable>
+    </SafeAreaProvider>
   );
 };
 
