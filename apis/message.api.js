@@ -120,4 +120,40 @@ export const forwardManyMessage = async (messageData) => {
     console.error("❌ Lỗi khi chuyển tiếp tin nhắn đến nhiều cuộc trò chuyện:", error?.response?.data || error);
     throw error;
   }
+
+};
+// Thêm hàm để thả cảm xúc
+export const sendEmoji = async (messageId, typeEmoji) => {
+  try {
+    const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
+    const res = await axiosInstance.put(`/message/${messageId}/emoji`, { typeEmoji }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return res.data;
+  } catch (error) {
+    console.error("❌ Lỗi khi gửi cảm xúc:", error?.response?.data || error);
+    throw error;
+  }
+};
+
+// Thêm hàm để gỡ cảm xúc
+export const revokeEmoji = async (messageId, typeEmoji) => {
+  try {
+    const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
+    const res = await axiosInstance.delete(`/message/${messageId}/emoji`, { typeEmoji }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return res.data;
+  } catch (error) {
+    console.error("❌ Lỗi khi gỡ cảm xúc:", error?.response?.data || error);
+    throw error;
+  }
 };

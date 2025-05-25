@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, Image, Animated, Easing, Platform, 
 import { Avatar, Text } from 'react-native-paper';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 
-const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus, viewRefs, playAudio, focusedMessageId }) => {
+const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus, viewRefs, playAudio, focusedMessageId, onSendEmoji, onRevokeEmoji }) => {
   const isCurrentUser = String(msg.sender._id) === String(userId);
   const textColor = isCurrentUser ? styles.messageTextMe : styles.messageTextOther;
   const iconColor = isCurrentUser ? 'white' : '#444';
@@ -11,6 +11,9 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
   const opacityAnim = useRef(new Animated.Value(1)).current;
   const [audioProgress, setAudioProgress] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false); 
+
+  const EMOJI_TYPES = ['👍', '❤️', '😂', '😢', '😮', '😡']; 
 
   useEffect(() => {
     if (focusedMessageId === msg._id) {
@@ -102,7 +105,8 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
     if (msg.isRevoke || !msg.replyTo) return null;
 
     const isCurrentUserReply = String(msg.replyTo.sender?._id || msg.replyTo.sender) === String(userId);
-    const senderName = isCurrentUserReply ? 'You' : msg.sender.fullName.split(' ').pop();
+    // Sửa lỗi: Đảm bảo truy cập đúng `fullName` từ `msg.replyTo.sender`
+    const senderName = isCurrentUserReply ? 'You' : (msg.replyTo.sender?.fullName || 'Unknown').split(' ').pop();
 
     let replyContent = '';
     if (msg.replyTo.type === 'text') replyContent = msg.replyTo.content;
@@ -130,6 +134,35 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
     );
   };
 
+  const renderEmojis = () => {
+    if (!msg.emoji || Object.keys(msg.emoji).length === 0) return null;
+
+    const allEmojis = Object.entries(msg.emoji)
+      .filter(([, users]) => users && users.length > 0) // Chỉ hiển thị emoji có người dùng
+      .map(([emojiType, users]) => {
+        const count = users.length;
+        const hasUserReacted = users.includes(userId); // Kiểm tra xem người dùng hiện tại đã react chưa
+        return { emojiType, count, hasUserReacted };
+      });
+
+    if (allEmojis.length === 0) return null;
+
+    return (
+      <View style={[styles.emojiReactionsContainer, isCurrentUser ? styles.emojiReactionsContainerMe : styles.emojiReactionsContainerOther]}>
+        {allEmojis.map(({ emojiType, count, hasUserReacted }, index) => (
+          <TouchableOpacity
+            key={index}
+            style={[styles.emojiReactionBubble, hasUserReacted && styles.myReactionBubble]}
+            onPress={() => handleEmojiPress(emojiType)}
+          >
+            <Text style={styles.emojiText}>{emojiType}</Text>
+            {count > 1 && <Text style={styles.emojiCount}>{count}</Text>}
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
   const handleLongPress = () => {
     // Không hiển thị menu nếu tin nhắn đã bị thu hồi
     if (!msg.isRevoke) {
@@ -145,6 +178,18 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
       onForward(msg);
     } else if (option === 'recall' && isCurrentUser && !msg.isRevoke) {
       onRecall(msg._id);
+    } else if (option === 'react') {
+      setShowEmojiPicker(true); // Mở bảng chọn emoji
+    }
+  };
+
+  const handleEmojiPress = (emojiType) => {
+    setShowEmojiPicker(false); // Đóng bảng chọn emoji sau khi chọn
+    // Kiểm tra xem người dùng đã thả emoji này chưa
+    if (msg.emoji && msg.emoji[emojiType] && msg.emoji[emojiType].includes(userId)) {
+      onRevokeEmoji(msg._id, emojiType);
+    } else {
+      onSendEmoji(msg._id, emojiType);
     }
   };
 
@@ -175,6 +220,7 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
           {renderMessageContent()}
           <Text style={[styles.timestamp, { color: isCurrentUser ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }]}>{msg.timestamp}</Text>
         </TouchableOpacity>
+        {renderEmojis()} {/* Hiển thị các emoji đã reaction */}
       </Animated.View>
       {isCurrentUser && (
         <Avatar.Image size={32} source={{ uri: user?.avatar || 'https://i.pravatar.cc/150' }} style={styles.messageAvatar} />
@@ -190,6 +236,10 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
         <TouchableWithoutFeedback onPress={() => setShowMenu(false)}>
           <View style={styles.modalOverlay}>
             <View style={[styles.menuContainer, isCurrentUser ? styles.menuRight : styles.menuLeft]}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuOption('react')}>
+                <FontAwesome5 name="smile" size={24} color="#FFD700" />
+                <Text style={styles.menuText}>Thả cảm xúc</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuOption('reply')}>
                 <MaterialIcons name="reply" size={24} color="#007AFF" />
                 <Text style={styles.menuText}>Trả lời</Text>
@@ -205,9 +255,28 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
                 </TouchableOpacity>
               )}
             </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Bảng chọn emoji */}
+      <Modal
+        visible={showEmojiPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEmojiPicker(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowEmojiPicker(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.emojiPickerContainer, isCurrentUser ? styles.menuRight : styles.menuLeft]}>
+              {EMOJI_TYPES.map((emoji) => (
+                <TouchableOpacity key={emoji} style={styles.emojiPickerItem} onPress={() => handleEmojiPress(emoji)}>
+                  <Text style={styles.emojiPickerText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </TouchableWithoutFeedback>
-        
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
@@ -255,6 +324,60 @@ const styles = StyleSheet.create({
   menuLeft: { marginRight: 50 },
   menuItem: { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5 },
   menuText: { fontSize: 12, marginTop: 4, color: '#333' },
+  // Styles for Emoji Reactions
+  emojiReactionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    // Căn chỉnh vị trí của emoji reactions dựa trên người gửi
+  },
+  emojiReactionsContainerMe: {
+    alignSelf: 'flex-end', // Căn phải cho tin nhắn của tôi
+  },
+  emojiReactionsContainerOther: {
+    alignSelf: 'flex-start', // Căn trái cho tin nhắn của người khác
+  },
+  emojiReactionBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0e0e0', // Màu nền mặc định
+    borderRadius: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 5,
+    marginBottom: 5,
+  },
+  myReactionBubble: {
+    backgroundColor: '#007AFF', // Màu nền nếu người dùng hiện tại đã reaction
+  },
+  emojiText: {
+    fontSize: 14,
+    marginRight: 2,
+  },
+  emojiCount: {
+    fontSize: 12,
+    color: '#666',
+  },
+  // Styles for Emoji Picker Modal
+  emojiPickerContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  emojiPickerItem: {
+    padding: 10,
+  },
+  emojiPickerText: {
+    fontSize: 20,
+  },
 });
 
 export default MessageItem;
