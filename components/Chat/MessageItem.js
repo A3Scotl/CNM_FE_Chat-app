@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   emojiPickerText: {
-    fontSize: 28,
+    fontSize: 20,
   },
 });
 
