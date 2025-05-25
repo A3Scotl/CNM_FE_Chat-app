@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator, Alert, Text } from "react-native";
 import ChatList from "../components/Chat/ChatList";
-import { getMyConversations } from "../apis/conversation.api";
+import { getMyConversations,hide } from "../apis/conversation.api";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
