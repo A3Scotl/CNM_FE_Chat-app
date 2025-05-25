@@ -1,5 +1,12 @@
-import React, { useState } from "react";
-import { View, Image, StyleSheet, ScrollView, TouchableOpacity, Text } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Image,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Text,
+} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 
@@ -20,10 +27,18 @@ const fileTypeIcons = {
   default: "insert-drive-file",
 };
 
-// Component riêng cho audio
+// Audio Preview Component
 const AudioPreview = ({ file, onRemove }) => {
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
 
   const togglePlayback = async () => {
     if (isPlaying) {
@@ -31,10 +46,13 @@ const AudioPreview = ({ file, onRemove }) => {
       setIsPlaying(false);
     } else {
       if (!sound) {
-        const { sound: newSound } = await Audio.Sound.createAsync({ uri: file.uri });
+        const { sound: newSound } = await Audio.Sound.createAsync({
+          uri: file.uri,
+        });
         setSound(newSound);
         await newSound.playAsync();
         setIsPlaying(true);
+
         newSound.setOnPlaybackStatusUpdate((status) => {
           if (status.didJustFinish) {
             setIsPlaying(false);
@@ -50,8 +68,14 @@ const AudioPreview = ({ file, onRemove }) => {
   return (
     <View style={styles.previewItem}>
       <TouchableOpacity style={styles.audioContainer} onPress={togglePlayback}>
-        <MaterialIcons name={isPlaying ? "pause-circle-filled" : "play-circle-filled"} size={40} color="#666" />
-        <Text style={styles.audioText} numberOfLines={1}>{file.name}</Text>
+        <MaterialIcons
+          name={isPlaying ? "pause-circle-filled" : "play-circle-filled"}
+          size={40}
+          color="#666"
+        />
+        <Text style={styles.audioText} numberOfLines={1}>
+          {file.name}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.removeButton} onPress={onRemove}>
         <MaterialIcons name="close" size={20} color="white" />
@@ -60,6 +84,7 @@ const AudioPreview = ({ file, onRemove }) => {
   );
 };
 
+// Main Preview Component
 const MediaPreview = ({
   selectedMedia = [],
   selectedFiles = [],
@@ -85,7 +110,7 @@ const MediaPreview = ({
         {safeMedia.map((media, index) => {
           const hasError = imageLoadErrorUris.includes(media.uri);
           return (
-            <View key={index} style={styles.previewItem}>
+            <View key={`media-${index}`} style={styles.previewItem}>
               {hasError ? (
                 <View style={[styles.previewImage, styles.imageError]}>
                   <MaterialIcons name="broken-image" size={40} color="#999" />
@@ -108,15 +133,17 @@ const MediaPreview = ({
           );
         })}
 
-        {/* Files (Document + Audio) */}
+        {/* Files (Documents + Audio) */}
         {safeFiles.map((file, index) => {
           const ext = getFileExtension(file.name);
-          const isAudio = file.mimeType?.startsWith("audio") || file.type?.startsWith("audio");
+          const isAudio =
+            file.mimeType?.startsWith("audio") ||
+            file.type?.startsWith("audio");
 
           if (isAudio) {
             return (
               <AudioPreview
-                key={index}
+                key={`audio-${file.uri}-${index}`}
                 file={file}
                 onRemove={() => onRemoveFileItem(file.uri)}
               />
@@ -126,7 +153,7 @@ const MediaPreview = ({
           const iconName = fileTypeIcons[ext] || fileTypeIcons.default;
 
           return (
-            <View key={index} style={styles.previewItem}>
+            <View key={`file-${file.uri}-${index}`} style={styles.previewItem}>
               <View style={styles.filePlaceholder}>
                 <MaterialIcons name={iconName} size={40} color="#666" />
                 <Text style={styles.fileName} numberOfLines={1}>

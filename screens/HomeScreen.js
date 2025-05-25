@@ -79,7 +79,7 @@ const HomeScreen = ({ navigation, route }) => {
         return;
       }
 
-      socketConnection = io(SOCKET_URL, {
+      socketConnection = io(SOCKET_URL || "https://be.haudev.io.vn", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,

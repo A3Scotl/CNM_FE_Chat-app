@@ -201,7 +201,7 @@ const ChatScreen = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const socketConnection = io(SOCKET_URL, {
+      const socketConnection = io(SOCKET_URL || "https://be.haudev.io.vn", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 5,
@@ -774,7 +774,7 @@ const startRecording = async () => {
       });
 
 
-    const response = await fetch(`${API_URL}/upload`, {
+    const response = await fetch(`${"https://be.haudev.io.vn/api"}/upload`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -849,18 +849,35 @@ const startRecording = async () => {
     );
 
     // Xác định type ưu tiên: image > audio > file
+    // Sau khi đã có fileMeta
     let type = "unknown";
-    if (hasImages) type = "image";
-    else if (hasAudio) type = "audio";
-    else if (hasFiles) type = "file";
 
-    // Nội dung mặc định theo type
+    if (fileMeta.some(f => f.mimeType.startsWith("image"))) {
+      type = "image";
+    } else if (fileMeta.some(f => f.mimeType.startsWith("audio"))) {
+      type = "audio";
+    } else if (fileMeta.length > 0) {
+      type = "file";
+    }
+
+
     let content = message.trim();
     if (!content) {
-      if (hasImages) content = "Đã gửi hình ảnh";
-      else if (hasAudio) content = "Đã gửi audio";
-      else if (hasFiles) content = "Đã gửi tài liệu";
+      switch (type) {
+        case "image":
+          content = "Đã gửi hình ảnh";
+          break;
+        case "audio":
+          content = "Đã gửi âm thanh";
+          break;
+        case "file":
+          content = "Đã gửi tài liệu";
+          break;
+        default:
+          content = "Đã gửi tệp";
+      }
     }
+
 
     const payload = {
       conversationId: chat._id,
@@ -874,7 +891,7 @@ const startRecording = async () => {
       payload.replyTo = replyingTo._id;
     }
 
-    const response = await fetch(`${API_URL}/message/send`, {
+    const response = await fetch(`${"https://be.haudev.io.vn/api"}/message/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -934,7 +951,7 @@ const startRecording = async () => {
         payload.replyTo = replyingTo._id;
       }
 
-      const response = await fetch(`${API_URL}/message/send`, {
+      const response = await fetch(`${"https://be.haudev.io.vn/api"}/message/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

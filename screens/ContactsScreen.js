@@ -108,7 +108,7 @@ const ContactsScreen = () => {
         return;
       }
 
-      socketConnection = io(SOCKET_URL, {
+      socketConnection = io(SOCKET_URL || "https://be.haudev.io.vn", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
@@ -238,7 +238,7 @@ const ContactsScreen = () => {
   const handleChat = async (friend) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      const response = await fetch(`${API_URL}/conversation/detail`, {
+      const response = await fetch(`${"https://be.haudev.io.vn/api"}/conversation/detail`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
