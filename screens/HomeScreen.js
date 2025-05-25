@@ -110,11 +110,11 @@ const HomeScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on("disconnect", (reason) => {
-        console.log("Ngắt kết nối Socket.IO. Lý do:", reason);
+        // console.log("Ngắt kết nối Socket.IO. Lý do:", reason);
       });
 
       socketConnection.on("connect_error", (error) => {
-        console.error("Lỗi kết nối Socket.IO", error);
+        // console.error("Lỗi kết nối Socket.IO", error);
       });
     };
 

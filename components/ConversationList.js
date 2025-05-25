@@ -5,9 +5,9 @@ import { getMyConversations } from "../apis/conversation.api";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
-import { Audio } from "expo-av";
+import { Audio } from "expo-audio"; // Updated import
 import { debounce } from "lodash";
-import {API_URL,SOCKET_URL} from "@env";
+import { API_URL, SOCKET_URL } from "@env";
 
 const ConversationList = ({ currentUser }) => {
   const [conversations, setConversations] = useState([]);
@@ -64,9 +64,6 @@ const ConversationList = ({ currentUser }) => {
     }
   }, [currentUser]);
 
- 
-  // const debouncedFetchConversations = debounce(fetchConversations, 1000);
-
   useEffect(() => {
     let socketConnection;
 
@@ -97,12 +94,10 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("groupCreated", ({ group, message }) => {
         try {
-          Audio.Sound.createAsync(
-            require("../assets/sounds/invite-group.mp3")
-          ).then(({ sound }) => {
-            sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if (status.didJustFinish) sound.unloadAsync();
+          const sound = new Audio.Sound();
+          sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            sound.playAsync().then(() => {
+              sound.unloadAsync();
             });
           });
           fetchConversations();
@@ -139,7 +134,6 @@ const ConversationList = ({ currentUser }) => {
 
           return sortConversations([...updatedConversations]);
         });
-        // debouncedFetchConversations();
       });
 
       socketConnection.on("message-recalled", ({ conversationId, messageId, updatedMessage }) => {
@@ -175,12 +169,10 @@ const ConversationList = ({ currentUser }) => {
         fetchConversations();
         if (addedBy !== userId) {
           try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
+            const sound = new Audio.Sound();
+            sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+              sound.playAsync().then(() => {
+                sound.unloadAsync();
               });
             });
           } catch (err) {
@@ -193,12 +185,10 @@ const ConversationList = ({ currentUser }) => {
         fetchConversations();
         if (removedBy !== userId && removedUserId !== userId) {
           try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
+            const sound = new Audio.Sound();
+            sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+              sound.playAsync().then(() => {
+                sound.unloadAsync();
               });
             });
           } catch (err) {
@@ -211,12 +201,10 @@ const ConversationList = ({ currentUser }) => {
         fetchConversations();
         if (leftUserId !== userId) {
           try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
+            const sound = new Audio.Sound();
+            sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+              sound.playAsync().then(() => {
+                sound.unloadAsync();
               });
             });
             Alert.alert("Thành viên rời nhóm", `Một thành viên đã rời khỏi nhóm.`);
@@ -232,12 +220,10 @@ const ConversationList = ({ currentUser }) => {
           return sortConversations([...updatedConversations]);
         });
         try {
-          Audio.Sound.createAsync(
-            require("../assets/sounds/invite-group.mp3")
-          ).then(({ sound }) => {
-            sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if (status.didJustFinish) sound.unloadAsync();
+          const sound = new Audio.Sound();
+          sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            sound.playAsync().then(() => {
+              sound.unloadAsync();
             });
           });
         } catch (err) {
@@ -262,14 +248,12 @@ const ConversationList = ({ currentUser }) => {
           });
           return sortConversations([...updatedConversations]);
         });
-       
       });
 
       socketConnection.on("group:memberRoleChanged", ({ groupId, userId: affectedUserId, newRole }) => {
         fetchConversations();
         if (affectedUserId !== userId) {
           const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-         
         }
       });
 
@@ -287,12 +271,10 @@ const ConversationList = ({ currentUser }) => {
           return sortConversations([...updatedConversations]);
         });
         try {
-          Audio.Sound.createAsync(
-            require("../assets/sounds/invite-group.mp3")
-          ).then(({ sound }) => {
-            sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if (status.didJustFinish) sound.unloadAsync();
+          const sound = new Audio.Sound();
+          sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            sound.playAsync().then(() => {
+              sound.unloadAsync();
             });
           });
           Alert.alert("Cập nhật nhóm", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
@@ -302,7 +284,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("disconnect", (reason) => {
-        console.log("Ngắt kết nối Socket.IO trong ConversationList. Lý do:", reason);
+        // console.log("Ngắt kết nối Socket.IO trong ConversationList. Lý do:", reason);
       });
 
       socketConnection.on("connect_error", (error) => {

@@ -128,7 +128,7 @@ export const sendEmoji = async (messageId, typeEmoji) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.put(`/message/${messageId}/emoji`, { typeEmoji }, {
+    const res = await axiosInstance.post(`/message/${messageId}/emoji`, { typeEmoji }, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -146,10 +146,11 @@ export const revokeEmoji = async (messageId, typeEmoji) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.delete(`/message/${messageId}/emoji`, { typeEmoji }, {
+    const res = await axiosInstance.delete(`/message/${messageId}/emoji`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      data: { typeEmoji }, 
     });
     return res.data;
   } catch (error) {

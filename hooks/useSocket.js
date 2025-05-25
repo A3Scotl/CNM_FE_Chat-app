@@ -79,14 +79,14 @@ export const useSocket = (
         });
 
         socketRef.current.on("disconnect", (reason) => {
-          console.log("Ngắt kết nối", `Lý do: ${reason}`);
+          // console.log("Ngắt kết nối", `Lý do: ${reason}`);
         });
 
         socketRef.current.onAny((event, ...args) => {
           console.log(`Sự kiện socket: ${event}`, args);
         });
       } catch (err) {
-        console.error("Lỗi khi khởi tạo socket:", err);
+        // console.error("Lỗi khi khởi tạo socket:", err);
       }
     };
 

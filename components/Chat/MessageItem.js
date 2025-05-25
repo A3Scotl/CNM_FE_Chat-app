@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, Animated, Easing, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, Animated, Easing, Platform, Modal, TouchableWithoutFeedback, Alert } from 'react-native';
 import { Avatar, Text } from 'react-native-paper';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
+import { Video } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library';
 
 const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus, viewRefs, playAudio, focusedMessageId, onSendEmoji, onRevokeEmoji }) => {
   const isCurrentUser = String(msg.sender._id) === String(userId);
@@ -11,9 +15,9 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
   const opacityAnim = useRef(new Animated.Value(1)).current;
   const [audioProgress, setAudioProgress] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false); 
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const EMOJI_TYPES = ['👍', '❤️', '😂', '😢', '😮', '😡']; 
+  const EMOJI_TYPES = ['👍', '❤️', '😂', '😢', '😡'];
 
   useEffect(() => {
     if (focusedMessageId === msg._id) {
@@ -41,55 +45,103 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
     android: { elevation: 2 },
   });
 
-  const renderMedia = () => {
-    if (!msg.fileMeta || msg.fileMeta.length === 0) return null;
+  const downloadFile = async (file) => {
+    try {
+      // Yêu cầu quyền lưu trữ trên Android
+      if (Platform.OS === 'android') {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Cần quyền truy cập',
+            'Ứng dụng cần quyền truy cập bộ nhớ để tải file. Vui lòng cấp quyền trong cài đặt.',
+            [
+              { text: 'Hủy', style: 'cancel' },
+              { text: 'Mở cài đặt', onPress: () => Linking.openSettings() },
+            ]
+          );
+          return;
+        }
+      }
 
-    return (
-      <View style={styles.mediaContainer}>
-        {msg.fileMeta.map((file, index) => (
-          <View key={index} style={styles.mediaItem}>
-            {file.mimeType.startsWith('image') ? (
-              <TouchableOpacity onPress={() => onFocus(file.url, true)}>
-                <Image source={{ uri: file.url }} style={styles.messageImage} resizeMode="cover" />
-              </TouchableOpacity>
-            ) : file.mimeType.startsWith('audio') ? (
-              <TouchableOpacity
-                style={styles.audioContainer}
-                onPress={() => {
-                  playAudio(file.url);
-                  setAudioProgress(0);
-                  const interval = setInterval(() => {
-                    setAudioProgress(prev => {
-                      if (prev >= 1) {
-                        clearInterval(interval);
-                        return 1;
-                      }
-                      return prev + 0.02;
-                    });
-                  }, 100);
-                }}
-              >
-                <FontAwesome5 name="play-circle" size={24} color={iconColor} />
-                <Text style={textColor}>{file.duration ? `${file.duration}s` : 'Audio message'}</Text>
-                <View style={styles.progressBarBackground}>
-                  <Animated.View style={[styles.progressBarFill, { width: `${audioProgress * 100}%`, backgroundColor: iconColor }]} />
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.fileContainer}>
-                <FontAwesome5 name="file-alt" size={24} color={iconColor} />
-                <View style={styles.fileInfo}>
-                  <Text style={textColor}>{file.name}</Text>
-                  <Text style={textColor}>{(file.size / 1024).toFixed(2)} KB</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        ))}
-      </View>
-    );
+      // Tạo đường dẫn tạm cho file
+      const fileUri = `${FileSystem.cacheDirectory}${file.name}`;
+      // Tải file từ URL
+      const { uri } = await FileSystem.downloadAsync(file.url, fileUri);
+      // Mở file hoặc lưu vào thiết bị
+      await Sharing.shareAsync(uri, { mimeType: file.mimeType, dialogTitle: `Tải ${file.name}` });
+    } catch (error) {
+      console.error('Lỗi tải file:', error);
+      Alert.alert('Lỗi', `Không thể tải file: ${error.message}`);
+    }
   };
 
+const renderMedia = () => {
+  if (!msg.fileMeta || msg.fileMeta.length === 0) return null;
+  console.log('msg.content:', msg.content); // Log để kiểm tra
+
+  return (
+    <View style={styles.mediaContainer}>
+      {msg.fileMeta.map((file, index) => (
+        <View key={index} style={styles.mediaItem}>
+          {file.mimeType.startsWith('image') ? (
+            <TouchableOpacity onPress={() => onFocus(file.url, true)}>
+              <Image source={{ uri: file.url }} style={styles.messageImage} resizeMode="cover" />
+            </TouchableOpacity>
+          ) : file.mimeType.startsWith('audio') ? (
+            <TouchableOpacity
+              style={styles.audioContainer}
+              onPress={() => {
+                // Chọn URI dựa trên người gửi
+                const audioUri = !isCurrentUser && msg.content && msg.content.startsWith('http') ? msg.content : file.url;
+                if (!audioUri) {
+                  Alert.alert('Lỗi', 'Không tìm thấy URI âm thanh');
+                  return;
+                }
+                playAudio(audioUri);
+                setAudioProgress(0);
+                const interval = setInterval(() => {
+                  setAudioProgress(prev => {
+                    if (prev >= 1) {
+                      clearInterval(interval);
+                      return 1;
+                    }
+                    return prev + 0.02;
+                  });
+                }, 100);
+              }}
+            >
+              <FontAwesome5 name="play-circle" size={24} color={iconColor} />
+              <Text style={textColor}>{file.duration ? `${file.duration}s` : 'Audio message'}</Text>
+              <View style={styles.progressBarBackground}>
+                <Animated.View style={[styles.progressBarFill, { width: `${audioProgress * 100}%`, backgroundColor: iconColor }]} />
+              </View>
+            </TouchableOpacity>
+          ) : file.mimeType.startsWith('video') ? (
+            <Video
+              source={{ uri: file.url }}
+              style={styles.messageVideo}
+              useNativeControls
+              resizeMode="contain"
+              onError={(error) => {
+                console.error('Lỗi phát video:', error);
+                Alert.alert('Lỗi', 'Không thể phát video');
+              }}
+            />
+          ) : (
+            <TouchableOpacity style={styles.fileContainer} onPress={() => downloadFile(file)}>
+              <FontAwesome5 name="file-alt" size={24} color={iconColor} />
+              <View style={styles.fileInfo}>
+                <Text style={textColor}>{file.name || 'Unknown file'}</Text>
+                <Text style={textColor}>{file.size ? `${(file.size / 1024).toFixed(2)} KB` : 'Unknown size'}</Text>
+              </View>
+              <FontAwesome5 name="download" size={20} color={iconColor} style={styles.downloadIcon} />
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+};
   const renderMessageContent = () => {
     if (msg.isRevoke) {
       return <Text style={[textColor, { fontStyle: 'italic' }]}>Tin nhắn đã bị thu hồi</Text>;
@@ -97,22 +149,33 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
     if (msg.fileMeta && msg.fileMeta.length > 0) {
       return renderMedia();
     }
-    return <Text style={textColor}>{msg.content}</Text>;
+    return <Text style={textColor}>{msg.content || 'No content'}</Text>;
   };
 
   const renderReplyToMessage = () => {
-    // Nếu tin nhắn đã bị thu hồi, không hiển thị reply
     if (msg.isRevoke || !msg.replyTo) return null;
 
-    const isCurrentUserReply = String(msg.replyTo.sender?._id || msg.replyTo.sender) === String(userId);
-    // Sửa lỗi: Đảm bảo truy cập đúng `fullName` từ `msg.replyTo.sender`
-    const senderName = isCurrentUserReply ? 'You' : (msg.replyTo.sender?.fullName || 'Unknown').split(' ').pop();
+    console.log('msg.replyTo:', msg.replyTo); // Log để kiểm tra dữ liệu
 
-    let replyContent = '';
-    if (msg.replyTo.type === 'text') replyContent = msg.replyTo.content;
-    else if (msg.replyTo.type === 'image') replyContent = 'Image';
-    else if (msg.replyTo.type === 'audio') replyContent = 'Audio message';
-    else if (msg.replyTo.type === 'file') replyContent = 'File attachment';
+    const isCurrentUserReply = String(msg.replyTo.sender?._id || msg.replyTo.sender) === String(userId);
+    const senderName = isCurrentUserReply
+      ? 'You'
+      : typeof msg.replyTo.sender?.fullName === 'string'
+      ? msg.replyTo.sender.fullName.split(' ').pop() || 'Unknown'
+      : 'Unknown';
+
+    let replyContent = 'Unknown';
+    if (msg.replyTo.type === 'text' && typeof msg.replyTo.content === 'string') {
+      replyContent = msg.replyTo.content;
+    } else if (msg.replyTo.type === 'image') {
+      replyContent = 'Image';
+    } else if (msg.replyTo.type === 'audio') {
+      replyContent = 'Audio message';
+    } else if (msg.replyTo.type === 'file') {
+      replyContent = 'File attachment';
+    } else if (msg.replyTo.type === 'video') {
+      replyContent = 'Video';
+    }
 
     return (
       <TouchableOpacity
@@ -138,10 +201,10 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
     if (!msg.emoji || Object.keys(msg.emoji).length === 0) return null;
 
     const allEmojis = Object.entries(msg.emoji)
-      .filter(([, users]) => users && users.length > 0) // Chỉ hiển thị emoji có người dùng
+      .filter(([, users]) => users && users.length > 0)
       .map(([emojiType, users]) => {
         const count = users.length;
-        const hasUserReacted = users.includes(userId); // Kiểm tra xem người dùng hiện tại đã react chưa
+        const hasUserReacted = users.includes(userId);
         return { emojiType, count, hasUserReacted };
       });
 
@@ -155,7 +218,7 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
             style={[styles.emojiReactionBubble, hasUserReacted && styles.myReactionBubble]}
             onPress={() => handleEmojiPress(emojiType)}
           >
-            <Text style={styles.emojiText}>{emojiType}</Text>
+            <Text style={styles.emojiText}>{emojiType || '😊'}</Text>
             {count > 1 && <Text style={styles.emojiCount}>{count}</Text>}
           </TouchableOpacity>
         ))}
@@ -164,7 +227,6 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
   };
 
   const handleLongPress = () => {
-    // Không hiển thị menu nếu tin nhắn đã bị thu hồi
     if (!msg.isRevoke) {
       setShowMenu(true);
     }
@@ -179,14 +241,14 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
     } else if (option === 'recall' && isCurrentUser && !msg.isRevoke) {
       onRecall(msg._id);
     } else if (option === 'react') {
-      setShowEmojiPicker(true); // Mở bảng chọn emoji
+      setShowEmojiPicker(true);
     }
   };
 
   const handleEmojiPress = (emojiType) => {
-    setShowEmojiPicker(false); // Đóng bảng chọn emoji sau khi chọn
-    // Kiểm tra xem người dùng đã thả emoji này chưa
+    setShowEmojiPicker(false);
     if (msg.emoji && msg.emoji[emojiType] && msg.emoji[emojiType].includes(userId)) {
+      console.log(emojiType);
       onRevokeEmoji(msg._id, emojiType);
     } else {
       onSendEmoji(msg._id, emojiType);
@@ -212,7 +274,7 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
       >
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => msg.replyTo && !msg.isRevoke && onFocus(msg.replyTo._id, false)} // Chỉ cho phép nhấn vào reply nếu tin nhắn chưa bị thu hồi
+          onPress={() => msg.replyTo && !msg.isRevoke && onFocus(msg.replyTo._id, false)}
           onLongPress={handleLongPress}
           delayLongPress={200}
         >
@@ -220,13 +282,12 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
           {renderMessageContent()}
           <Text style={[styles.timestamp, { color: isCurrentUser ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)' }]}>{msg.timestamp}</Text>
         </TouchableOpacity>
-        {renderEmojis()} {/* Hiển thị các emoji đã reaction */}
+        {renderEmojis()}
       </Animated.View>
       {isCurrentUser && (
         <Avatar.Image size={32} source={{ uri: user?.avatar || 'https://i.pravatar.cc/150' }} style={styles.messageAvatar} />
       )}
 
-      {/* Menu when long press */}
       <Modal
         visible={showMenu}
         transparent
@@ -259,7 +320,6 @@ const MessageItem = ({ msg, user, userId, onReply, onForward, onRecall, onFocus,
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Bảng chọn emoji */}
       <Modal
         visible={showEmojiPicker}
         transparent
@@ -294,11 +354,13 @@ const styles = StyleSheet.create({
   messageTextOther: { color: 'black', fontSize: 16 },
   timestamp: { fontSize: 11, alignSelf: 'flex-end', marginTop: 4 },
   messageImage: { width: 200, height: 150, borderRadius: 8 },
+  messageVideo: { width: 200, height: 150, borderRadius: 8 },
   audioContainer: { flexDirection: 'column', marginTop: 8, width: 100 },
   progressBarBackground: { height: 5, backgroundColor: '#ddd', borderRadius: 3, overflow: 'hidden', marginTop: 4 },
   progressBarFill: { height: '100%' },
   fileContainer: { flexDirection: 'row', alignItems: 'center', padding: 8 },
   fileInfo: { marginLeft: 10, flex: 1 },
+  downloadIcon: { marginLeft: 10 },
   replyToContainer: { padding: 8, borderRadius: 8, marginBottom: 5, flexDirection: 'row', alignItems: 'center' },
   replyToContainerMe: { backgroundColor: 'rgba(255,255,255,0.2)' },
   replyToContainerOther: { backgroundColor: 'rgba(0,122,255,0.1)' },
@@ -323,24 +385,22 @@ const styles = StyleSheet.create({
   menuRight: { marginLeft: 50 },
   menuLeft: { marginRight: 50 },
   menuItem: { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5 },
-  menuText: { fontSize: 12, marginTop: 4, color: '#333' },
-  // Styles for Emoji Reactions
+  menuText: { fontSize: 10, color: '#333' },
   emojiReactionsContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-    // Căn chỉnh vị trí của emoji reactions dựa trên người gửi
+    position: 'absolute',
+    bottom: -22,
   },
   emojiReactionsContainerMe: {
-    alignSelf: 'flex-end', // Căn phải cho tin nhắn của tôi
+    alignSelf: 'flex-end',
   },
   emojiReactionsContainerOther: {
-    alignSelf: 'flex-start', // Căn trái cho tin nhắn của người khác
+    alignSelf: 'flex-start',
   },
   emojiReactionBubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e0e0e0', // Màu nền mặc định
+    backgroundColor: '#e0e0e0',
     borderRadius: 15,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -348,7 +408,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   myReactionBubble: {
-    backgroundColor: '#007AFF', // Màu nền nếu người dùng hiện tại đã reaction
+    backgroundColor: '#fff',
   },
   emojiText: {
     fontSize: 14,
@@ -356,9 +416,8 @@ const styles = StyleSheet.create({
   },
   emojiCount: {
     fontSize: 12,
-    color: '#666',
+    color: '#000',
   },
-  // Styles for Emoji Picker Modal
   emojiPickerContainer: {
     backgroundColor: 'white',
     borderRadius: 20,

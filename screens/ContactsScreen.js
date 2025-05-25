@@ -20,7 +20,6 @@ import debounce from "lodash.debounce";
 import { getMyConversations } from "../apis/conversation.api";
 import ChatList from "../components/Chat/ChatList";
 import io from "socket.io-client";
-import { Audio } from "expo-av";
 import {API_URL,SOCKET_URL} from "@env";
 
 dayjs.extend(relativeTime);
