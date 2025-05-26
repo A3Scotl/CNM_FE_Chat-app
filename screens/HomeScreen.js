@@ -32,10 +32,11 @@ import ContactsScreen from "./ContactsScreen";
 import { getMyProfile, findUserByPhone } from "../apis/user.api";
 import { logout } from "../apis/auth.api";
 import { useFriendRequest } from "../hooks/useFriendRequest";
-import { createGroup } from "../apis/conversationGroup.api";
+import { createGroup, searchGroupsByName } from "../apis/conversationGroup.api";
 import { getFriends } from "../apis/contact.api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL, SOCKET_URL } from "@env";
+
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
   const colors = { ...theme.colors, primary: '#0098f9', accent: '#0098f9' };
@@ -68,7 +69,7 @@ const HomeScreen = ({ navigation, route }) => {
     { key: "contacts", title: "Contacts", icon: "account-group" },
   ];
 
-  // Kết nối Socket.IO và lắng nghe sự kiện
+  // Socket.IO connection and event listeners
   useEffect(() => {
     let socketConnection;
     const connectSocket = async () => {
@@ -93,7 +94,6 @@ const HomeScreen = ({ navigation, route }) => {
         Alert.alert("Thông báo", data.message);
       });
       socketConnection.on("friend-request-accepted", async ({ requestId, userId }) => {
-        // console.log("Lời mời kết bạn được chấp nhận:", { requestId, userId });
         Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
         await Promise.all([fetchFriends(), fetchSentRequests(true)]);
       });
@@ -157,6 +157,7 @@ const HomeScreen = ({ navigation, route }) => {
   const handleProfileUpdateSuccess = (updatedUser) => {
     setCurrentUser(updatedUser);
   };
+
   const clearCache = async () => {
     try {
       await AsyncStorage.removeItem("friendRequests");
@@ -166,12 +167,12 @@ const HomeScreen = ({ navigation, route }) => {
       console.error("Failed to clear cache:", err);
     }
   };
+
   const handleLogout = async () => {
     try {
       setShowDropdown(false);
       await clearCache();
       await logout();
-
       navigation.navigate("Login");
     } catch (error) {
       console.error("Logout failed:", error);
@@ -186,29 +187,66 @@ const HomeScreen = ({ navigation, route }) => {
     };
   };
 
-  const handleSearch = useCallback(
-    debounce(async (query) => {
-      Keyboard.dismiss();
-      const formattedQuery = query.replace(/[^0-9]/g, "");
-      if (!formattedQuery.trim()) {
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
+const handleSearch = useCallback(
+  debounce(async (query) => {
+    Keyboard.dismiss();
+    const formattedQuery = query.replace(/[^0-9]/g, "");
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    try {
+      setIsSearching(true);
+      let combinedResults = [];
+
+      if (query.length === 10 && formattedQuery.length === 10) {
+        const userResults = await findUserByPhone(formattedQuery);
+        if (userResults) {
+          combinedResults = combinedResults.concat(Array.isArray(userResults) ? userResults : [userResults]);
+        }
       }
-      try {
-        setIsSearching(true);
-        const results = await findUserByPhone(formattedQuery);
-        const resultsArray = Array.isArray(results) ? results : [results];
-        setSearchResults(resultsArray);
-      } catch (error) {
-        console.error("Search error:", error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
+
+      // --- Start of Group Results Handling ---
+      const groupSearchResultsResponse = await searchGroupsByName(query);
+      console.log("groupSearchResultsResponse", groupSearchResultsResponse.data);
+
+      let groupsToProcess = [];
+
+      // Check if the API returned a 'data' object with a 'groups' property
+      if (groupSearchResultsResponse && groupSearchResultsResponse.data ) {
+        if (Array.isArray(groupSearchResultsResponse.data)) {
+          // If 'groups' is already an array, use it directly
+          groupsToProcess = groupSearchResultsResponse.data;
+        } else {
+          // If 'groups' is a single object, wrap it in an array
+          groupsToProcess = [groupSearchResultsResponse.data];
+        }
       }
-    }, 2500),
-    []
-  );
+      // If the API directly returns an array or single object (without .data.groups)
+      else if (groupSearchResultsResponse) {
+          if (Array.isArray(groupSearchResultsResponse)) {
+            groupsToProcess = groupSearchResultsResponse;
+          } else if (typeof groupSearchResultsResponse === 'object' && groupSearchResultsResponse !== null) {
+            groupsToProcess = [groupSearchResultsResponse];
+          }
+      }
+
+      const typedGroupResults = groupsToProcess.map(group => ({ ...group, type: 'group' }));
+      console.log("typedGroupResults", typedGroupResults);
+      combinedResults = combinedResults.concat(typedGroupResults);
+      // --- End of Group Results Handling ---
+
+      setSearchResults(combinedResults);
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, 2500),
+  []
+);
 
   const handleGroupSearch = useCallback(
     debounce(async (query) => {
@@ -231,6 +269,7 @@ const HomeScreen = ({ navigation, route }) => {
     }, 500),
     [selectedMembers]
   );
+
   const handleSearchChange = (query) => {
     setSearchQuery(query);
     handleSearch(query);
@@ -334,46 +373,85 @@ const HomeScreen = ({ navigation, route }) => {
             data={searchResults}
             keyExtractor={(item) => item._id}
             renderItem={({ item }) => {
-              const isCurrentUser = item._id === currentUser?._id;
-              const isFriend = friends.some((friend) => friend._id === item._id);
-              return (
-                <View style={styles.userItem}>
-                  <Avatar.Image
-                    size={40}
-                    source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
-                  />
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>
-                      {item.fullName || "Người dùng không xác định"}
-                    </Text>
-                    <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+             
+              if (item.type === 'group') {
+                return (
+                  <TouchableOpacity
+                    style={styles.userItem} 
+                    onPress={() => {
+                     
+                        navigation.navigate("Chat", {
+                            conversationId: item._id,
+                            chat: {
+                                _id: item._id,
+                                user: {
+                                    fullName: item.name, 
+                                    avatar: item.avatar, 
+                                },
+                                type: "group",
+                            },
+                            user: currentUser,
+                        });
+                        setSearchQuery(""); 
+                        setSearchResults([]); 
+                    }}
+                  >
+                    <Avatar.Image
+                      size={40}
+                        source={{ uri: item.avatar && item.avatar !== "" ? 
+                        item.avatar : "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg" }}                    />
+                    <View style={styles.userInfo}>
+                      <Text style={styles.userName}>
+                        {item.name} 
+                      </Text>
+                      <Text style={styles.userPhone}>{item.participants.length || 0} thành viên</Text>
+                    </View>
+                    <MaterialCommunityIcons name="arrow-right" size={24} color={colors.primary} />
+                  </TouchableOpacity>
+                );
+              } else {
+                const isCurrentUser = item._id === currentUser?._id;
+                const isFriend = friends.some((friend) => friend._id === item._id);
+                return (
+                  <View style={styles.userItem}>
+                    <Avatar.Image
+                      size={40}
+                      source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg" }}
+                    />
+                    <View style={styles.userInfo}>
+                      <Text style={styles.userName}>
+                        {item.fullName || "Người dùng không xác định"}
+                      </Text>
+                      <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                    </View>
+                    {!isCurrentUser && (
+                      isFriend ? (
+                        <Text style={styles.friendText}>Bạn bè</Text>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.addButton}
+                          onPress={() => handleSendFriendRequest(item._id)}
+                        >
+                          <MaterialCommunityIcons
+                            name="account-plus"
+                            size={24}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                      )
+                    )}
                   </View>
-                  {!isCurrentUser && (
-                    isFriend ? (
-                      <Text style={styles.friendText}>Bạn bè</Text>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.addButton}
-                        onPress={() => handleSendFriendRequest(item._id)}
-                      >
-                        <MaterialCommunityIcons
-                          name="account-plus"
-                          size={24}
-                          color={colors.primary}
-                        />
-                      </TouchableOpacity>
-                    )
-                  )}
-                </View>
-              );
+                );
+              }
             }}
           />
         ) : (
-          <Text style={styles.noResults}>Không tìm thấy người dùng.</Text>
+          <Text style={styles.noResults}>Không tìm thấy kết quả nào.</Text>
         )}
       </View>
     );
   };
+
 
   const renderGroupModal = () => (
     <Portal>
@@ -402,10 +480,46 @@ const HomeScreen = ({ navigation, route }) => {
           value={groupSearchQuery}
           onChangeText={handleGroupSearchChange}
         />
-        {/* Hiển thị thành viên đã chọn */}
-        {selectedMembersDetails.length > 0 && (
-          <View style={styles.selectedMembersContainer}>
-            <Text style={styles.sectionTitle}>Thành viên đã chọn</Text>
+        <Text style={styles.sectionTitle}>Kết quả tìm kiếm</Text>
+        {/* Kết quả tìm kiếm */}
+        {groupSearchResults.length > 0 ? (
+          <FlatList
+            data={groupSearchResults}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.userItem}
+                onPress={() => toggleMember(item._id, item)}
+              >
+                <Avatar.Image
+                  size={40}
+                  source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
+                />
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{item.fullName}</Text>
+                  <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                </View>
+                <MaterialCommunityIcons
+                  name={
+                    selectedMembers.includes(item._id)
+                      ? "checkbox-marked"
+                      : "checkbox-blank-outline"
+                  }
+                  size={24}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            )}
+            style={styles.searchResults}
+          />
+        ) : (
+          <Text style={styles.noResults}>Không tìm thấy người dùng.</Text>
+        )}
+
+        <View style={styles.selectedMembersContainer}>
+          <Text style={styles.sectionTitle}>Thành viên đã chọn</Text>
+          {/* Hiển thị thành viên đã chọn */}
+          {selectedMembersDetails.length > 0 ? (
             <FlatList
               data={selectedMembersDetails}
               keyExtractor={(item) => item._id}
@@ -421,52 +535,20 @@ const HomeScreen = ({ navigation, route }) => {
                   </View>
                   <TouchableOpacity onPress={() => toggleMember(item._id)}>
                     <MaterialCommunityIcons
-                      name="checkbox-marked"
+                      name="close-circle" // Changed icon to indicate removal
                       size={24}
-                      color={colors.primary}
+                      color="red" // Changed color for remove action
                     />
                   </TouchableOpacity>
                 </View>
               )}
               style={styles.selectedMembersList}
             />
-          </View>
-        )}
-        {/* Kết quả tìm kiếm */}
-        {groupSearchResults.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Kết quả tìm kiếm</Text>
-            <FlatList
-              data={groupSearchResults}
-              keyExtractor={(item) => item._id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.userItem}
-                  onPress={() => toggleMember(item._id, item)}
-                >
-                  <Avatar.Image
-                    size={40}
-                    source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
-                  />
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>{item.fullName}</Text>
-                    <Text style={styles.userPhone}>{item.phoneNumber}</Text>
-                  </View>
-                  <MaterialCommunityIcons
-                    name={
-                      selectedMembers.includes(item._id)
-                        ? "checkbox-marked"
-                        : "checkbox-blank-outline"
-                    }
-                    size={24}
-                    color={colors.primary}
-                  />
-                </TouchableOpacity>
-              )}
-              style={styles.searchResults}
-            />
-          </>
-        )}
+          ) : (
+            <Text style={styles.noResults}>Chưa có thành viên nào được chọn.</Text>
+          )}
+        </View>
+
         {/* Danh sách bạn bè */}
         <Text style={styles.sectionTitle}>Danh sách bạn bè</Text>
         <FlatList
@@ -479,7 +561,7 @@ const HomeScreen = ({ navigation, route }) => {
             >
               <Avatar.Image
                 size={40}
-                source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
+                source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg" }}
               />
               <View style={styles.userInfo}>
                 <Text style={styles.userName}>{item.fullName}</Text>
@@ -550,7 +632,7 @@ const HomeScreen = ({ navigation, route }) => {
     if (index === 0) {
       if (selectedChat) {
         return (
-          <ChatArea
+          <ChatArea // Assuming ChatArea component exists and is imported
             chat={selectedChat}
             onBack={() => {
               setSelectedChat(null);
@@ -569,10 +651,12 @@ const HomeScreen = ({ navigation, route }) => {
     }
     return <ContactsScreen navigation={navigation} />;
   };
+
   const onDismissProfile = () => {
     console.log("Closing ProfileModal, current state:", { visibleProfile });
     setVisibleProfile(false);
   };
+
   return (
     <SafeAreaProvider>
       <Pressable
@@ -609,12 +693,6 @@ const HomeScreen = ({ navigation, route }) => {
                     setShowDropdown(!showDropdown);
                   }}
                 >
-
-                  {/* <MaterialCommunityIcons
-                    name="account-circle"
-                    size={30}
-                    color="white"
-                  /> */}
                   <Avatar.Image
                     size={36}
                     source={{
@@ -746,10 +824,12 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
     marginLeft: 15,
+
   },
   userName: {
     fontSize: 16,
     fontWeight: "500",
+
   },
   userPhone: {
     fontSize: 14,
@@ -794,8 +874,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   searchResults: {
-    height: 100,
-    maxHeight: 100,
     paddingHorizontal: 30,
   },
   friendsList: {
@@ -830,7 +908,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   selectedMembersList: {
-    maxHeight: 100,
     paddingHorizontal: 30,
   },
 });
