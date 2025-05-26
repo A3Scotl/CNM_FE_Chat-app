@@ -179,8 +179,10 @@ export const useGroupInvite = (
             groupId,
             invitedUser: {
               _id: invitedUser,
-              fullName: friend?.fullName || "Unknown",
-              avatar: friend?.avatar || "https://i.pravatar.cc/150",
+              fullName: friend?.fullName,
+              avatar:
+                friend?.avatar ||
+                "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
             },
             invitedBy,
             status: "pending",

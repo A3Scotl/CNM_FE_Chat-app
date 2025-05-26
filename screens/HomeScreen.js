@@ -122,7 +122,9 @@ const HomeScreen = ({ navigation, route }) => {
     connectSocket();
 
     return () => {
-      socketConnection.disconnect();
+      if (socketConnection) {
+        socketConnection.disconnect();
+      }
     };
   }, []);
 

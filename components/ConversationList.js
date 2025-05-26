@@ -301,7 +301,7 @@ const ConversationList = ({ currentUser }) => {
                 ? "Trưởng nhóm"
                 : newRole === "admin"
                 ? "Phó nhóm"
-                : "";
+                : "Thành viên";
           }
         }
       );

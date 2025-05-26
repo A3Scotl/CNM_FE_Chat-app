@@ -124,29 +124,7 @@ const ChatInfoModal = ({
         const { groupId, invitedUser, invitedBy, inviteId } = eventData;
 
         if (groupId === chat._id) {
-          // Cập nhật danh sách pendingInvites
-          fetchPendingInvites(); // Gọi API để làm mới danh sách
-          // Hoặc thêm trực tiếp vào state (nếu API trả về chậm)
-          /*
-        setPendingInvites((prev) => [
-          ...prev,
-          {
-            _id: inviteId,
-            groupId,
-            invitedUser: {
-              _id: invitedUser,
-              fullName: invitedBy?.fullName || "Unknown",
-              avatar: invitedBy?.avatar || "https://i.pravatar.cc/150",
-            },
-            invitedBy: {
-              _id: invitedBy,
-              fullName: invitedBy?.fullName || "Unknown",
-              avatar: invitedBy?.avatar || "https://i.pravatar.cc/150",
-            },
-            status: "pending",
-          },
-        ]);
-        */
+          fetchPendingInvites();
         }
       };
 
@@ -321,127 +299,6 @@ const ChatInfoModal = ({
     ...(isGroup
       ? [
           {
-            key: "members",
-            render: () => (
-              <View style={styles.modalSection}>
-                <TouchableOpacity
-                  onPress={toggleMembers}
-                  style={styles.sectionHeader}
-                >
-                  <Text style={styles.modalSectionTitle}>
-                    Thành viên ({groupMembers.length || 0})
-                  </Text>
-
-                  <View style={styles.sectionHeaderRight}>
-                    <MaterialIcons
-                      name={membersExpanded ? "expand-less" : "expand-more"}
-                      size={28}
-                      color="black"
-                      style={styles.iconStyle}
-                    />
-                  </View>
-                </TouchableOpacity>
-
-                <Animated.View
-                  style={[
-                    styles.membersContainer,
-                    { height: membersHeightAnim },
-                  ]}
-                >
-                  <FlatList
-                    data={groupMembers}
-                    keyExtractor={(item) => item._id}
-                    renderItem={({ item }) => (
-                      <View style={styles.participantItem}>
-                        <Avatar.Image
-                          size={40}
-                          source={{
-                            uri:
-                              item.avatar ||
-                              "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
-                          }}
-                        />
-                        <View style={styles.participantInfo}>
-                          <Text style={styles.participantName}>
-                            {item.fullName}
-                            {item._id === user._id && " (Bạn)"}
-                          </Text>
-                          <Text style={styles.participantRole}>
-                            {item.role === "owner"
-                              ? "Trưởng phòng"
-                              : item.role === "admin"
-                              ? "Phó phòng"
-                              : ""}
-                          </Text>
-                        </View>
-                        {isOwner && item._id !== user._id && (
-                          <View style={styles.memberActions}>
-                            <IconButton
-                              icon="account-edit"
-                              size={20}
-                              onPress={() =>
-                                Alert.alert(
-                                  "Thay đổi quyền",
-                                  "Chọn vai trò mới:",
-                                  [
-                                    {
-                                      text: "",
-                                      onPress: () =>
-                                        onChangeMemberRole(item._id, "member"),
-                                    },
-                                    {
-                                      text: "Phó phòng",
-                                      onPress: () =>
-                                        onChangeMemberRole(item._id, "admin"),
-                                    },
-                                    {
-                                      text: "Trưởng phòng",
-                                      onPress: () =>
-                                        onChangeMemberRole(item._id, "owner"),
-                                    },
-                                    { text: "Hủy", style: "cancel" },
-                                  ],
-                                  { cancelable: true }
-                                )
-                              }
-                            />
-                            <IconButton
-                              icon="delete"
-                              size={20}
-                              onPress={() => onRemoveMember(item._id)}
-                              iconColor="#ff4444"
-                            />
-                          </View>
-                        )}
-                      </View>
-                    )}
-                    style={styles.participantList}
-                    nestedScrollEnabled={true}
-                  />
-                  {/*thay đổi nút thêm thành viên bằng cách bắt sự kiện realtime nút toggle */}
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (showInviteButton) {
-                        fetchAvailableFriends();
-                        setShowInviteModal(true);
-                      } else {
-                        fetchAvailableFriends();
-                        setShowAddMemberModal(true);
-                      }
-                    }}
-                  >
-                    <Text style={styles.addMemberText}>
-                      {showInviteButton
-                        ? "+ Gửi yêu cầu vào nhóm"
-                        : "+ Thêm thành viên"}
-                    </Text>
-                  </TouchableOpacity>
-                  {/*kết thúc nút */}
-                </Animated.View>
-              </View>
-            ),
-          },
-          {
             key: "pendingInvites",
             render: () =>
               (isOwner || isAdmin) && (
@@ -500,6 +357,128 @@ const ChatInfoModal = ({
                 </View>
               ),
           },
+          {
+            key: "members",
+            render: () => (
+              <View style={styles.modalSection}>
+                <TouchableOpacity
+                  onPress={toggleMembers}
+                  style={styles.sectionHeader}
+                >
+                  <Text style={styles.modalSectionTitle}>
+                    Thành viên ({groupMembers.length || 0})
+                  </Text>
+
+                  <View style={styles.sectionHeaderRight}>
+                    <MaterialIcons
+                      name={membersExpanded ? "expand-less" : "expand-more"}
+                      size={28}
+                      color="black"
+                      style={styles.iconStyle}
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                <Animated.View
+                  style={[
+                    styles.membersContainer,
+                    { height: membersHeightAnim },
+                  ]}
+                >
+                  <FlatList
+                    data={groupMembers}
+                    keyExtractor={(item) => item._id}
+                    renderItem={({ item }) => (
+                      <View style={styles.participantItem}>
+                        <Avatar.Image
+                          size={40}
+                          source={{
+                            uri:
+                              item.avatar ||
+                              "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+                          }}
+                        />
+                        <View style={styles.participantInfo}>
+                          <Text style={styles.participantName}>
+                            {item.fullName}
+                            {item._id === user._id && " (Bạn)"}
+                          </Text>
+                          <Text style={styles.participantRole}>
+                            {item.role === "owner"
+                              ? "Trưởng nhóm"
+                              : item.role === "admin"
+                              ? "Phó nhóm"
+                              : "Thành viên"}
+                          </Text>
+                        </View>
+                        {isOwner && item._id !== user._id && (
+                          <View style={styles.memberActions}>
+                            <IconButton
+                              icon="account-edit"
+                              size={20}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Thay đổi quyền",
+                                  "Chọn vai trò mới:",
+                                  [
+                                    {
+                                      text: "Thành viên",
+                                      onPress: () =>
+                                        onChangeMemberRole(item._id, "member"),
+                                    },
+                                    {
+                                      text: "Phó nhóm",
+                                      onPress: () =>
+                                        onChangeMemberRole(item._id, "admin"),
+                                    },
+                                    {
+                                      text: "Trưởng nhóm",
+                                      onPress: () =>
+                                        onChangeMemberRole(item._id, "owner"),
+                                    },
+                                    { text: "Hủy", style: "cancel" },
+                                  ],
+                                  { cancelable: true }
+                                )
+                              }
+                            />
+                            <IconButton
+                              icon="delete"
+                              size={20}
+                              onPress={() => onRemoveMember(item._id)}
+                              iconColor="#ff4444"
+                            />
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    style={styles.participantList}
+                    nestedScrollEnabled={true}
+                  />
+                </Animated.View>
+                {/*thay đổi nút thêm thành viên bằng cách bắt sự kiện realtime nút toggle */}
+                <TouchableOpacity
+                  onPress={() => {
+                    if (showInviteButton) {
+                      fetchAvailableFriends();
+                      setShowInviteModal(true);
+                    } else {
+                      fetchAvailableFriends();
+                      setShowAddMemberModal(true);
+                    }
+                  }}
+                >
+                  <Text style={styles.addMemberText}>
+                    {showInviteButton
+                      ? "+ Gửi yêu cầu vào nhóm"
+                      : "+ Thêm thành viên"}
+                  </Text>
+                </TouchableOpacity>
+                {/*kết thúc nút */}
+              </View>
+            ),
+          },
+
           /////////////////////////////////////////////////////////////
         ]
       : []),

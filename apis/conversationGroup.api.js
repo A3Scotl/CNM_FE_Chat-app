@@ -29,15 +29,37 @@ export const createGroup = async (groupData) => {
   }
 };
 
-// Thêm thành viên vào nhóm
-export const addGroupMember = async (groupId, userId) => {
+// // Thêm thành viên vào nhóm
+// export const addGroupMember = async (groupId, userId) => {
+//   try {
+//     const token = await getToken();
+//     if (!token) throw new Error("Token không tồn tại");
+
+//     const res = await axiosInstance.post(
+//       `/conversationGroup/${groupId}/add-member`,
+//       { userId },
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//         },
+//       }
+//     );
+//     return res.data;
+//   } catch (error) {
+//     console.error("❌ Lỗi khi thêm thành viên vào nhóm:", error?.response?.data || error);
+//     throw error;
+//   }
+// };
+
+// Thêm nhiều thành viên vào nhóm
+export const addGroupMember = async (groupId, userIds) => {
   try {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
     const res = await axiosInstance.post(
-      `/conversationGroup/${groupId}/add-member`,
-      { userId },
+      `/conversationGroup/${groupId}/add-members`,
+      { userIds }, // Send array of userIds
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -46,7 +68,10 @@ export const addGroupMember = async (groupId, userId) => {
     );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi thêm thành viên vào nhóm:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi thêm thành viên vào nhóm:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -68,7 +93,10 @@ export const removeGroupMember = async (groupId, userId) => {
     );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi xóa thành viên khỏi nhóm:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi xóa thành viên khỏi nhóm:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -108,7 +136,10 @@ export const changeMemberRole = async (groupId, userId, newRole) => {
     );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi thay đổi quyền thành viên:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi thay đổi quyền thành viên:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -119,11 +150,15 @@ export const leaveGroup = async (groupId) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.post(`/conversationGroup/${groupId}/leave`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await axiosInstance.post(
+      `/conversationGroup/${groupId}/leave`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return res.data;
   } catch (error) {
     console.error("❌ Lỗi khi rời nhóm:", error?.response?.data || error);
@@ -137,14 +172,20 @@ export const getGroupMembersWithRoles = async (groupId) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.get(`/conversationGroup/${groupId}/members`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await axiosInstance.get(
+      `/conversationGroup/${groupId}/members`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi lấy danh sách thành viên:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi lấy danh sách thành viên:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -185,7 +226,10 @@ export const updateGroupInfo = async (groupId, name, avatar) => {
     );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi cập nhật thông tin nhóm:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi cập nhật thông tin nhóm:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -196,14 +240,20 @@ export const getFriendsNotInGroup = async (groupId) => {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.get(`/conversationGroup/${groupId}/friends-not-in-group`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const res = await axiosInstance.get(
+      `/conversationGroup/${groupId}/friends-not-in-group`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi lấy danh sách bạn bè không có trong nhóm:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi lấy danh sách bạn bè không có trong nhóm:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };
@@ -225,7 +275,10 @@ export const toggleRequireApproval = async (groupId) => {
     );
     return res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi bật/tắt yêu cầu duyệt:", error?.response?.data || error);
+    console.error(
+      "❌ Lỗi khi bật/tắt yêu cầu duyệt:",
+      error?.response?.data || error
+    );
     throw error;
   }
 };

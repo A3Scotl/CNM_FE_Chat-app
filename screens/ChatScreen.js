@@ -343,12 +343,18 @@ const ChatScreen = ({ navigation, route }) => {
           setIsTyping(false);
         }
       });
-
+      socketConnection.on("group:member-added-group", (data) => {
+        console.log("Nhận sự kiện group:member-added-group:", data);
+        if (data.groupId === chat._id) {
+          fetchMemberInGroupDetails(); // Cập nhật danh sách thành viên
+        }
+      });
       socketConnection.on(
         "group:member-added",
         ({ groupId, addedUserId, addedBy }) => {
           if (groupId === chat._id) {
             fetchMemberInGroupDetails();
+            fetchPendingInvites();
             if (addedBy !== userId) {
               Alert.alert(
                 "Thành viên mới",
@@ -664,9 +670,10 @@ const ChatScreen = ({ navigation, route }) => {
       setSocket(socketConnection);
 
       return () => {
+        socket.off("group:member-added-group");
         socket.off("group:member-removed", handleMemberRemoved);
         socket.off("new-group-invite", handleNewGroupInvite);
-        socket.off("require-approval-toggled", handleNewGroupInvite);
+        socket.off("require-approval-toggled");
         socketConnection.disconnect();
       };
     };
@@ -1515,17 +1522,24 @@ const ChatScreen = ({ navigation, route }) => {
     setReplyingTo(null);
   };
 
-  const handleAddMember = async (friendId) => {
+  const handleAddMember = async (userIds) => {
     try {
-      await addGroupMember(chat._id, friendId);
-      Alert.alert("Thành công", "Thêm thành viên thành công.");
+      await addGroupMember(chat._id, userIds);
+      Alert.alert(
+        "Thành công",
+        `Đã thêm ${userIds.length} thành viên vào nhóm.`
+      );
       await fetchMemberInGroupDetails();
+      await fetchAvailableFriends(); // Làm mới danh sách bạn bè
       setShowAddMemberModal(false);
       if (socket) {
-        socket.emit("group:member-added", {
-          groupId: chat._id,
-          addedUserId: friendId,
-          addedBy: userId,
+        // Phát sự kiện cho từng thành viên được thêm
+        userIds.forEach((userId) => {
+          socket.emit("group:member-added-group", {
+            groupId: chat._id,
+            addedUserId: userId,
+            addedBy: user._id, // Giả sử user._id là ID của người thực hiện
+          });
         });
       }
     } catch (error) {
