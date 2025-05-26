@@ -508,21 +508,21 @@ const ChatScreen = ({ navigation, route }) => {
         );
       });
 
-      socketConnection.on(
-        "group:requireApprovalChanged",
-        ({ groupId, requireApproval }) => {
-          console.log("Nhận sự kiện group:requireApprovalChanged:", {
-            groupId,
-            requireApproval,
-          });
-          if (groupId === chat._id) {
-            setConversationDetails((prev) => ({
-              ...prev,
-              requireApproval,
-            }));
-          }
-        }
-      );
+      // socketConnection.on(
+      //   "group:requireApprovalChanged",
+      //   ({ groupId, requireApproval }) => {
+      //     console.log("Nhận sự kiện group:requireApprovalChanged:", {
+      //       groupId,
+      //       requireApproval,
+      //     });
+      //     if (groupId === chat._id) {
+      //       setConversationDetails((prev) => ({
+      //         ...prev,
+      //         requireApproval,
+      //       }));
+      //     }
+      //   }
+      // );
       socketConnection.on("new-group-invite", (data) => {
         console.log("Raw new-group-invite data:", data);
         const eventData = Array.isArray(data) ? data[0] : data;

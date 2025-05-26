@@ -82,7 +82,11 @@ const InviteMemberModal = ({
     >
       <Avatar.Image
         size={normalize(40)}
-        source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+        source={{
+          uri:
+            item.avatar ||
+            "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+        }}
         style={styles.avatar}
       />
       <View style={styles.friendInfo}>

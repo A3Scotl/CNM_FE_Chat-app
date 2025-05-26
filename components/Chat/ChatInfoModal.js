@@ -445,7 +445,7 @@ const ChatInfoModal = ({
                                   "Chọn vai trò mới:",
                                   [
                                     {
-                                      text: "Thành viên",
+                                      text: "",
                                       onPress: () =>
                                         onChangeMemberRole(item._id, "member"),
                                     },

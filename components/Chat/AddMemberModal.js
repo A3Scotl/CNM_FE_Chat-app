@@ -37,7 +37,9 @@ const AddMemberModal = ({
         setFriendsWithDetails(
           availableFriends.map((friend) => ({
             ...friend,
-            avatar: friend.avatar || "https://i.pravatar.cc/150",
+            avatar:
+              friend.avatar ||
+              "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
             userName: friend.userName || "Unknown User",
           }))
         );
@@ -50,7 +52,9 @@ const AddMemberModal = ({
       setFriendsWithDetails(
         availableFriends.map((friend) => ({
           ...friend,
-          avatar: friend.avatar || "https://i.pravatar.cc/150",
+          avatar:
+            friend.avatar ||
+            "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
           userName: friend.userName || "Unknown User",
         }))
       );
@@ -79,7 +83,11 @@ const AddMemberModal = ({
           >
             <Avatar.Image
               size={40}
-              source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
+              source={{
+                uri:
+                  item.avatar ||
+                  "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+              }}
             />
             <Text style={styles.participantName}>
               {item.userName || "Unknown User"}
