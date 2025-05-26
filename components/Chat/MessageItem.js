@@ -261,7 +261,7 @@ const renderMedia = () => {
       style={[styles.messageContainer, isCurrentUser ? styles.messageContainerMe : styles.messageContainerOther]}
     >
       {!isCurrentUser && (
-        <Avatar.Image size={32} source={{ uri: msg.sender?.avatar || 'https://i.pravatar.cc/150' }} style={styles.messageAvatar} />
+        <Avatar.Image size={32} source={{ uri: msg.sender?.avatar || 'https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg' }} style={styles.messageAvatar} />
       )}
       <Animated.View
         style={[
@@ -284,7 +284,7 @@ const renderMedia = () => {
         {renderEmojis()}
       </Animated.View>
       {isCurrentUser && (
-        <Avatar.Image size={32} source={{ uri: user?.avatar || 'https://i.pravatar.cc/150' }} style={styles.messageAvatar} />
+        <Avatar.Image size={32} source={{ uri: user?.avatar || 'https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg' }} style={styles.messageAvatar} />
       )}
 
       <Modal

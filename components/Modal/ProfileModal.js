@@ -220,7 +220,7 @@ const ProfileModal = ({
                     <TouchableOpacity onPress={handleImagePick}>
                       <Avatar.Image
                         size={100}
-                        source={{ uri: tempAvatar || user?.avatar || 'https://i.pravatar.cc/150' }}
+                        source={{ uri: tempAvatar || user?.avatar || 'https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg' }}
                         style={styles.avatar}
                       />
                       <Avatar.Icon icon="camera" size={28} style={styles.cameraIcon} />
@@ -306,7 +306,7 @@ const ProfileModal = ({
                     <TouchableOpacity onPress={handleImagePick}>
                       <Avatar.Image
                         size={100}
-                        source={{ uri: tempAvatar || user?.avatar || 'https://i.pravatar.cc/150' }}
+                        source={{ uri: tempAvatar || user?.avatar || 'https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg' }}
                         style={styles.avatar}
                       />
                       <Avatar.Icon icon="camera" size={28} style={styles.cameraIcon} />

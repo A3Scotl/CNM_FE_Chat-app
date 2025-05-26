@@ -77,7 +77,7 @@ const ContactsScreen = () => {
         .filter((convo) => convo.type === "group")
         .map((convo) => ({
           _id: convo._id,
-          user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
+          user: { fullName: convo.name, avatar: convo.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" },
           lastMessage: convo.lastMessage || null,
           type: "group",
           unreadCount: convo.unreadCount || 0,
@@ -269,16 +269,16 @@ const ContactsScreen = () => {
   const fetchUserInfo = async (userId) => {
     try {
       const user = await findUserById(userId);
-      return user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" };
+      return user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" };
     } catch (error) {
       console.error("Lỗi khi lấy thông tin người dùng:", error);
-      return { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" };
+      return { fullName: "Người dùng ẩn danh", avatar: "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" };
     }
   };
 
   const RequestItem = React.memo(({ item, handleAccept, handleReject, colors }) => {
     const [userInfo, setUserInfo] = useState(
-      item.user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" }
+      item.user || { fullName: "Người dùng ẩn danh", avatar: "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }
     );
 
     React.useEffect(() => {
@@ -324,7 +324,7 @@ const ContactsScreen = () => {
 
   const SentRequestItem = React.memo(({ item, colors }) => {
     const [userInfo, setUserInfo] = useState(
-      item.to || { fullName: "Người dùng ẩn danh", avatar: "https://i.pravatar.cc/150" }
+      item.to || { fullName: "Người dùng ẩn danh", avatar: "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }
     );
 
     React.useEffect(() => {
@@ -360,7 +360,7 @@ const ContactsScreen = () => {
   const FriendItem = React.memo(({ item, colors, onChatPress }) => (
     <View style={styles.itemContainer}>
       <View style={styles.rowTop}>
-        <Avatar.Image size={48} source={{ uri: item.avatar || "https://i.pravatar.cc/150" }} />
+        <Avatar.Image size={48} source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }} />
         <View style={styles.infoContainer}>
           <Text style={[styles.name, { color: colors.text }]}>{item.fullName || "Người dùng ẩn danh"}</Text>
           <Text style={[styles.subText, { color: colors.text }]}>Bạn bè</Text>

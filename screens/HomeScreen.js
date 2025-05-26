@@ -340,7 +340,7 @@ const HomeScreen = ({ navigation, route }) => {
                 <View style={styles.userItem}>
                   <Avatar.Image
                     size={40}
-                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                    source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
                   />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>
@@ -413,7 +413,7 @@ const HomeScreen = ({ navigation, route }) => {
                 <View style={styles.userItem}>
                   <Avatar.Image
                     size={40}
-                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                    source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
                   />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{item.fullName}</Text>
@@ -446,7 +446,7 @@ const HomeScreen = ({ navigation, route }) => {
                 >
                   <Avatar.Image
                     size={40}
-                    source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                    source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
                   />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{item.fullName}</Text>
@@ -479,7 +479,7 @@ const HomeScreen = ({ navigation, route }) => {
             >
               <Avatar.Image
                 size={40}
-                source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
               />
               <View style={styles.userInfo}>
                 <Text style={styles.userName}>{item.fullName}</Text>
@@ -597,7 +597,7 @@ const HomeScreen = ({ navigation, route }) => {
                 onPress={() => setShowCreateGroupModal(true)}
               >
                 <MaterialCommunityIcons
-                  name="account-group"
+                  name="account-multiple-plus"
                   size={30}
                   color="white"
                 />
@@ -609,10 +609,16 @@ const HomeScreen = ({ navigation, route }) => {
                     setShowDropdown(!showDropdown);
                   }}
                 >
+
+                  {/* <MaterialCommunityIcons
+                    name="account-circle"
+                    size={30}
+                    color="white"
+                  /> */}
                   <Avatar.Image
                     size={36}
                     source={{
-                      uri: currentUser?.avatar || 'https://i.pravatar.cc/150',
+                      uri: currentUser?.avatar || 'https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg',
                     }}
                     style={styles.avatar}
                   />
@@ -649,7 +655,7 @@ const HomeScreen = ({ navigation, route }) => {
               if (route.key === 'messages') {
                 iconName = focused ? 'message-text' : 'message-text-outline';
               } else if (route.key === 'contacts') {
-                iconName = focused ? 'account-group' : 'account-group-outline';
+                iconName = focused ? 'account-box' : 'account-box-outline';
               }
               return (
                 <View style={[styles.iconContainer]}>

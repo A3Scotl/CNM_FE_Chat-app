@@ -61,7 +61,7 @@ const ChatListItem = ({ item, onPress, userId }) => {
     <TouchableOpacity style={styles.container} onPress={() => onPress(item)}>
       <Avatar.Image
         size={48}
-        source={{ uri: user?.avatar || "https://i.pravatar.cc/150" }}
+        source={{ uri: user?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
       />
       <View style={styles.info}>
         <Text style={styles.name}>{user?.fullName || "Không tên"}</Text>

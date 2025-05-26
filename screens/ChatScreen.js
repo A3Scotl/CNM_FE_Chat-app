@@ -141,7 +141,7 @@ const ChatScreen = ({ navigation, route }) => {
         .map((convo) => ({
           _id: convo._id,
           name: convo.type === "group" ? convo.name : convo.participants.find(p => p._id !== userId)?.fullName || "Unknown",
-          avatar: convo.type === "group" ? convo.avatar : convo.participants.find(p => p._id !== userId)?.avatar || "https://i.pravatar.cc/150",
+          avatar: convo.type === "group" ? convo.avatar : convo.participants.find(p => p._id !== userId)?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
           type: convo.type,
         }));
       setConversations(mappedConversations);

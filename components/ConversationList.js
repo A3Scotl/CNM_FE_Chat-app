@@ -33,7 +33,7 @@ const ConversationList = ({ currentUser }) => {
         if (convo.type === "group") {
           return {
             _id: convo._id,
-            user: { fullName: convo.name, avatar: convo.avatar || "https://i.pravatar.cc/150" },
+            user: { fullName: convo.name, avatar: convo.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" },
             lastMessage: convo.lastMessage || null,
             type: "group",
             unreadCount: convo.unreadCount || 0,
@@ -43,7 +43,7 @@ const ConversationList = ({ currentUser }) => {
         } else {
           const otherParticipant = convo.participants?.find(
             (p) => p._id !== currentUser._id
-          ) || { fullName: "Unknown", avatar: "https://i.pravatar.cc/150" };
+          ) || { fullName: "Unknown", avatar: "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" };
           return {
             _id: convo._id,
             user: otherParticipant,

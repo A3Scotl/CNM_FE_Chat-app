@@ -46,8 +46,8 @@ const ChatInfoModal = ({
 
   const displayName = conversationDetails?.user?.fullName || chat?.user?.fullName || "Nhóm không tên";
   const displayAvatar = Platform.OS === "ios"
-    ? (conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150").replace("file://", "")
-    : conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pravatar.cc/150";
+    ? (conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg").replace("file://", "")
+    : conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg";
 
   useEffect(() => {
     console.log("ChatInfoModal: conversationDetails:", conversationDetails);
@@ -220,7 +220,7 @@ const ChatInfoModal = ({
                     <View style={styles.participantItem}>
                       <Avatar.Image
                         size={40}
-                        source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+                        source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
                       />
                       <View style={styles.participantInfo}>
                         <Text style={styles.participantName}>{item.fullName}</Text>
