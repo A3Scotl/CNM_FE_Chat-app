@@ -187,66 +187,78 @@ const HomeScreen = ({ navigation, route }) => {
     };
   };
 
-const handleSearch = useCallback(
-  debounce(async (query) => {
-    Keyboard.dismiss();
-    const formattedQuery = query.replace(/[^0-9]/g, "");
-    if (!query.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-    try {
-      setIsSearching(true);
-      let combinedResults = [];
-
-      if (query.length === 10 && formattedQuery.length === 10) {
-        const userResults = await findUserByPhone(formattedQuery);
-        if (userResults) {
-          combinedResults = combinedResults.concat(Array.isArray(userResults) ? userResults : [userResults]);
-        }
+  const handleSearch = useCallback(
+    debounce(async (query) => {
+      Keyboard.dismiss();
+      const formattedQuery = query.replace(/[^0-9]/g, "");
+      if (!query.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
       }
+      try {
+        setIsSearching(true);
+        let combinedResults = [];
 
-      // --- Start of Group Results Handling ---
-      const groupSearchResultsResponse = await searchGroupsByName(query);
-      console.log("groupSearchResultsResponse", groupSearchResultsResponse.data);
-
-      let groupsToProcess = [];
-
-      // Check if the API returned a 'data' object with a 'groups' property
-      if (groupSearchResultsResponse && groupSearchResultsResponse.data ) {
-        if (Array.isArray(groupSearchResultsResponse.data)) {
-          // If 'groups' is already an array, use it directly
-          groupsToProcess = groupSearchResultsResponse.data;
-        } else {
-          // If 'groups' is a single object, wrap it in an array
-          groupsToProcess = [groupSearchResultsResponse.data];
-        }
-      }
-      // If the API directly returns an array or single object (without .data.groups)
-      else if (groupSearchResultsResponse) {
-          if (Array.isArray(groupSearchResultsResponse)) {
-            groupsToProcess = groupSearchResultsResponse;
-          } else if (typeof groupSearchResultsResponse === 'object' && groupSearchResultsResponse !== null) {
-            groupsToProcess = [groupSearchResultsResponse];
+        // Tìm kiếm người dùng theo số điện thoại
+        if (query.length === 10 && formattedQuery.length === 10) {
+          const userResults = await findUserByPhone(formattedQuery);
+          if (userResults) {
+            combinedResults = combinedResults.concat(
+              Array.isArray(userResults) ? userResults : [userResults]
+            );
           }
+        }
+
+        // Tìm kiếm nhóm theo tên
+        const groupSearchResultsResponse = await searchGroupsByName(query);
+        console.log("Dữ liệu thô từ API:", groupSearchResultsResponse);
+
+        let groupsToProcess = [];
+        if (groupSearchResultsResponse && groupSearchResultsResponse.data) {
+          groupsToProcess = Array.isArray(groupSearchResultsResponse.data)
+            ? groupSearchResultsResponse.data
+            : [groupSearchResultsResponse.data];
+        } else if (groupSearchResultsResponse) {
+          groupsToProcess = Array.isArray(groupSearchResultsResponse)
+            ? groupSearchResultsResponse
+            : [groupSearchResultsResponse];
+        }
+
+        // Lọc nhóm hợp lệ và tách người dùng
+        const validGroups = groupsToProcess.filter(
+          (item) =>
+            item.type === "group" &&
+            item._id &&
+            (item.name || item.fullName) &&
+            Array.isArray(item.participants)
+        );
+        const userResults = groupsToProcess.filter(
+          (item) =>
+            item.type === "friend" && item._id && (item.fullName || item.name)
+        );
+
+        // Gán type cho nhóm
+        const typedGroupResults = validGroups.map((group) => ({
+          ...group,
+          type: "group",
+        }));
+        console.log("Nhóm hợp lệ:", typedGroupResults);
+        console.log("Người dùng từ tìm kiếm nhóm:", userResults);
+
+        // Kết hợp kết quả
+        combinedResults = combinedResults.concat(typedGroupResults, userResults);
+
+        setSearchResults(combinedResults);
+      } catch (error) {
+        console.error("Lỗi tìm kiếm:", error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
       }
-
-      const typedGroupResults = groupsToProcess.map(group => ({ ...group, type: 'group' }));
-      console.log("typedGroupResults", typedGroupResults);
-      combinedResults = combinedResults.concat(typedGroupResults);
-      // --- End of Group Results Handling ---
-
-      setSearchResults(combinedResults);
-    } catch (error) {
-      console.error("Search error:", error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, 2500),
-  []
-);
+    }, 2500),
+    []
+  );
 
   const handleGroupSearch = useCallback(
     debounce(async (query) => {
@@ -373,40 +385,52 @@ const handleSearch = useCallback(
             data={searchResults}
             keyExtractor={(item) => item._id}
             renderItem={({ item }) => {
-             
-              if (item.type === 'group') {
+              if (item.type === "group") {
                 return (
                   <TouchableOpacity
-                    style={styles.userItem} 
+                    style={styles.userItem}
                     onPress={() => {
-                     
-                        navigation.navigate("Chat", {
-                            conversationId: item._id,
-                            chat: {
-                                _id: item._id,
-                                user: {
-                                    fullName: item.name, 
-                                    avatar: item.avatar, 
-                                },
-                                type: "group",
-                            },
-                            user: currentUser,
-                        });
-                        setSearchQuery(""); 
-                        setSearchResults([]); 
+                      navigation.navigate("Chat", {
+                        conversationId: item._id,
+                        chat: {
+                          _id: item._id,
+                          user: {
+                            fullName: item.name || item.fullName || "Nhóm không tên",
+                            avatar:
+                              item.avatar && item.avatar !== ""
+                                ? item.avatar
+                                : "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg",
+                          },
+                          type: "group",
+                        },
+                        user: currentUser,
+                      });
+                      setSearchQuery("");
+                      setSearchResults([]);
                     }}
                   >
                     <Avatar.Image
                       size={40}
-                        source={{ uri: item.avatar && item.avatar !== "" ? 
-                        item.avatar : "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg" }}                    />
+                      source={{
+                        uri:
+                          item.avatar && item.avatar !== ""
+                            ? item.avatar
+                            : "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg",
+                      }}
+                    />
                     <View style={styles.userInfo}>
                       <Text style={styles.userName}>
-                        {item.name} 
+                        {item.name || item.fullName || "Nhóm không tên"}
                       </Text>
-                      <Text style={styles.userPhone}>{item.participants.length || 0} thành viên</Text>
+                      <Text style={styles.userPhone}>
+                        {(item.participants?.length || 0)} thành viên
+                      </Text>
                     </View>
-                    <MaterialCommunityIcons name="arrow-right" size={24} color={colors.primary} />
+                    <MaterialCommunityIcons
+                      name="arrow-right"
+                      size={24}
+                      color={colors.primary}
+                    />
                   </TouchableOpacity>
                 );
               } else {
@@ -416,13 +440,19 @@ const handleSearch = useCallback(
                   <View style={styles.userItem}>
                     <Avatar.Image
                       size={40}
-                      source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg" }}
+                      source={{
+                        uri:
+                          item.avatar ||
+                          "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg",
+                      }}
                     />
                     <View style={styles.userInfo}>
                       <Text style={styles.userName}>
                         {item.fullName || "Người dùng không xác định"}
                       </Text>
-                      <Text style={styles.userPhone}>{item.phoneNumber}</Text>
+                      <Text style={styles.userPhone}>
+                        {item.phoneNumber || ""}
+                      </Text>
                     </View>
                     {!isCurrentUser && (
                       isFriend ? (
@@ -451,7 +481,6 @@ const handleSearch = useCallback(
       </View>
     );
   };
-
 
   const renderGroupModal = () => (
     <Portal>

@@ -56,7 +56,7 @@ const ChatScreen = ({ navigation, route }) => {
     );
   }
 
-  const { chat, user } = route.params;
+  const { chat, user,friend } = route.params;
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const viewRefs = useRef({});
@@ -293,16 +293,16 @@ const ChatScreen = ({ navigation, route }) => {
           fetchMemberInGroupDetails();
           if (addedBy !== userId) {
             Alert.alert("Thành viên mới", `Một người dùng đã được thêm vào nhóm.`);
-            try {
-              const sound = new Audio.Sound();
-              sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-                sound.playAsync().then(() => {
-                  sound.unloadAsync();
-                });
-              });
-            } catch (err) {
-              console.error("Lỗi phát âm thanh thông báo:", err);
-            }
+            // try {
+            //   const sound = new Audio.Sound();
+            //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            //     sound.playAsync().then(() => {
+            //       sound.unloadAsync();
+            //     });
+            //   });
+            // } catch (err) {
+            //   console.error("Lỗi phát âm thanh thông báo:", err);
+            // }
           }
         }
       });
@@ -327,16 +327,16 @@ const ChatScreen = ({ navigation, route }) => {
           } else {
             fetchMemberInGroupDetails();
             if (removedBy !== userId) {
-              try {
-                const sound = new Audio.Sound();
-                sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-                  sound.playAsync().then(() => {
-                    sound.unloadAsync();
-                  });
-                });
-              } catch (err) {
-                console.error("Lỗi phát âm thanh thông báo:", err);
-              }
+              // try {
+              //   const sound = new Audio.Sound();
+              //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+              //     sound.playAsync().then(() => {
+              //       sound.unloadAsync();
+              //     });
+              //   });
+              // } catch (err) {
+              //   console.error("Lỗi phát âm thanh thông báo:", err);
+              // }
             }
           }
         }
@@ -348,17 +348,17 @@ const ChatScreen = ({ navigation, route }) => {
           if (leftUserId === userId) {
             navigation.goBack();
           } else {
-            Alert.alert("Thành viên rời nhóm", `Một thành viên đã rời khỏi nhóm.`);
-            try {
-              const sound = new Audio.Sound();
-              sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-                sound.playAsync().then(() => {
-                  sound.unloadAsync();
-                });
-              });
-            } catch (err) {
-              console.error("Lỗi phát âm thanh thông báo:", err);
-            }
+            console.log("Thành viên rời nhóm", `Một thành viên đã rời khỏi nhóm.`);
+            // try {
+            //   const sound = new Audio.Sound();
+            //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            //     sound.playAsync().then(() => {
+            //       sound.unloadAsync();
+            //     });
+            //   });
+            // } catch (err) {
+            //   console.error("Lỗi phát âm thanh thông báo:", err);
+            // }
           }
         }
       });
@@ -397,16 +397,16 @@ const ChatScreen = ({ navigation, route }) => {
           fetchMemberInGroupDetails();
           if (affectedUserId !== userId) {
             const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-            try {
-              const sound = new Audio.Sound();
-              sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-                sound.playAsync().then(() => {
-                  sound.unloadAsync();
-                });
-              });
-            } catch (err) {
-              console.error("Lỗi phát âm thanh thông báo:", err);
-            }
+            // try {
+            //   const sound = new Audio.Sound();
+            //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            //     sound.playAsync().then(() => {
+            //       sound.unloadAsync();
+            //     });
+            //   });
+            // } catch (err) {
+            //   console.error("Lỗi phát âm thanh thông báo:", err);
+            // }
           }
         }
       });
@@ -432,10 +432,6 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       setSocket(socketConnection);
-
-      return () => {
-        socketConnection.disconnect();
-      };
     };
 
     setupSocket();
@@ -789,7 +785,6 @@ const ChatScreen = ({ navigation, route }) => {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          // KHÔNG set Content-Type
         },
         body: formData,
       });
@@ -1374,6 +1369,7 @@ const ChatScreen = ({ navigation, route }) => {
         <Header
           navigation={navigation}
           chat={chat}
+          friend={friend}
           conversationDetails={conversationDetails}
           groupMembers={groupMembers}
           isTyping={isTyping}
@@ -1405,6 +1401,7 @@ const ChatScreen = ({ navigation, route }) => {
                 focusedMessageId={focusedMessage}
                 onSendEmoji={handleSendEmoji}
                 onRevokeEmoji={handleRevokeEmoji}
+                friend={friend}
               />
             ))
           )}

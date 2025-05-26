@@ -226,10 +226,10 @@ const ChatInfoModal = ({
                         <Text style={styles.participantName}>{item.fullName}</Text>
                         <Text style={styles.participantRole}>
                           {item.role === "owner"
-                            ? "Chủ nhóm"
+                            ? "Trưởng phòng"
                             : item.role === "admin"
-                              ? "Quản trị viên"
-                              : "Thành viên"}
+                              ? "Phó phòng"
+                              : ""}
                         </Text>
                       </View>
                       {isOwner && item._id !== user._id && (
@@ -247,11 +247,11 @@ const ChatInfoModal = ({
                                     onPress: () => onChangeMemberRole(item._id, "member"),
                                   },
                                   {
-                                    text: "Quản trị viên",
+                                    text: "Phó phòng",
                                     onPress: () => onChangeMemberRole(item._id, "admin"),
                                   },
                                   {
-                                    text: "Chủ nhóm",
+                                    text: "Trưởng phòng",
                                     onPress: () => onChangeMemberRole(item._id, "owner"),
                                   },
                                   { text: "Hủy", style: "cancel" },

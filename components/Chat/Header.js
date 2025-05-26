@@ -3,12 +3,12 @@ import { View, StyleSheet, TouchableOpacity, Platform } from "react-native";
 import { Avatar, Text, useTheme } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 
-const Header = ({ navigation, chat, conversationDetails, groupMembers, isTyping, onInfoPress }) => {
+const Header = ({ navigation, chat, conversationDetails, groupMembers, isTyping, onInfoPress,friend }) => {
   const { colors } = useTheme();
   
-  const displayName = conversationDetails?.user?.fullName || chat?.user?.fullName || "Nhóm không tên";
+  const displayName = conversationDetails?.user?.fullName || chat?.user?.fullName || friend?.fullName || "Không tên" ;
   const displayAvatar = Platform.OS === "ios"
-    ? (conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg").replace("file://", "")
+    ? (conversationDetails?.user?.avatar || friend?.avatar || chat?.user?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg").replace("file://", "")
     : conversationDetails?.user?.avatar || chat?.user?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg";
 
   // Debug re-render

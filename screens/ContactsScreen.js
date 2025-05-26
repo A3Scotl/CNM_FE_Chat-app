@@ -250,6 +250,7 @@ const ContactsScreen = () => {
       });
 
       const data = await response.json();
+      console.log(friend);
       if (!response.ok) {
         throw new Error(data.message || "Không thể tạo/mở hội thoại");
       }
@@ -258,6 +259,7 @@ const ContactsScreen = () => {
         conversationId: data.data.conversationId,
         chat: data.data,
         user: user,
+        friend:friend
       });
     } catch (error) {
       console.error("Lỗi khi mở chat:", error);

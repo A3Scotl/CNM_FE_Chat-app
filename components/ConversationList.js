@@ -100,17 +100,17 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("groupCreated", ({ group, message }) => {
-        try {
-          const sound = new Audio.Sound();
-          sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-            sound.playAsync().then(() => {
-              sound.unloadAsync();
-            });
-          });
+        // try {
+        //   const sound = new Audio.Sound();
+        //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+        //     sound.playAsync().then(() => {
+        //       sound.unloadAsync();
+        //     });
+        //   });
           fetchConversations(); // Gọi lại fetch để cập nhật danh sách
-        } catch (err) {
-          console.error("Lỗi phát âm thanh nhóm mới:", err);
-        }
+        // } catch (err) {
+        //   console.error("Lỗi phát âm thanh nhóm mới:", err);
+        // }
       });
 
       socketConnection.on("new-message", (msg) => {
@@ -263,17 +263,17 @@ const ConversationList = ({ currentUser }) => {
           });
           return sortConversations([...updatedConversations]);
         });
-        try {
-          const sound = new Audio.Sound();
-          sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-            sound.playAsync().then(() => {
-              sound.unloadAsync();
-            });
-          });
+        // try {
+        //   const sound = new Audio.Sound();
+        //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+        //     sound.playAsync().then(() => {
+        //       sound.unloadAsync();
+        //     });
+        //   });
           Alert.alert("Cập nhật nhóm", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
-        } catch (err) {
-          console.error("Lỗi phát âm thanh thông báo:", err);
-        }
+        // } catch (err) {
+        //   console.error("Lỗi phát âm thanh thông báo:", err);
+        // }
       });
 
       socketConnection.on("disconnect", (reason) => {
