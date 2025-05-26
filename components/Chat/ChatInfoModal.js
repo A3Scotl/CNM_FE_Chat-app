@@ -64,6 +64,7 @@ const ChatInfoModal = ({
   const [fadeAnim] = useState(new Animated.Value(0));
   const [membersExpanded, setMembersExpanded] = useState(false);
   const [membersHeightAnim] = useState(new Animated.Value(0));
+  const [heightAnim] = useState(new Animated.Value(0));
   const [error, setError] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -116,6 +117,14 @@ const ChatInfoModal = ({
       }).start();
     }
   }, [visible, isGroup, isOwner, isAdmin, isEditingName]);
+
+  useEffect(() => {
+    Animated.timing(heightAnim, {
+      toValue: membersExpanded ? 1 : 0, // Sử dụng giá trị tỷ lệ
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [membersExpanded]);
   useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin) && socket) {
       const handleNewGroupInvite = (data) => {
@@ -366,9 +375,8 @@ const ChatInfoModal = ({
                   style={styles.sectionHeader}
                 >
                   <Text style={styles.modalSectionTitle}>
-                    Thành viên ({groupMembers.length || 0})
+                    Thành viên nhóm ({groupMembers.length || 0})
                   </Text>
-
                   <View style={styles.sectionHeaderRight}>
                     <MaterialIcons
                       name={membersExpanded ? "expand-less" : "expand-more"}
@@ -382,7 +390,13 @@ const ChatInfoModal = ({
                 <Animated.View
                   style={[
                     styles.membersContainer,
-                    { height: membersHeightAnim },
+                    {
+                      opacity: heightAnim,
+                      maxHeight: heightAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 400], // Tăng maxHeight để chứa nhiều thành viên
+                      }),
+                    },
                   ]}
                 >
                   <FlatList
@@ -452,11 +466,10 @@ const ChatInfoModal = ({
                         )}
                       </View>
                     )}
-                    style={styles.participantList}
                     nestedScrollEnabled={true}
+                    // Xóa style maxHeight để danh sách tự mở rộng
                   />
                 </Animated.View>
-                {/*thay đổi nút thêm thành viên bằng cách bắt sự kiện realtime nút toggle */}
                 <TouchableOpacity
                   onPress={() => {
                     if (showInviteButton) {
@@ -474,7 +487,6 @@ const ChatInfoModal = ({
                       : "+ Thêm thành viên"}
                   </Text>
                 </TouchableOpacity>
-                {/*kết thúc nút */}
               </View>
             ),
           },
@@ -620,7 +632,7 @@ const ChatInfoModal = ({
           data={sections}
           keyExtractor={(item) => item.key}
           renderItem={({ item }) => item.render()}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={styles.modalContent}
         />
       </Modal>
       <AddMemberModal
@@ -645,6 +657,13 @@ const ChatInfoModal = ({
 };
 
 const styles = StyleSheet.create({
+  modalContent: {
+    paddingBottom: 20,
+    flexGrow: 1, // Đảm bảo FlatList chính mở rộng đúng cách
+  },
+  modalSection: {
+    marginBottom: 20, // Thêm khoảng cách giữa các section
+  },
   modalContainer: {
     backgroundColor: "white",
     margin: 20,
