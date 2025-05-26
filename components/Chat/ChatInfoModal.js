@@ -321,66 +321,6 @@ const ChatInfoModal = ({
     ...(isGroup
       ? [
           {
-            key: "pendingInvites",
-            render: () =>
-              (isOwner || isAdmin) && (
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>
-                    Danh sách duyệt vào nhóm ({pendingInvites.length})
-                  </Text>
-                  {loadingInvites ? (
-                    <ActivityIndicator size="small" color="#0098f9" />
-                  ) : pendingInvites.length === 0 ? (
-                    <Text style={styles.emptyText}>
-                      Không có lời mời nào đang chờ.
-                    </Text>
-                  ) : (
-                    <FlatList
-                      data={pendingInvites}
-                      keyExtractor={(item) => item._id}
-                      renderItem={({ item }) => (
-                        <View style={styles.inviteItem}>
-                          <Avatar.Image
-                            size={40}
-                            source={{
-                              uri:
-                                item.invitedUser.avatar ||
-                                "https://i.pravatar.cc/150",
-                            }}
-                          />
-                          <View style={styles.inviteInfo}>
-                            <Text style={styles.inviteName}>
-                              {item.invitedUser.fullName}
-                            </Text>
-                            <Text style={styles.inviteStatus}>
-                              Được mời bởi:{" "}
-                              {item.invitedBy?.fullName || "Unknown"}
-                            </Text>
-                          </View>
-                          <View style={styles.inviteActions}>
-                            <IconButton
-                              icon="check"
-                              size={20}
-                              onPress={() => handleAcceptInvite(item._id)}
-                              iconColor="#0098f9"
-                            />
-                            <IconButton
-                              icon="close"
-                              size={20}
-                              onPress={() => handleRejectInvite(item._id)}
-                              iconColor="#ff4444"
-                            />
-                          </View>
-                        </View>
-                      )}
-                      style={styles.inviteList}
-                    />
-                  )}
-                </View>
-              ),
-          },
-          /////////////////////////////////////////////////////////////
-          {
             key: "members",
             render: () => (
               <View style={styles.modalSection}>
@@ -501,6 +441,66 @@ const ChatInfoModal = ({
               </View>
             ),
           },
+          {
+            key: "pendingInvites",
+            render: () =>
+              (isOwner || isAdmin) && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>
+                    Danh sách duyệt vào nhóm ({pendingInvites.length})
+                  </Text>
+                  {loadingInvites ? (
+                    <ActivityIndicator size="small" color="#0098f9" />
+                  ) : pendingInvites.length === 0 ? (
+                    <Text style={styles.emptyText}>
+                      Không có lời mời nào đang chờ.
+                    </Text>
+                  ) : (
+                    <FlatList
+                      data={pendingInvites}
+                      keyExtractor={(item) => item._id}
+                      renderItem={({ item }) => (
+                        <View style={styles.inviteItem}>
+                          <Avatar.Image
+                            size={40}
+                            source={{
+                              uri:
+                                item.invitedUser.avatar ||
+                                "https://i.pravatar.cc/150",
+                            }}
+                          />
+                          <View style={styles.inviteInfo}>
+                            <Text style={styles.inviteName}>
+                              {item.invitedUser.fullName}
+                            </Text>
+                            <Text style={styles.inviteStatus}>
+                              Được mời bởi:{" "}
+                              {item.invitedBy?.fullName || "Unknown"}
+                            </Text>
+                          </View>
+                          <View style={styles.inviteActions}>
+                            <IconButton
+                              icon="check"
+                              size={20}
+                              onPress={() => handleAcceptInvite(item._id)}
+                              iconColor="#0098f9"
+                            />
+                            <IconButton
+                              icon="close"
+                              size={20}
+                              onPress={() => handleRejectInvite(item._id)}
+                              iconColor="#ff4444"
+                            />
+                          </View>
+                        </View>
+                      )}
+                      style={styles.inviteList}
+                    />
+                  )}
+                </View>
+              ),
+          },
+          /////////////////////////////////////////////////////////////
         ]
       : []),
     ...(images.length > 0
