@@ -95,11 +95,11 @@ const ChatInfoModal = ({
       ? (
           conversationDetails?.user?.avatar ||
           chat?.user?.avatar ||
-          "https://i.pravatar.cc/150"
+          "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg"
         ).replace("file://", "")
       : conversationDetails?.user?.avatar ||
         chat?.user?.avatar ||
-        "https://i.pravatar.cc/150";
+        "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg";
   useEffect(() => {
     if (visible && isGroup && (isOwner || isAdmin) && isEditingName) {
       Animated.timing(fadeAnim, {
@@ -416,7 +416,9 @@ const ChatInfoModal = ({
                         <Avatar.Image
                           size={40}
                           source={{
-                            uri: item.avatar || "https://i.pravatar.cc/150",
+                            uri:
+                              item.avatar ||
+                              "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
                           }}
                         />
                         <View style={styles.participantInfo}>
@@ -426,10 +428,10 @@ const ChatInfoModal = ({
                           </Text>
                           <Text style={styles.participantRole}>
                             {item.role === "owner"
-                              ? "Chủ nhóm"
+                              ? "Trưởng phòng"
                               : item.role === "admin"
-                              ? "Quản trị viên"
-                              : "Thành viên"}
+                              ? "Phó phòng"
+                              : ""}
                           </Text>
                         </View>
                         {isOwner && item._id !== user._id && (
@@ -448,12 +450,12 @@ const ChatInfoModal = ({
                                         onChangeMemberRole(item._id, "member"),
                                     },
                                     {
-                                      text: "Quản trị viên",
+                                      text: "Phó phòng",
                                       onPress: () =>
                                         onChangeMemberRole(item._id, "admin"),
                                     },
                                     {
-                                      text: "Chủ nhóm",
+                                      text: "Trưởng phòng",
                                       onPress: () =>
                                         onChangeMemberRole(item._id, "owner"),
                                     },

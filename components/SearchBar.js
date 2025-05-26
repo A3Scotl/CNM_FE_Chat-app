@@ -22,12 +22,13 @@ const SearchBar = ({
         ]}
         value={searchQuery}
         onChangeText={setSearchQuery}
-        placeholder="Tìm theo số điện thoại"
+        placeholder="Nhập tên hoặc số điện thoại"
         placeholderTextColor="#888"
-        keyboardType="phone-pad"
+        // keyboardType="phone-pad"
         onFocus={() => setIsSearchFocused(true)}
         onBlur={() => setIsSearchFocused(false)}
         onSubmitEditing={() => onSearch(searchQuery)}
+        dense
       />
       {searchQuery.length > 0 && (
         <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearIconContainer}>
@@ -51,12 +52,11 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: 16,
+    fontSize: 13,
   },
   searchIcon: {
-    marginRight: 10,
+    marginRight:5,
     color: '#888',
   },
   clearIconContainer: {

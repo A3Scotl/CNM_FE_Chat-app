@@ -49,11 +49,10 @@ export const getMessages = async (conversationId) => {
     throw error;
   }
 };
-
 // Ẩn cuộc trò chuyện
 export const hideConversation = async (conversationId) => {
   try {
-    const token = await getToken();
+    const token = await AsyncStorage.getItem('token');
     if (!token) throw new Error("Token không tồn tại");
 
     const res = await axiosInstance.patch(`/message/hide/${conversationId}`, {}, {
@@ -67,6 +66,8 @@ export const hideConversation = async (conversationId) => {
     throw error;
   }
 };
+
+// Keep other functions (e.g., getMyConversations) unchanged
 
 // Thu hồi tin nhắn
 export const recallMessage = async (messageId) => {
@@ -118,6 +119,43 @@ export const forwardManyMessage = async (messageData) => {
     return res.data;
   } catch (error) {
     console.error("❌ Lỗi khi chuyển tiếp tin nhắn đến nhiều cuộc trò chuyện:", error?.response?.data || error);
+    throw error;
+  }
+
+};
+// Thêm hàm để thả cảm xúc
+export const sendEmoji = async (messageId, typeEmoji) => {
+  try {
+    const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
+    const res = await axiosInstance.post(`/message/${messageId}/emoji`, { typeEmoji }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return res.data;
+  } catch (error) {
+    console.error("❌ Lỗi khi gửi cảm xúc:", error?.response?.data || error);
+    throw error;
+  }
+};
+
+// Thêm hàm để gỡ cảm xúc
+export const revokeEmoji = async (messageId, typeEmoji) => {
+  try {
+    const token = await getToken();
+    if (!token) throw new Error("Token không tồn tại");
+
+    const res = await axiosInstance.delete(`/message/${messageId}/emoji`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      data: { typeEmoji }, 
+    });
+    return res.data;
+  } catch (error) {
+    console.error("❌ Lỗi khi gỡ cảm xúc:", error?.response?.data || error);
     throw error;
   }
 };

@@ -33,7 +33,7 @@ export const useSocket = (
           return;
         }
 
-        socketRef.current = io(SOCKET_URL, {
+        socketRef.current = io(SOCKET_URL || "https://be.haudev.io.vn", {
           auth: { userId, token },
           reconnection: true,
           reconnectionAttempts: 20,
@@ -106,14 +106,14 @@ export const useSocket = (
         );
 
         socketRef.current.on("disconnect", (reason) => {
-          console.log("Ngắt kết nối", `Lý do: ${reason}`);
+          // console.log("Ngắt kết nối", `Lý do: ${reason}`);
         });
 
         socketRef.current.onAny((event, ...args) => {
-          console.log(`Sự kiện socket: ${event}`, args);
+          // console.log(`Sự kiện socket: ${event}`, args);
         });
       } catch (err) {
-        console.error("Lỗi khi khởi tạo socket:", err);
+        // console.error("Lỗi khi khởi tạo socket:", err);
       }
     };
 

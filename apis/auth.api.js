@@ -71,7 +71,7 @@ export const requestOtpForgotPassword = async (phoneNumber) => {
   }
 };
 
-export const verifyOtpFotgotpassword = async ({ phoneNumber, otp }) => {
+export const verifyOtpForgotPassword = async ({ phoneNumber, otp }) => {
   try {
     const { data } = await axiosInstance.post("/auth/forgot-password/verify-otp", { phoneNumber, otp });
     console.log("Xác minh OTP quên mật khẩu thành công:", data);

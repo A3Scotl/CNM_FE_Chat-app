@@ -12,16 +12,20 @@ import {
   Modal,
   FlatList,
   TextInput,
+  Linking,
 } from "react-native";
 import { Text, Avatar } from "react-native-paper";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import {
   getMessages,
+  sendMessage,
   hideConversation,
   recallMessage,
   forwardMessage,
   forwardManyMessage,
+  sendEmoji,
+  revokeEmoji,
 } from "../apis/message.api";
 import {
   leaveGroup,
@@ -46,6 +50,7 @@ import ReplyPreview from "../components/Chat/ReplyPreview";
 import MediaPreview from "../components/Chat/MediaPreview";
 import InputBar from "../components/Chat/InputBar";
 import ImagePreviewModal from "../components/Chat/ImagePreviewModal";
+import { API_URL, SOCKET_URL } from "@env";
 import { useSocket } from "../hooks/useSocket";
 import { useGroupInvite } from "../hooks/useGroupInvite";
 
@@ -69,7 +74,7 @@ const ChatScreen = ({ navigation, route }) => {
     );
   }
 
-  const { chat, user } = route.params;
+  const { chat, user, friend } = route.params;
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const viewRefs = useRef({});
@@ -82,7 +87,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -107,6 +112,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [additionalContent, setAdditionalContent] = useState("");
   const [isTogglingApproval, setIsTogglingApproval] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   const {
     availableFriends,
@@ -163,7 +169,7 @@ const ChatScreen = ({ navigation, route }) => {
             convo.type === "group"
               ? convo.avatar
               : convo.participants.find((p) => p._id !== userId)?.avatar ||
-                "https://i.pravatar.cc/150",
+                "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
           type: convo.type,
         }));
       setConversations(mappedConversations);
@@ -190,7 +196,6 @@ const ChatScreen = ({ navigation, route }) => {
       "keyboardDidHide",
       () => {
         scrollRef.current?.scrollToEnd({ animated: true });
-        // setShowEmojiPicker(false);
       }
     );
 
@@ -214,6 +219,11 @@ const ChatScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     (async () => {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) {
+        Alert.alert("Cần quyền truy cập", "Cần quyền truy cập micro để ghi âm");
+      }
+
       const { status: mediaStatus } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (mediaStatus !== "granted") {
@@ -221,11 +231,6 @@ const ChatScreen = ({ navigation, route }) => {
           "Cần quyền truy cập",
           "Cần quyền truy cập thư viện để gửi hình ảnh"
         );
-      }
-
-      const { status: audioStatus } = await Audio.requestPermissionsAsync();
-      if (audioStatus !== "granted") {
-        Alert.alert("Cần quyền truy cập", "Cần quyền truy cập micro để ghi âm");
       }
     })();
   }, []);
@@ -236,7 +241,7 @@ const ChatScreen = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      const socketConnection = io("http://192.168.1.8:5000", {
+      const socketConnection = io(SOCKET_URL || "https://be.haudev.io.vn", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 5,
@@ -246,7 +251,7 @@ const ChatScreen = ({ navigation, route }) => {
       socketConnection.on("connect", () => {
         console.log("✅ Socket kết nối thành công");
         socketConnection.emit("join-room", chat._id);
-        socketConnection.emit("register", userId); // Thêm đăng ký userId để nhận sự kiện cá nhân
+        socketConnection.emit("register", userId);
       });
 
       socketConnection.on("connect_error", (err) => {
@@ -254,6 +259,10 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on("new-message", async (msg) => {
+        console.log("Received new-message:", {
+          _id: msg._id,
+          content: msg.content,
+        });
         const isCurrentUser = String(msg.sender._id) === String(userId);
         const newMessage = {
           _id: msg._id,
@@ -270,24 +279,32 @@ const ChatScreen = ({ navigation, route }) => {
           isRevoke: msg.isRevoke || false,
           forwardedMessage: msg.forwardedMessage || null,
           additionalContent: msg.additionalContent || "",
+          emoji: msg.emoji || {},
         };
 
-        setMessages((prev) => [...prev, newMessage]);
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === msg._id)) {
+            console.log(`Duplicate message skipped in new-message: ${msg._id}`);
+            return prev;
+          }
+          console.log(`Adding new message: ${msg._id}`);
+          return [...prev, newMessage];
+        });
+
         setTimeout(() => {
           scrollRef.current?.scrollToEnd({ animated: true });
         }, 100);
 
         if (!isCurrentUser) {
           try {
-            const { sound } = await Audio.Sound.createAsync(
+            const sound = new Audio.Sound();
+            await sound.loadAsync(
               require("../assets/sounds/message-notification.mp3")
             );
             await sound.playAsync();
-            sound.setOnPlaybackStatusUpdate((status) => {
-              if (status.didJustFinish) sound.unloadAsync();
-            });
+            await sound.unloadAsync();
           } catch (err) {
-            console.error("Lỗi phát âm thanh thông báo:", err);
+            console.error("Error playing notification sound:", err);
           }
         }
       });
@@ -331,18 +348,16 @@ const ChatScreen = ({ navigation, route }) => {
                 "Thành viên mới",
                 `Một người dùng đã được thêm vào nhóm.`
               );
-              try {
-                const sound = new Audio.Sound();
-                sound
-                  .loadAsync(require("../assets/sounds/invite-group.mp3"))
-                  .then(() => {
-                    sound.playAsync().then(() => {
-                      sound.unloadAsync();
-                    });
-                  });
-              } catch (err) {
-                console.error("Lỗi phát âm thanh thông báo:", err);
-              }
+              // try {
+              //   const sound = new Audio.Sound();
+              //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+              //     sound.playAsync().then(() => {
+              //       sound.unloadAsync();
+              //     });
+              //   });
+              // } catch (err) {
+              //   console.error("Lỗi phát âm thanh thông báo:", err);
+              // }
             }
           }
         }
@@ -358,7 +373,6 @@ const ChatScreen = ({ navigation, route }) => {
           });
           if (groupId === chat._id) {
             if (removedUserId === userId) {
-              // User bị xóa (không mong đợi sự kiện này từ backend, nhưng giữ logic phòng hờ)
               Alert.alert("Thông báo", "Bạn đã bị xóa khỏi nhóm.", [
                 {
                   text: "OK",
@@ -373,22 +387,18 @@ const ChatScreen = ({ navigation, route }) => {
                 navigation.replace("Home");
               }, 1000);
             } else {
-              // Thành viên khác bị xóa
               fetchMemberInGroupDetails();
               if (removedBy !== userId) {
-                // Alert.alert("Thành viên bị xóa", `Một người dùng đã bị xóa khỏi nhóm.`);
-                try {
-                  Audio.Sound.createAsync(
-                    require("../assets/sounds/invite-group.mp3")
-                  ).then(({ sound }) => {
-                    sound.playAsync();
-                    sound.setOnPlaybackStatusUpdate((status) => {
-                      if (status.didJustFinish) sound.unloadAsync();
-                    });
-                  });
-                } catch (err) {
-                  console.error("Lỗi phát âm thanh thông báo:", err);
-                }
+                // try {
+                //   const sound = new Audio.Sound();
+                //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+                //     sound.playAsync().then(() => {
+                //       sound.unloadAsync();
+                //     });
+                //   });
+                // } catch (err) {
+                //   console.error("Lỗi phát âm thanh thông báo:", err);
+                // }
               }
             }
           }
@@ -402,22 +412,20 @@ const ChatScreen = ({ navigation, route }) => {
           if (leftUserId === userId) {
             navigation.goBack();
           } else {
-            // Alert.alert(
-            //   "Thành viên rời nhóm",
-            //   `Một thành viên đã rời khỏi nhóm.`
-            // );
-            try {
-              Audio.Sound.createAsync(
-                require("../assets/sounds/invite-group.mp3")
-              ).then(({ sound }) => {
-                sound.playAsync();
-                sound.setOnPlaybackStatusUpdate((status) => {
-                  if (status.didJustFinish) sound.unloadAsync();
-                });
-              });
-            } catch (err) {
-              console.error("Lỗi phát âm thanh thông báo:", err);
-            }
+            console.log(
+              "Thành viên rời nhóm",
+              `Một thành viên đã rời khỏi nhóm.`
+            );
+            // try {
+            //   const sound = new Audio.Sound();
+            //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            //     sound.playAsync().then(() => {
+            //       sound.unloadAsync();
+            //     });
+            //   });
+            // } catch (err) {
+            //   console.error("Lỗi phát âm thanh thông báo:", err);
+            // }
           }
         }
       });
@@ -451,7 +459,6 @@ const ChatScreen = ({ navigation, route }) => {
             );
             return newDetails;
           });
-          // Alert.alert("Cập nhật nhóm", "Thông tin nhóm đã được cập nhật.");
         }
       });
 
@@ -468,19 +475,45 @@ const ChatScreen = ({ navigation, route }) => {
                   ? "quản trị viên"
                   : "thành viên";
               // Alert.alert("Thay đổi quyền", `Quyền của một thành viên đã được thay đổi thành ${roleText}.`);
-              try {
-                Audio.Sound.createAsync(
-                  require("../assets/sounds/invite-group.mp3")
-                ).then(({ sound }) => {
-                  sound.playAsync();
-                  sound.setOnPlaybackStatusUpdate((status) => {
-                    if (status.didJustFinish) sound.unloadAsync();
-                  });
-                });
-              } catch (err) {
-                console.error("Lỗi phát âm thanh thông báo:", err);
-              }
+              // try {
+              //   Audio.Sound.createAsync(
+              //     require("../assets/sounds/invite-group.mp3")
+              //   ).then(({ sound }) => {
+              //     sound.playAsync();
+              //     sound.setOnPlaybackStatusUpdate((status) => {
+              //       if (status.didJustFinish) sound.unloadAsync();
+              //     });
+              //   });
+              // } catch (err) {
+              //   console.error("Lỗi phát âm thanh thông báo:", err);
+              // }
             }
+          }
+        }
+      );
+
+      socketConnection.on("emoji-updated", (updatedMessage) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === updatedMessage._id
+              ? { ...msg, emoji: updatedMessage.emoji || {} }
+              : msg
+          )
+        );
+      });
+
+      socketConnection.on(
+        "group:requireApprovalChanged",
+        ({ groupId, requireApproval }) => {
+          console.log("Nhận sự kiện group:requireApprovalChanged:", {
+            groupId,
+            requireApproval,
+          });
+          if (groupId === chat._id) {
+            setConversationDetails((prev) => ({
+              ...prev,
+              requireApproval,
+            }));
           }
         }
       );
@@ -490,18 +523,18 @@ const ChatScreen = ({ navigation, route }) => {
         const { groupId, invitedUser, invitedBy, inviteId } = eventData;
 
         if (groupId === chat._id) {
-          try {
-            Audio.Sound.createAsync(
-              require("../assets/sounds/invite-group.mp3")
-            ).then(({ sound }) => {
-              sound.playAsync();
-              sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.didJustFinish) sound.unloadAsync();
-              });
-            });
-          } catch (err) {
-            console.error("Lỗi phát âm thanh thông báo:", err);
-          }
+          // try {
+          //   Audio.Sound.createAsync(
+          //     require("../assets/sounds/invite-group.mp3")
+          //   ).then(({ sound }) => {
+          //     sound.playAsync();
+          //     sound.setOnPlaybackStatusUpdate((status) => {
+          //       if (status.didJustFinish) sound.unloadAsync();
+          //     });
+          //   });
+          // } catch (err) {
+          //   console.error("Lỗi phát âm thanh thông báo:", err);
+          // }
 
           if (isOwner || isAdmin) {
             Alert.alert(
@@ -539,20 +572,22 @@ const ChatScreen = ({ navigation, route }) => {
             setPendingInvites((prev) =>
               prev.filter((inv) => inv._id !== inviteId)
             );
-            try {
-              fetchMemberInGroupDetails();
-              fetchPendingInvites();
-              Audio.Sound.createAsync(
-                require("../assets/sounds/invite-group.mp3")
-              ).then(({ sound }) => {
-                sound.playAsync();
-                sound.setOnPlaybackStatusUpdate((status) => {
-                  if (status.didJustFinish) sound.unloadAsync();
-                });
-              });
-            } catch (err) {
-              console.error("Lỗi phát âm thanh thông báo:", err);
-            }
+            fetchMemberInGroupDetails();
+            fetchPendingInvites();
+            // try {
+            //   fetchMemberInGroupDetails();
+            //   fetchPendingInvites();
+            //   Audio.Sound.createAsync(
+            //     require("../assets/sounds/invite-group.mp3")
+            //   ).then(({ sound }) => {
+            //     sound.playAsync();
+            //     sound.setOnPlaybackStatusUpdate((status) => {
+            //       if (status.didJustFinish) sound.unloadAsync();
+            //     });
+            //   });
+            // } catch (err) {
+            //   console.error("Lỗi phát âm thanh thông báo:", err);
+            // }
           }
         }
       );
@@ -657,6 +692,7 @@ const ChatScreen = ({ navigation, route }) => {
             isRevoke: msg.isRevoke || false,
             forwardedMessage: msg.forwardedMessage || null,
             additionalContent: msg.additionalContent || "",
+            emoji: msg.emoji || {},
           };
         });
         setMessages(formattedMessages);
@@ -793,7 +829,6 @@ const ChatScreen = ({ navigation, route }) => {
       setFilteredConversations(conversations);
     } catch (error) {
       console.error("Lỗi chuyển tiếp tin nhắn:", error);
-      // Alert.alert("Lỗi", error.message || "Không thể chuyển tiếp tin nhắn.");
     } finally {
       setIsSending(false);
     }
@@ -861,12 +896,15 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      setSelectedFile({
-        uri,
-        name: `recording-${Date.now()}.m4a`,
-        type: "audio/m4a",
-        size: 0,
-      });
+      setSelectedFiles([
+        {
+          uri,
+          name: `recording-${Date.now()}.mp3`,
+          type: "audio/mp3",
+          size: 0,
+        },
+      ]);
+
       setSelectedMedia([]);
       setRecording(null);
       setIsRecording(false);
@@ -877,6 +915,7 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   const playAudio = async (uri) => {
+    console.log(uri);
     if (!uri) {
       Alert.alert("Lỗi", "Không có file âm thanh để phát");
       return;
@@ -915,7 +954,8 @@ const ChatScreen = ({ navigation, route }) => {
 
   const getAudioDuration = async (uri) => {
     try {
-      const { sound } = await Audio.Sound.createAsync({ uri });
+      const sound = new Audio.Sound();
+      await sound.loadAsync({ uri });
       const status = await sound.getStatusAsync();
       await sound.unloadAsync();
       return Math.round(status.durationMillis / 1000);
@@ -941,7 +981,7 @@ const ChatScreen = ({ navigation, route }) => {
           size: asset.fileSize || 0,
         }));
         setSelectedMedia(selectedImages);
-        setSelectedFile(null);
+        setSelectedFiles(null);
       }
     } catch (error) {
       console.error("Lỗi chọn hình ảnh:", error);
@@ -952,41 +992,51 @@ const ChatScreen = ({ navigation, route }) => {
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
+        type: "*/*", // hoặc ['application/pdf'] nếu chỉ muốn PDF
         copyToCacheDirectory: true,
+        multiple: true,
       });
 
-      if (result.type === "success") {
-        setSelectedFile({
-          uri: result.uri,
-          name: result.name,
-          type: mime.getType(result.name) || "application/octet-stream",
-          size: result.size,
-        });
-        setSelectedMedia([]);
+      if (result.canceled) {
+        console.log("User cancelled file picker");
+        return;
       }
+
+      const files = result.assets || [result];
+      console.log("Picked files:", files);
+
+      // Cập nhật vào state
+      setSelectedFiles((prev) => [...prev, ...files]);
     } catch (error) {
-      console.error("Lỗi chọn tài liệu:", error);
-      Alert.alert("Lỗi", "Không thể chọn tài liệu, vui lòng thử lại.");
+      console.error("Error picking document:", error);
     }
   };
 
+  const removeMediaItem = (uriToRemove) => {
+    setSelectedMedia((prevMedia) =>
+      prevMedia.filter((media) => media.uri !== uriToRemove)
+    );
+  };
+  const removeFileItem = (uri) => {
+    setSelectedFiles((prev) => prev.filter((item) => item.uri !== uri));
+  };
   const cancelMediaSelection = () => {
     setSelectedMedia([]);
-    setSelectedFile(null);
+    setSelectedFiles(null);
   };
 
   const uploadToS3 = async (file) => {
     try {
       const token = await AsyncStorage.getItem("token");
       const formData = new FormData();
+
       formData.append("file", {
         uri: Platform.OS === "ios" ? file.uri.replace("file://", "") : file.uri,
         name: file.name,
         type: file.type,
       });
 
-      const response = await fetch("http://192.168.1.8:3000/api/upload", {
+      const response = await fetch(`${"https://be.haudev.io.vn/api"}/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -995,6 +1045,7 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       const data = await response.json();
+
       if (!response.ok) {
         throw new Error(data.message || "Lỗi tải lên tệp");
       }
@@ -1007,151 +1058,313 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   const uploadMedia = async () => {
-    if (!chat._id) {
-      console.error("uploadMedia: conversationId không hợp lệ", {
-        chatId: chat._id,
-      });
-      Alert.alert("Lỗi", "Hội thoại không tồn tại.");
+    if (isSendingMessage) {
+      console.log("uploadMedia skipped: Already sending");
       return;
     }
 
-    try {
-      setIsSending(true);
-      const token = await AsyncStorage.getItem("token");
+    if (!chat?._id || !user?._id) {
+      console.error("uploadMedia: Invalid conversationId or userId", {
+        chatId: chat._id,
+        userId: user._id,
+      });
+      Alert.alert("Lỗi", "Hội thoại hoặc thông tin người dùng không hợp lệ.");
+      return;
+    }
 
-      let payload = {
+    setIsSendingMessage(true);
+    setIsSending(true);
+    console.log("uploadMedia: Starting media upload");
+
+    try {
+      const allFiles = [...(selectedMedia || []), ...(selectedFiles || [])];
+      if (!allFiles.length) {
+        console.log("uploadMedia: No files to send");
+        Alert.alert("Lỗi", "Không có tệp nào để gửi.");
+        return;
+      }
+
+      console.log("uploadMedia: Uploading files", {
+        fileCount: allFiles.length,
+      });
+      const fileMeta = await Promise.all(
+        allFiles.map(async (file, index) => {
+          console.log(`Uploading file ${index + 1}: ${file.name}`);
+          const url = await uploadToS3(file);
+          let duration = 0;
+          if (file?.type?.startsWith("audio")) {
+            duration = await getAudioDuration(file.uri);
+          }
+          return {
+            name: file.name,
+            size: file.size || 0,
+            mimeType:
+              file.type ||
+              mime.getType(file.name) ||
+              "application/octet-stream",
+            duration: duration || undefined,
+            url,
+          };
+        })
+      );
+
+      let type = "file";
+      if (fileMeta.some((f) => f.mimeType.startsWith("image"))) {
+        type = "image";
+      } else if (fileMeta.some((f) => f.mimeType.startsWith("audio"))) {
+        type = "audio";
+      }
+
+      let content = message.trim();
+      if (!content) {
+        switch (type) {
+          case "image":
+            content = "Đã gửi hình ảnh";
+            break;
+          case "audio":
+            content = "Đã gửi âm thanh";
+            break;
+          case "file":
+            content = "Đã gửi tài liệu";
+            break;
+          default:
+            content = "Đã gửi tệp";
+        }
+      }
+
+      const payload = {
         conversationId: chat._id,
-        sender: user._id,
-        type: selectedMedia.length > 0 ? "image" : "audio",
-        content:
-          message.trim() ||
-          (selectedMedia.length > 0 ? "Đã gửi hình ảnh" : "Đã gửi âm thanh"),
+        content,
+        type,
+        fileMeta,
+        replyTo: replyingTo?._id || null,
       };
 
-      if (replyingTo) {
-        payload.replyTo = replyingTo._id;
-      }
+      console.log("uploadMedia: Sending message payload", payload);
+      const responseData = await sendMessage(payload);
+      console.log("uploadMedia: API response", responseData);
 
-      if (selectedMedia.length > 0 || selectedFile) {
-        const files = selectedMedia.length > 0 ? selectedMedia : [selectedFile];
-        const fileMeta = await Promise.all(
-          files.map(async (file) => {
-            const url = await uploadToS3(file);
-            let duration = 0;
-            if (file.type.startsWith("audio")) {
-              duration = await getAudioDuration(file.uri);
-            }
-            return {
-              name: file.name,
-              size: file.size || 0,
-              mimeType: file.type,
-              duration: duration || undefined,
-              url,
-            };
-          })
-        );
+      const newMessage = {
+        _id: responseData.data._id,
+        content,
+        sender: { _id: user._id, fullName: user.fullName, avatar: user.avatar },
+        isCurrentUser: true,
+        timestamp: new Date().toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        type,
+        fileMeta,
+        replyTo: replyingTo?._id || null,
+        isRevoke: false,
+        forwardedMessage: null,
+        additionalContent: "",
+        emoji: {},
+      };
 
-        payload.fileMeta = fileMeta;
-      }
-
-      const response = await fetch("http://192.168.1.8:3000/api/message/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === newMessage._id)) {
+          console.log(
+            `Duplicate message skipped in uploadMedia: ${newMessage._id}`
+          );
+          return prev;
+        }
+        console.log(`Adding message in uploadMedia: ${newMessage._id}`);
+        return [...prev, newMessage];
       });
 
-      const responseData = await response.json();
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 100);
 
-      if (response.ok) {
-        setMessage("");
-        setSelectedMedia([]);
-        setSelectedFile(null);
-        setReplyingTo(null);
-      } else {
-        console.error("Lỗi server:", responseData);
-        Alert.alert("Lỗi", responseData.message || "Không thể gửi tệp");
+      if (socket) {
+        console.log("Emitting send-message", { _id: responseData.data._id });
+        socket.emit("send-message", {
+          conversationId: chat._id,
+          _id: responseData.data._id,
+          content,
+          sender: {
+            _id: user._id,
+            fullName: user.fullName,
+            avatar: user.avatar,
+          },
+          createdAt: new Date().toISOString(),
+          type,
+          fileMeta,
+          replyTo: replyingTo?._id || null,
+        });
       }
+
+      setMessage("");
+      setSelectedMedia([]);
+      setSelectedFiles([]);
+      setReplyingTo(null);
     } catch (error) {
-      console.error("Lỗi tải lên tệp:", error);
-      Alert.alert("Lỗi", "Không thể gửi tệp, vui lòng thử lại.");
+      console.error("uploadMedia error:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Không thể gửi tệp, vui lòng thử lại.",
+        [
+          { text: "Thử lại", onPress: () => uploadMedia() },
+          { text: "Hủy", style: "cancel" },
+        ]
+      );
     } finally {
       setIsSending(false);
+      setIsSendingMessage(false);
     }
   };
 
   const handleSend = async () => {
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage && selectedMedia.length === 0 && !selectedFile) return;
+    if (isSendingMessage) {
+      console.log("handleSend skipped: Already sending");
+      return;
+    }
 
-    if (selectedMedia.length > 0 || selectedFile) {
+    const trimmedMessage = message.trim();
+    if (
+      !trimmedMessage &&
+      selectedMedia.length === 0 &&
+      selectedFiles.length === 0
+    ) {
+      console.log("handleSend skipped: No content to send");
+      Alert.alert("Thông báo", "Vui lòng nhập nội dung hoặc chọn tệp để gửi.");
+      return;
+    }
+
+    if (selectedMedia.length > 0 || selectedFiles.length > 0) {
+      console.log("handleSend: Delegating to uploadMedia");
       await uploadMedia();
       return;
     }
 
-    if (!chat._id) {
-      console.error("handleSend: conversationId không hợp lệ", {
+    if (!chat?._id || !user?._id) {
+      console.error("handleSend: Invalid conversationId or userId", {
         chatId: chat._id,
+        userId: user._id,
       });
-      Alert.alert("Lỗi", "Hội thoại không tồn tại.");
+      Alert.alert("Lỗi", "Hội thoại hoặc thông tin người dùng không hợp lệ.");
       return;
     }
 
-    try {
-      setIsSending(true);
-      const token = await AsyncStorage.getItem("token");
+    setIsSendingMessage(true);
+    setIsSending(true);
+    console.log("handleSend: Sending text message", {
+      content: trimmedMessage,
+    });
 
+    try {
       const payload = {
         conversationId: chat._id,
-        sender: user._id,
         content: trimmedMessage,
         type: "text",
+        replyTo: replyingTo?._id || null,
       };
 
-      if (replyingTo) {
-        payload.replyTo = replyingTo._id;
-      }
+      const responseData = await sendMessage(payload);
+      console.log("handleSend: API response", responseData);
 
-      const response = await fetch("http://192.168.1.8:3000/api/message/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
+      const newMessage = {
+        _id: responseData.data._id,
+        content: trimmedMessage,
+        sender: { _id: user._id, fullName: user.fullName, avatar: user.avatar },
+        isCurrentUser: true,
+        timestamp: new Date().toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        type: "text",
+        fileMeta: [],
+        replyTo: replyingTo?._id || null,
+        isRevoke: false,
+        forwardedMessage: null,
+        additionalContent: "",
+        emoji: {},
+      };
+
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === newMessage._id)) {
+          console.log(
+            `Duplicate message skipped in handleSend: ${newMessage._id}`
+          );
+          return prev;
+        }
+        console.log(`Adding message in handleSend: ${newMessage._id}`);
+        return [...prev, newMessage];
       });
 
-      const responseData = await response.json();
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, 100);
 
-      if (response.ok) {
-        setMessage("");
-        setShowEmojiPicker(false);
-        setReplyingTo(null);
-        if (socket) {
-          socket.emit("send-message", {
-            conversationId: chat._id,
-            _id: responseData.data._id,
-            content: trimmedMessage,
-            sender: {
-              _id: user._id,
-              fullName: user.fullName,
-              avatar: user.avatar,
-            },
-            createdAt: new Date().toISOString(),
-            type: "text",
-          });
-        }
-      } else {
-        console.error("Lỗi gửi tin nhắn:", responseData);
-        Alert.alert("Lỗi", responseData.message || "Không thể gửi tin nhắn");
+      if (socket) {
+        console.log("Emitting send-message", { _id: responseData.data._id });
+        socket.emit("send-message", {
+          conversationId: chat._id,
+          _id: responseData.data._id,
+          content: trimmedMessage,
+          sender: {
+            _id: user._id,
+            fullName: user.fullName,
+            avatar: user.avatar,
+          },
+          createdAt: new Date().toISOString(),
+          type: "text",
+          replyTo: replyingTo?._id || null,
+        });
       }
+
+      setMessage("");
+      setShowEmojiPicker(false);
+      setReplyingTo(null);
     } catch (error) {
-      console.error("Lỗi gửi tin nhắn:", error);
-      Alert.alert("Lỗi", "Không thể gửi tin nhắn, vui lòng thử lại.");
+      console.error("handleSend error:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Không thể gửi tin nhắn, vui lòng thử lại.",
+        [
+          { text: "Thử lại", onPress: () => handleSend() },
+          { text: "Hủy", style: "cancel" },
+        ]
+      );
     } finally {
       setIsSending(false);
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleSendEmoji = async (messageId, emojiType) => {
+    try {
+      await sendEmoji(messageId, emojiType);
+      if (socket) {
+        socket.emit("emoji-updated", {
+          conversationId: chat._id,
+          messageId,
+          emojiType,
+          userId,
+        });
+      }
+    } catch (error) {
+      console.error("Lỗi khi gửi cảm xúc:", error);
+      Alert.alert("Lỗi", "Không thể gửi cảm xúc.");
+    }
+  };
+
+  const handleRevokeEmoji = async (messageId, emojiType) => {
+    try {
+      await revokeEmoji(messageId, emojiType);
+      if (socket) {
+        socket.emit("emoji-updated", {
+          conversationId: chat._id,
+          messageId,
+          emojiType,
+          userId,
+          revoke: true,
+        });
+      }
+    } catch (error) {
+      console.error("Lỗi khi gỡ cảm xúc:", error);
+      Alert.alert("Lỗi", "Không thể gỡ cảm xúc.");
     }
   };
 
@@ -1174,7 +1387,7 @@ const ChatScreen = ({ navigation, route }) => {
               await leaveGroup(chat._id);
               if (socket) {
                 socket.emit("group:memberLeft", {
-                  groupId: chat._id,
+                  groupId: chart._id,
                   leftUserId: userId,
                 });
               }
@@ -1230,7 +1443,6 @@ const ChatScreen = ({ navigation, route }) => {
     }
 
     try {
-      // Cập nhật giao diện ngay lập tức
       setConversationDetails((prev) => {
         const newDetails = {
           ...prev,
@@ -1258,7 +1470,6 @@ const ChatScreen = ({ navigation, route }) => {
       );
       console.log("API updateGroupInfo response:", updatedGroup);
 
-      // Cập nhật với dữ liệu từ server
       setConversationDetails((prev) => {
         const newDetails = {
           ...prev,
@@ -1289,14 +1500,15 @@ const ChatScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error("Lỗi cập nhật thông tin nhóm:", error);
-      // Khôi phục trạng thái cũ nếu lỗi
       setConversationDetails(chat);
       Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin nhóm.");
     }
   };
+
   const cancelReply = () => {
     setReplyingTo(null);
   };
+
   const handleAddMember = async (friendId) => {
     try {
       await addGroupMember(chat._id, friendId);
@@ -1383,7 +1595,6 @@ const ChatScreen = ({ navigation, route }) => {
       // }));
     } catch (error) {
       console.error("Lỗi bật/tắt yêu cầu duyệt:", error);
-
       setConversationDetails((prev) => ({
         ...prev,
         requireApproval: !prev.requireApproval,
@@ -1464,6 +1675,7 @@ const ChatScreen = ({ navigation, route }) => {
         <Header
           navigation={navigation}
           chat={chat}
+          friend={friend}
           conversationDetails={conversationDetails}
           groupMembers={groupMembers}
           isTyping={isTyping}
@@ -1480,28 +1692,34 @@ const ChatScreen = ({ navigation, route }) => {
               <Text style={styles.loadingText}>Đang tải tin nhắn...</Text>
             </View>
           ) : (
-            messages.map((msg) => (
-              <MessageItem
-                key={msg._id}
-                msg={msg}
-                user={user}
-                userId={userId}
-                onReply={handleReply}
-                onForward={handleForward}
-                onRecall={handleRecall}
-                onFocus={focusMessage}
-                viewRefs={viewRefs}
-                playAudio={playAudio}
-                focusedMessageId={focusedMessage}
-              />
-            ))
+            [...new Map(messages.map((msg) => [msg._id, msg])).values()].map(
+              (msg) => (
+                <MessageItem
+                  key={msg._id}
+                  msg={msg}
+                  user={user}
+                  userId={userId}
+                  onReply={handleReply}
+                  onForward={handleForward}
+                  onRecall={handleRecall}
+                  onFocus={focusMessage}
+                  viewRefs={viewRefs}
+                  playAudio={playAudio}
+                  focusedMessageId={focusedMessage}
+                  onSendEmoji={handleSendEmoji}
+                  onRevokeEmoji={handleRevokeEmoji}
+                  friend={friend}
+                />
+              )
+            )
           )}
         </ScrollView>
         <ReplyPreview replyingTo={replyingTo} onCancel={cancelReply} />
         <MediaPreview
           selectedMedia={selectedMedia}
-          selectedFile={selectedFile}
-          onCancel={cancelMediaSelection}
+          selectedFiles={selectedFiles}
+          onRemoveMediaItem={removeMediaItem}
+          onRemoveFileItem={removeFileItem}
         />
         <InputBar
           message={message}
@@ -1511,7 +1729,7 @@ const ChatScreen = ({ navigation, route }) => {
           isRecording={isRecording}
           isSending={isSending}
           selectedMedia={selectedMedia}
-          selectedFile={selectedFile}
+          selectedFiles={selectedFiles}
           onSend={handleSend}
           onPickImage={pickImage}
           onPickDocument={pickDocument}

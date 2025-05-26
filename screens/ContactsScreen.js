@@ -20,7 +20,7 @@ import debounce from "lodash.debounce";
 import { getMyConversations } from "../apis/conversation.api";
 import ChatList from "../components/Chat/ChatList";
 import io from "socket.io-client";
-import { Audio } from "expo-av";
+import { API_URL, SOCKET_URL } from "@env";
 
 dayjs.extend(relativeTime);
 
@@ -79,7 +79,9 @@ const ContactsScreen = () => {
           _id: convo._id,
           user: {
             fullName: convo.name,
-            avatar: convo.avatar || "https://i.pravatar.cc/150",
+            avatar:
+              convo.avatar ||
+              "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
           },
           lastMessage: convo.lastMessage || null,
           type: "group",
@@ -96,7 +98,7 @@ const ContactsScreen = () => {
         });
       setGroups(mappedGroups);
     } catch (error) {
-      console.error("❌ Lỗi khi tải danh sách nhóm:", error);
+      // console.error("❌ Lỗi khi tải danh sách nhóm:", error);
       setErrorGroups("Không thể tải danh sách nhóm.");
     } finally {
       setLoadingGroups(false);
@@ -117,7 +119,7 @@ const ContactsScreen = () => {
         return;
       }
 
-      socketConnection = io("http://192.168.1.8:5000", {
+      socketConnection = io(SOCKET_URL || "https://be.haudev.io.vn", {
         auth: { token },
         reconnection: true,
         reconnectionAttempts: 10,
@@ -150,14 +152,11 @@ const ContactsScreen = () => {
       });
 
       socketConnection.on("disconnect", (reason) => {
-        console.log(
-          "Ngắt kết nối Socket.IO trong ContactsScreen. Lý do:",
-          reason
-        );
+        // console.log("Ngắt kết nối Socket.IO trong ContactsScreen. Lý do:", reason);
       });
 
       socketConnection.on("connect_error", (error) => {
-        console.error("Lỗi kết nối Socket.IO trong ContactsScreen:", error);
+        // console.error("Lỗi kết nối Socket.IO trong ContactsScreen:", error);
       });
     };
 
@@ -262,7 +261,7 @@ const ContactsScreen = () => {
     try {
       const token = await AsyncStorage.getItem("token");
       const response = await fetch(
-        "http://192.168.1.8:3000/api/conversation/detail",
+        `${"https://be.haudev.io.vn/api"}/conversation/detail`,
         {
           method: "POST",
           headers: {
@@ -276,6 +275,7 @@ const ContactsScreen = () => {
       );
 
       const data = await response.json();
+      console.log(friend);
       if (!response.ok) {
         throw new Error(data.message || "Không thể tạo/mở hội thoại");
       }
@@ -284,6 +284,7 @@ const ContactsScreen = () => {
         conversationId: data.data.conversationId,
         chat: data.data,
         user: user,
+        friend: friend,
       });
     } catch (error) {
       console.error("Lỗi khi mở chat:", error);
@@ -298,14 +299,16 @@ const ContactsScreen = () => {
       return (
         user || {
           fullName: "Người dùng ẩn danh",
-          avatar: "https://i.pravatar.cc/150",
+          avatar:
+            "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
         }
       );
     } catch (error) {
       console.error("Lỗi khi lấy thông tin người dùng:", error);
       return {
         fullName: "Người dùng ẩn danh",
-        avatar: "https://i.pravatar.cc/150",
+        avatar:
+          "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
       };
     }
   };
@@ -315,7 +318,8 @@ const ContactsScreen = () => {
       const [userInfo, setUserInfo] = useState(
         item.user || {
           fullName: "Người dùng ẩn danh",
-          avatar: "https://i.pravatar.cc/150",
+          avatar:
+            "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
         }
       );
 
@@ -369,7 +373,8 @@ const ContactsScreen = () => {
     const [userInfo, setUserInfo] = useState(
       item.to || {
         fullName: "Người dùng ẩn danh",
-        avatar: "https://i.pravatar.cc/150",
+        avatar:
+          "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
       }
     );
 
@@ -412,7 +417,11 @@ const ContactsScreen = () => {
       <View style={styles.rowTop}>
         <Avatar.Image
           size={48}
-          source={{ uri: item.avatar || "https://i.pravatar.cc/150" }}
+          source={{
+            uri:
+              item.avatar ||
+              "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+          }}
         />
         <View style={styles.infoContainer}>
           <Text style={[styles.name, { color: colors.text }]}>
@@ -432,9 +441,10 @@ const ContactsScreen = () => {
         <Button
           mode="outlined"
           onPress={() => handleRemoveFriend(item.fs_id)}
-          style={[styles.button, { backgroundColor: "red", color: "white" }]}
+          style={[{ backgroundColor: "red", outlineColor: "red" }]}
           disabled={loadingAction[item.fs_id] === "remove"}
           loading={loadingAction[item.fs_id] === "remove"}
+          textColor="white"
         >
           Hủy kết bạn
         </Button>
