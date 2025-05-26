@@ -7,7 +7,7 @@ const SearchBar = ({
   setSearchQuery,
   setIsSearchFocused,
   colors,
-  onSearch,
+
 }) => {
   return (
     <View style={styles.searchContainer}>
@@ -25,9 +25,9 @@ const SearchBar = ({
         placeholder="Nhập tên hoặc số điện thoại"
         placeholderTextColor="#888"
         // keyboardType="phone-pad"
+        returnKeyType="none"
         onFocus={() => setIsSearchFocused(true)}
         onBlur={() => setIsSearchFocused(false)}
-        onSubmitEditing={() => onSearch(searchQuery)}
         dense
       />
       {searchQuery.length > 0 && (

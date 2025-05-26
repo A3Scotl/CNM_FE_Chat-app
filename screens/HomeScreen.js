@@ -36,6 +36,7 @@ import { createGroup, searchGroupsByName } from "../apis/conversationGroup.api";
 import { getFriends } from "../apis/contact.api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL, SOCKET_URL } from "@env";
+import { getOrCreateConversationDetail } from "../apis/conversation.api";
 
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
@@ -200,11 +201,10 @@ const HomeScreen = ({ navigation, route }) => {
         setIsSearching(true);
         let combinedResults = [];
 
-        // Tìm kiếm người dùng theo số điện thoại
         if (query.length === 10 && formattedQuery.length === 10) {
           const userResults = await findUserByPhone(formattedQuery);
           if (userResults) {
-            combinedResults = combinedResults.concat(
+             combinedResults = combinedResults.concat(
               Array.isArray(userResults) ? userResults : [userResults]
             );
           }
@@ -247,7 +247,7 @@ const HomeScreen = ({ navigation, route }) => {
         console.log("Người dùng từ tìm kiếm nhóm:", userResults);
 
         // Kết hợp kết quả
-        combinedResults = combinedResults.concat(typedGroupResults, userResults);
+        combinedResults = combinedResults.concat(userResults, typedGroupResults);
 
         setSearchResults(combinedResults);
       } catch (error) {
@@ -372,14 +372,51 @@ const HomeScreen = ({ navigation, route }) => {
       }
     });
   };
+  // Trong HomeScreen, thêm hàm handleChat
+  const handleChat = async (friend) => {
+    try {
+      const response = await getOrCreateConversationDetail(friend._id);
+      console.log("Response từ API:", response);
 
+      if (!response.isSuccess) {
+        throw new Error(response.message || "Không thể tạo/mở hội thoại");
+      }
+
+      const data = response.data; // Lấy data từ response
+      const chat = {
+        _id: data.conversationId || data._id, // Sử dụng _id nếu conversationId không tồn tại
+        user: {
+          fullName: friend.fullName || "Người dùng không xác định",
+          avatar:
+            friend.avatar ||
+            "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg",
+        },
+        type: "friend",
+      };
+
+      navigation.navigate("Chat", {
+        conversationId: data.conversationId || data._id,
+        chat: chat,
+        user: currentUser,
+        friend: friend,
+      });
+      setSearchQuery("");
+      setSearchResults([]);
+    } catch (error) {
+      console.error("Lỗi khi mở chat:", error);
+      Alert.alert("Lỗi", error.message || "Không thể mở hội thoại.");
+    }
+  };
   const renderSearchResults = () => {
     if (!searchQuery.trim()) return null;
 
     return (
       <View style={styles.searchOverlay}>
         {isSearching ? (
-          <Text style={styles.searchingText}>Đang tìm kiếm...</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.searchingText}>Đang tìm kiếm...</Text>
+          </View>
         ) : searchResults.length > 0 ? (
           <FlatList
             data={searchResults}
@@ -395,7 +432,7 @@ const HomeScreen = ({ navigation, route }) => {
                         chat: {
                           _id: item._id,
                           user: {
-                            fullName: item.name || item.fullName || "Nhóm không tên",
+                            fullName: item.name || item.fullName || "Không tên",
                             avatar:
                               item.avatar && item.avatar !== ""
                                 ? item.avatar
@@ -437,7 +474,15 @@ const HomeScreen = ({ navigation, route }) => {
                 const isCurrentUser = item._id === currentUser?._id;
                 const isFriend = friends.some((friend) => friend._id === item._id);
                 return (
-                  <View style={styles.userItem}>
+                  <TouchableOpacity
+                    style={styles.userItem}
+                    onPress={() => {
+                      if (isFriend && !isCurrentUser) {
+                        handleChat(item); // Mở chat với bạn bè
+                      }
+                    }}
+                    disabled={!isFriend || isCurrentUser} // Vô hiệu hóa nếu không phải bạn bè hoặc là chính người dùng
+                  >
                     <Avatar.Image
                       size={40}
                       source={{
@@ -456,7 +501,16 @@ const HomeScreen = ({ navigation, route }) => {
                     </View>
                     {!isCurrentUser && (
                       isFriend ? (
-                        <Text style={styles.friendText}>Bạn bè</Text>
+                        <TouchableOpacity
+                          style={styles.chatButton}
+                          onPress={() => handleChat(item)}
+                        >
+                          <MaterialCommunityIcons
+                            name="message-text-outline"
+                            size={24}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
                       ) : (
                         <TouchableOpacity
                           style={styles.addButton}
@@ -470,7 +524,7 @@ const HomeScreen = ({ navigation, route }) => {
                         </TouchableOpacity>
                       )
                     )}
-                  </View>
+                  </TouchableOpacity>
                 );
               }
             }}

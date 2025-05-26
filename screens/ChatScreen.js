@@ -56,7 +56,7 @@ const ChatScreen = ({ navigation, route }) => {
     );
   }
 
-  const { chat, user,friend } = route.params;
+  const { chat, user, friend } = route.params;
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const viewRefs = useRef({});
@@ -254,16 +254,24 @@ const ChatScreen = ({ navigation, route }) => {
           scrollRef.current?.scrollToEnd({ animated: true });
         }, 100);
 
-        if (!isCurrentUser) {
-          try {
-            const sound = new Audio.Sound();
-            await sound.loadAsync(require("../assets/sounds/message-notification.mp3"));
-            await sound.playAsync();
-            await sound.unloadAsync();
-          } catch (err) {
-            console.error("Error playing notification sound:", err);
-          }
-        }
+        // if (!isCurrentUser) {
+        //   const playNotificationSound = async () => {
+        //     try {
+        //       const { sound } = await Audio.Sound.createAsync(
+        //         require('../assets/sounds/message-notification.mp3')
+        //       );
+        //       await sound.playAsync();
+        //       sound.setOnPlaybackStatusUpdate((status) => {
+        //         if (status.didJustFinish) {
+        //           sound.unloadAsync();
+        //         }
+        //       });
+        //     } catch (error) {
+        //       console.error('Lỗi phát âm thanh:', error);
+        //     }
+        //   };
+        //   playNotificationSound();
+        // }
       });
 
       socketConnection.on("message-recalled", (updatedMessage) => {

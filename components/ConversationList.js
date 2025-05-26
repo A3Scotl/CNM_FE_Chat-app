@@ -6,7 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
 import { Audio } from "expo-audio";
-import { API_URL, SOCKET_URL } from "@env"; 
+import { API_URL, SOCKET_URL } from "@env";
 
 const ConversationList = ({ currentUser }) => {
   const [conversations, setConversations] = useState([]);
@@ -96,7 +96,7 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("newConversation", ({ conversationId, participants }) => {
         console.log("Nhận sự kiện newConversation:", { conversationId, participants });
-        fetchConversations(); // Gọi lại fetch để cập nhật danh sách
+        fetchConversations();
       });
 
       socketConnection.on("groupCreated", ({ group, message }) => {
@@ -107,7 +107,7 @@ const ConversationList = ({ currentUser }) => {
         //       sound.unloadAsync();
         //     });
         //   });
-          fetchConversations(); // Gọi lại fetch để cập nhật danh sách
+        fetchConversations(); // Gọi lại fetch để cập nhật danh sách
         // } catch (err) {
         //   console.error("Lỗi phát âm thanh nhóm mới:", err);
         // }
@@ -115,38 +115,45 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("new-message", (msg) => {
         setConversations((prev) => {
-          const updatedConversations = prev.map((convo) => {
-            if (convo._id === msg.conversationId) {
-              const isCurrentUser = String(msg.sender._id) === String(userId);
-              return {
-                ...convo,
-                lastMessage: {
-                  _id: msg._id,
-                  content: msg.content || (
-                    msg.type === "image" ? "Hình ảnh" :
-                    msg.type === "audio" ? "Tin nhắn âm thanh" : "Tệp"
-                  ),
-                  sender: msg.sender,
-                  createdAt: msg.createdAt,
-                  type: msg.type,
-                  fileMeta: msg.fileMeta || [],
-                  replyTo: msg.replyTo,
-                  isRevoke: msg.isRevoke || false,
-                },
-                unreadCount: isCurrentUser ? convo.unreadCount : (convo.unreadCount || 0) + 1,
-              };
-            }
-            return convo;
-          });
-          return sortConversations([...updatedConversations]);
+          const conversationExists = prev.some((convo) => convo._id === msg.conversationId);
+
+          if (conversationExists) {
+            const updatedConversations = prev.map((convo) => {
+              if (convo._id === msg.conversationId) {
+                const isCurrentUser = String(msg.sender._id) === String(userId);
+                return {
+                  ...convo,
+                  lastMessage: {
+                    _id: msg._id,
+                    content:
+                      msg.content ||
+                      (msg.type === "image"
+                        ? "Hình ảnh"
+                        : msg.type === "audio"
+                          ? "Tin nhắn âm thanh"
+                          : "Tệp"),
+                    sender: msg.sender,
+                    createdAt: msg.createdAt,
+                    type: msg.type,
+                    fileMeta: msg.fileMeta || [],
+                    replyTo: msg.replyTo,
+                    isRevoke: msg.isRevoke || false,
+                  },
+                  unreadCount: isCurrentUser ? convo.unreadCount : (convo.unreadCount || 0) + 1,
+                };
+              }
+              return convo;
+            });
+            return sortConversations([...updatedConversations]);
+          } else {
+           fetchConversations();
+          }
         });
       });
 
-      // CẬP NHẬT QUAN TRỌNG TẠI ĐÂY
       socketConnection.on("message-recalled", ({ conversationId, messageId, updatedMessage }) => {
         console.log(`Socket 'message-recalled' received for convo: ${conversationId}, msg: ${messageId}`);
-        // Kích hoạt lại fetchConversations để đảm bảo dữ liệu luôn đồng bộ với backend
-        // Vì backend đã cập nhật lastMessage đúng khi reload trang.
+       
         fetchConversations();
       });
 
@@ -158,7 +165,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:member-added", ({ groupId, addedUserId, addedBy }) => {
-        fetchConversations(); 
+        fetchConversations();
         // if (addedBy !== userId) {
         //   try {
         //     const sound = new Audio.Sound();
@@ -174,7 +181,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:member-removed", ({ groupId, removedUserId, removedBy }) => {
-        fetchConversations(); 
+        fetchConversations();
         if (removedBy !== userId && removedUserId !== userId) {
           // try {
           //   const sound = new Audio.Sound();
@@ -190,7 +197,7 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:memberLeft", ({ groupId, leftUserId }) => {
-        fetchConversations(); 
+        fetchConversations();
         // if (leftUserId !== userId) {
         //   try {
         //     const sound = new Audio.Sound();
@@ -243,10 +250,10 @@ const ConversationList = ({ currentUser }) => {
       });
 
       socketConnection.on("group:memberRoleChanged", ({ groupId, userId: affectedUserId, newRole }) => {
-        fetchConversations(); 
+        fetchConversations();
         if (affectedUserId !== userId) {
           const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-       
+
         }
       });
 
@@ -270,7 +277,7 @@ const ConversationList = ({ currentUser }) => {
         //       sound.unloadAsync();
         //     });
         //   });
-          Alert.alert("Cập nhật nhóm", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
+        Alert.alert("Cập nhật nhóm", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
         // } catch (err) {
         //   console.error("Lỗi phát âm thanh thông báo:", err);
         // }
@@ -313,7 +320,7 @@ const ConversationList = ({ currentUser }) => {
     if (currentUser?._id) {
       fetchConversations();
     }
-  }, [fetchConversations, currentUser]); 
+  }, [fetchConversations, currentUser]);
 
   return (
     <View style={styles.container}>
