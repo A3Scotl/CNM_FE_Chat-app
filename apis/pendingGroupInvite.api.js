@@ -11,25 +11,50 @@ const getToken = async () => {
   }
 };
 
-// Gửi lời mời tham gia nhóm
-export const sendGroupInvite = async (groupId, userId) => {
+export const sendGroupInvite = async (
+  groupId,
+  invitedUser,
+  invitedBy,
+  retries = 2
+) => {
   try {
+    // if (!groupId || !invitedUser || !invitedBy) {
+    //   throw new Error("groupId, invitedUser hoặc invitedBy không hợp lệ");
+    // }
+    // if (
+    //   typeof groupId !== "string" ||
+    //   typeof invitedUser !== "string" ||
+    //   typeof invitedBy !== "string"
+    // ) {
+    //   throw new Error("groupId, invitedUser và invitedBy phải là chuỗi");
+    // }
+
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
+    // console.log("pendingGroupInvite.api - token:", token.slice(0, 10) + "...");
+    // console.log("pendingGroupInvite.api - sendGroupInvite:", {
+    //   groupId,
+    //   invitedUser,
+    //   invitedBy,
+    // });
+
     const res = await axiosInstance.post(
-      `/group/invite/${groupId}`,
-      { userId },
+      `/pendingGroupInvite/`,
+      { groupId, invitedUser, invitedBy },
       {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       }
     );
-    return res.data;
+    return res.data.data || res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi gửi lời mời tham gia nhóm:", error?.response?.data || error);
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi gửi lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };
 
@@ -40,7 +65,7 @@ export const acceptGroupInvite = async (inviteId) => {
     if (!token) throw new Error("Token không tồn tại");
 
     const res = await axiosInstance.post(
-      `/group/invite/accept/${inviteId}`,
+      `/pendingGroupInvite/${inviteId}/accept`,
       {},
       {
         headers: {
@@ -48,10 +73,13 @@ export const acceptGroupInvite = async (inviteId) => {
         },
       }
     );
-    return res.data;
+    return res.data.data || res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi chấp nhận lời mời nhóm:", error?.response?.data || error);
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi chấp nhận lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };
 
@@ -62,7 +90,7 @@ export const rejectGroupInvite = async (inviteId) => {
     if (!token) throw new Error("Token không tồn tại");
 
     const res = await axiosInstance.post(
-      `/group/invite/reject/${inviteId}`,
+      `/pendingGroupInvite/${inviteId}/reject`,
       {},
       {
         headers: {
@@ -70,27 +98,36 @@ export const rejectGroupInvite = async (inviteId) => {
         },
       }
     );
-    return res.data;
+    return res.data.data || res.data;
   } catch (error) {
-    console.error("❌ Lỗi khi từ chối lời mời nhóm:", error?.response?.data || error);
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi từ chối lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };
 
-// Lấy danh sách lời mời nhóm đang chờ xử lý
-export const getPendingGroupInvites = async () => {
+// Lấy danh sách lời mời nhóm theo group ID (cho chủ nhóm xem)
+export const getPendingGroupInvitesByGroup = async (groupId) => {
   try {
     const token = await getToken();
     if (!token) throw new Error("Token không tồn tại");
 
-    const res = await axiosInstance.get("/group/invite/pending", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    const res = await axiosInstance.get(`/pendingGroupInvite/${groupId}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    return res.data;
+    // console.log("API response:", JSON.stringify(res.data, null, 2));
+    // Filter only pending invites on the client side
+    const pendingInvites = Array.isArray(res.data)
+      ? res.data.filter((invite) => invite.status === "pending")
+      : [];
+    return pendingInvites;
   } catch (error) {
-    console.error("❌ Lỗi khi lấy danh sách lời mời nhóm:", error?.response?.data || error);
-    throw error;
+    // console.error(
+    //   "❌ Lỗi khi lấy danh sách lời mời nhóm:",
+    //   error?.response?.data || error
+    // );
+    // throw error;
   }
 };

@@ -12,12 +12,21 @@ import {
   Modal,
   FlatList,
   TextInput,
-  Linking
+  Linking,
 } from "react-native";
 import { Text, Avatar } from "react-native-paper";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import io from "socket.io-client";
-import { getMessages, sendMessage, hideConversation, recallMessage, forwardMessage, forwardManyMessage, sendEmoji, revokeEmoji } from "../apis/message.api";
+import {
+  getMessages,
+  sendMessage,
+  hideConversation,
+  recallMessage,
+  forwardMessage,
+  forwardManyMessage,
+  sendEmoji,
+  revokeEmoji,
+} from "../apis/message.api";
 import {
   leaveGroup,
   getGroupMembersWithRoles,
@@ -42,14 +51,23 @@ import MediaPreview from "../components/Chat/MediaPreview";
 import InputBar from "../components/Chat/InputBar";
 import ImagePreviewModal from "../components/Chat/ImagePreviewModal";
 import { API_URL, SOCKET_URL } from "@env";
+import { useSocket } from "../hooks/useSocket";
+import { useGroupInvite } from "../hooks/useGroupInvite";
 
 const ChatScreen = ({ navigation, route }) => {
   if (!route?.params || !route.params.chat || !route.params.user) {
-    console.warn("ChatScreen: Thiếu route.params", { routeParams: route?.params });
+    console.warn("ChatScreen: Thiếu route.params", {
+      routeParams: route?.params,
+    });
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Không thể tải hội thoại. Vui lòng thử lại.</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <Text style={styles.errorText}>
+          Không thể tải hội thoại. Vui lòng thử lại.
+        </Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <Text style={styles.backButtonText}>Quay lại</Text>
         </TouchableOpacity>
       </View>
@@ -83,7 +101,6 @@ const ChatScreen = ({ navigation, route }) => {
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupAvatar, setNewGroupAvatar] = useState(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [availableFriends, setAvailableFriends] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [returnToChatInfo, setReturnToChatInfo] = useState(false);
@@ -97,10 +114,20 @@ const ChatScreen = ({ navigation, route }) => {
   const [isTogglingApproval, setIsTogglingApproval] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-
+  const {
+    availableFriends,
+    fetchAvailableFriends,
+    pendingInvites,
+    fetchPendingInvites,
+    handleSendInvite,
+    handleAcceptInvite,
+    handleRejectInvite,
+  } = useGroupInvite(user._id, chat._id, socket, fetchMemberInGroupDetails);
   useEffect(() => {
     if (!chat?._id) {
-      console.warn("ChatScreen: conversationId không hợp lệ", { chatId: chat?._id });
+      console.warn("ChatScreen: conversationId không hợp lệ", {
+        chatId: chat?._id,
+      });
     } else if (chat.type === "group") {
       fetchMemberInGroupDetails();
     }
@@ -109,26 +136,19 @@ const ChatScreen = ({ navigation, route }) => {
   const fetchMemberInGroupDetails = async () => {
     try {
       setIsLoading(true);
-      setConversationDetails(chat);
       const members = await getGroupMembersWithRoles(chat._id);
       setGroupMembers(members.data);
-      const currentMember = members.data.find((member) => member._id === user._id);
+      const currentMember = members.data.find(
+        (member) => member._id === user._id
+      );
       setIsOwner(currentMember?.role === "owner");
-      setIsAdmin(currentMember?.role === "admin" || currentMember?.role === "owner");
+      setIsAdmin(
+        currentMember?.role === "admin" || currentMember?.role === "owner"
+      );
     } catch (error) {
       console.error("Không thể tải chi tiết nhóm:", error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchAvailableFriends = async () => {
-    try {
-      const friends = await getFriendsNotInGroup(chat._id);
-      setAvailableFriends(friends.data);
-    } catch (error) {
-      console.error("Lỗi lấy danh sách bạn bè:", error);
-      Alert.alert("Lỗi", "Không thể tải danh sách bạn bè.");
     }
   };
 
@@ -140,8 +160,16 @@ const ChatScreen = ({ navigation, route }) => {
         .filter((convo) => convo._id !== chat._id)
         .map((convo) => ({
           _id: convo._id,
-          name: convo.type === "group" ? convo.name : convo.participants.find(p => p._id !== userId)?.fullName || "Unknown",
-          avatar: convo.type === "group" ? convo.avatar : convo.participants.find(p => p._id !== userId)?.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+          name:
+            convo.type === "group"
+              ? convo.name
+              : convo.participants.find((p) => p._id !== userId)?.fullName ||
+                "Unknown",
+          avatar:
+            convo.type === "group"
+              ? convo.avatar
+              : convo.participants.find((p) => p._id !== userId)?.avatar ||
+                "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
           type: convo.type,
         }));
       setConversations(mappedConversations);
@@ -158,12 +186,18 @@ const ChatScreen = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener("keyboardDidShow", () => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    });
-    const keyboardDidHideListener = Keyboard.addListener("keyboardDidHide", () => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    });
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      () => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      "keyboardDidHide",
+      () => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }
+    );
 
     return () => {
       keyboardDidShowListener.remove();
@@ -190,9 +224,13 @@ const ChatScreen = ({ navigation, route }) => {
         Alert.alert("Cần quyền truy cập", "Cần quyền truy cập micro để ghi âm");
       }
 
-      const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status: mediaStatus } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (mediaStatus !== "granted") {
-        Alert.alert("Cần quyền truy cập", "Cần quyền truy cập thư viện để gửi hình ảnh");
+        Alert.alert(
+          "Cần quyền truy cập",
+          "Cần quyền truy cập thư viện để gửi hình ảnh"
+        );
       }
     })();
   }, []);
@@ -221,7 +259,10 @@ const ChatScreen = ({ navigation, route }) => {
       });
 
       socketConnection.on("new-message", async (msg) => {
-        console.log("Received new-message:", { _id: msg._id, content: msg.content });
+        console.log("Received new-message:", {
+          _id: msg._id,
+          content: msg.content,
+        });
         const isCurrentUser = String(msg.sender._id) === String(userId);
         const newMessage = {
           _id: msg._id,
@@ -278,7 +319,14 @@ const ChatScreen = ({ navigation, route }) => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg._id === updatedMessage._id
-              ? { ...msg, content: updatedMessage.content, isRevoke: true, fileMeta: [], type: "text", forwardedMessage: null }
+              ? {
+                  ...msg,
+                  content: updatedMessage.content,
+                  isRevoke: true,
+                  fileMeta: [],
+                  type: "text",
+                  forwardedMessage: null,
+                }
               : msg
           )
         );
@@ -295,46 +343,23 @@ const ChatScreen = ({ navigation, route }) => {
           setIsTyping(false);
         }
       });
-
-      socketConnection.on("group:member-added", ({ groupId, addedUserId, addedBy }) => {
-        if (groupId === chat._id) {
-          fetchMemberInGroupDetails();
-          if (addedBy !== userId) {
-            Alert.alert("Thành viên mới", `Một người dùng đã được thêm vào nhóm.`);
-            // try {
-            //   const sound = new Audio.Sound();
-            //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-            //     sound.playAsync().then(() => {
-            //       sound.unloadAsync();
-            //     });
-            //   });
-            // } catch (err) {
-            //   console.error("Lỗi phát âm thanh thông báo:", err);
-            // }
-          }
+      socketConnection.on("group:member-added-group", (data) => {
+        console.log("Nhận sự kiện group:member-added-group:", data);
+        if (data.groupId === chat._id) {
+          fetchMemberInGroupDetails(); // Cập nhật danh sách thành viên
         }
       });
-
-      socketConnection.on("group:member-removed", ({ groupId, removedUserId, removedBy }) => {
-        console.log("Nhận sự kiện group:member-removed:", { groupId, removedUserId, removedBy });
-        if (groupId === chat._id) {
-          if (removedUserId === userId) {
-            Alert.alert("Thông báo", "Bạn đã bị xóa khỏi nhóm.", [
-              {
-                text: "OK",
-                onPress: () => {
-                  socketConnection.emit("leave-room", chat._id);
-                  navigation.replace("Home");
-                },
-              },
-            ]);
-            setTimeout(() => {
-              socketConnection.emit("leave-room", chat._id);
-              navigation.replace("Home");
-            }, 1000);
-          } else {
+      socketConnection.on(
+        "group:member-added",
+        ({ groupId, addedUserId, addedBy }) => {
+          if (groupId === chat._id) {
             fetchMemberInGroupDetails();
-            if (removedBy !== userId) {
+            fetchPendingInvites();
+            if (addedBy !== userId) {
+              Alert.alert(
+                "Thành viên mới",
+                `Một người dùng đã được thêm vào nhóm.`
+              );
               // try {
               //   const sound = new Audio.Sound();
               //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
@@ -348,15 +373,61 @@ const ChatScreen = ({ navigation, route }) => {
             }
           }
         }
-      });
+      );
+
+      socketConnection.on(
+        "group:member-removed",
+        ({ groupId, removedUserId, removedBy }) => {
+          console.log("Nhận sự kiện group:member-removed:", {
+            groupId,
+            removedUserId,
+            removedBy,
+          });
+          if (groupId === chat._id) {
+            if (removedUserId === userId) {
+              Alert.alert("Thông báo", "Bạn đã bị xóa khỏi nhóm.", [
+                {
+                  text: "OK",
+                  onPress: () => {
+                    socketConnection.emit("leave-room", chat._id);
+                    navigation.replace("Home");
+                  },
+                },
+              ]);
+              setTimeout(() => {
+                socketConnection.emit("leave-room", chat._id);
+                navigation.replace("Home");
+              }, 1000);
+            } else {
+              fetchMemberInGroupDetails();
+              if (removedBy !== userId) {
+                // try {
+                //   const sound = new Audio.Sound();
+                //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+                //     sound.playAsync().then(() => {
+                //       sound.unloadAsync();
+                //     });
+                //   });
+                // } catch (err) {
+                //   console.error("Lỗi phát âm thanh thông báo:", err);
+                // }
+              }
+            }
+          }
+        }
+      );
 
       socketConnection.on("group:memberLeft", ({ groupId, leftUserId }) => {
         if (groupId === chat._id) {
           fetchMemberInGroupDetails();
+          fetchAvailableFriends();
           if (leftUserId === userId) {
             navigation.goBack();
           } else {
-            console.log("Thành viên rời nhóm", `Một thành viên đã rời khỏi nhóm.`);
+            console.log(
+              "Thành viên rời nhóm",
+              `Một thành viên đã rời khỏi nhóm.`
+            );
             // try {
             //   const sound = new Audio.Sound();
             //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
@@ -394,30 +465,44 @@ const ChatScreen = ({ navigation, route }) => {
                 avatar: avatar || prev.user.avatar,
               },
             };
-            console.log("group:infoUpdated - Updated conversationDetails:", newDetails);
+            console.log(
+              "group:infoUpdated - Updated conversationDetails:",
+              newDetails
+            );
             return newDetails;
           });
         }
       });
 
-      socketConnection.on("group:memberRoleChanged", ({ groupId, userId: affectedUserId, newRole }) => {
-        if (groupId === chat._id) {
-          fetchMemberInGroupDetails();
-          if (affectedUserId !== userId) {
-            const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-            // try {
-            //   const sound = new Audio.Sound();
-            //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-            //     sound.playAsync().then(() => {
-            //       sound.unloadAsync();
-            //     });
-            //   });
-            // } catch (err) {
-            //   console.error("Lỗi phát âm thanh thông báo:", err);
-            // }
+      socketConnection.on(
+        "group:memberRoleChanged",
+        ({ groupId, userId: affectedUserId, newRole }) => {
+          if (groupId === chat._id) {
+            fetchMemberInGroupDetails();
+            if (affectedUserId !== userId) {
+              const roleText =
+                newRole === "owner"
+                  ? "chủ nhóm"
+                  : newRole === "admin"
+                  ? "quản trị viên"
+                  : "thành viên";
+              // Alert.alert("Thay đổi quyền", `Quyền của một thành viên đã được thay đổi thành ${roleText}.`);
+              // try {
+              //   Audio.Sound.createAsync(
+              //     require("../assets/sounds/invite-group.mp3")
+              //   ).then(({ sound }) => {
+              //     sound.playAsync();
+              //     sound.setOnPlaybackStatusUpdate((status) => {
+              //       if (status.didJustFinish) sound.unloadAsync();
+              //     });
+              //   });
+              // } catch (err) {
+              //   console.error("Lỗi phát âm thanh thông báo:", err);
+              // }
+            }
           }
         }
-      });
+      );
 
       socketConnection.on("emoji-updated", (updatedMessage) => {
         setMessages((prev) =>
@@ -429,17 +514,168 @@ const ChatScreen = ({ navigation, route }) => {
         );
       });
 
-      socketConnection.on("group:requireApprovalChanged", ({ groupId, requireApproval }) => {
-        console.log("Nhận sự kiện group:requireApprovalChanged:", { groupId, requireApproval });
+      // socketConnection.on(
+      //   "group:requireApprovalChanged",
+      //   ({ groupId, requireApproval }) => {
+      //     console.log("Nhận sự kiện group:requireApprovalChanged:", {
+      //       groupId,
+      //       requireApproval,
+      //     });
+      //     if (groupId === chat._id) {
+      //       setConversationDetails((prev) => ({
+      //         ...prev,
+      //         requireApproval,
+      //       }));
+      //     }
+      //   }
+      // );
+      socketConnection.on("new-group-invite", (data) => {
+        console.log("Raw new-group-invite data:", data);
+        const eventData = Array.isArray(data) ? data[0] : data;
+        const { groupId, invitedUser, invitedBy, inviteId } = eventData;
+
         if (groupId === chat._id) {
-          setConversationDetails((prev) => ({
-            ...prev,
-            requireApproval,
-          }));
+          // try {
+          //   Audio.Sound.createAsync(
+          //     require("../assets/sounds/invite-group.mp3")
+          //   ).then(({ sound }) => {
+          //     sound.playAsync();
+          //     sound.setOnPlaybackStatusUpdate((status) => {
+          //       if (status.didJustFinish) sound.unloadAsync();
+          //     });
+          //   });
+          // } catch (err) {
+          //   console.error("Lỗi phát âm thanh thông báo:", err);
+          // }
+
+          if (isOwner || isAdmin) {
+            Alert.alert(
+              "Lời mời mới",
+              `Có lời mời mới từ ${invitedBy?.fullName || "Unknown"}`
+            );
+            fetchMemberInGroupDetails();
+            setPendingInvites((prev) => [
+              ...prev,
+              {
+                _id: inviteId,
+                groupId,
+                invitedUser: {
+                  _id: invitedUser,
+                  fullName: "Unknown",
+                  avatar: "https://i.pravatar.cc/150",
+                },
+                invitedBy,
+                status: "pending",
+              },
+            ]);
+            fetchPendingInvites();
+            fetchAvailableFriends();
+          }
         }
       });
 
+      socketConnection.on(
+        "user-joined-group",
+        ({ groupId, userId, inviteId }) => {
+          if (groupId === chat._id) {
+            fetchMemberInGroupDetails();
+            fetchAvailableFriends();
+            fetchPendingInvites(); // Làm mới danh sách lời mời
+            setPendingInvites((prev) =>
+              prev.filter((inv) => inv._id !== inviteId)
+            );
+            fetchMemberInGroupDetails();
+            fetchPendingInvites();
+            // try {
+            //   fetchMemberInGroupDetails();
+            //   fetchPendingInvites();
+            //   Audio.Sound.createAsync(
+            //     require("../assets/sounds/invite-group.mp3")
+            //   ).then(({ sound }) => {
+            //     sound.playAsync();
+            //     sound.setOnPlaybackStatusUpdate((status) => {
+            //       if (status.didJustFinish) sound.unloadAsync();
+            //     });
+            //   });
+            // } catch (err) {
+            //   console.error("Lỗi phát âm thanh thông báo:", err);
+            // }
+          }
+        }
+      );
+      socketConnection.on(
+        "group-invite-rejected",
+        ({ groupId, userId, inviteId }) => {
+          if (groupId === chat._id) {
+            fetchMemberInGroupDetails();
+            fetchAvailableFriends();
+            fetchPendingInvites(); // Làm mới danh sách lời mời
+            setPendingInvites((prev) =>
+              prev.filter((inv) => inv._id !== inviteId)
+            );
+            try {
+              fetchMemberInGroupDetails();
+              fetchPendingInvites();
+              Audio.Sound.createAsync(
+                require("../assets/sounds/invite-group.mp3")
+              ).then(({ sound }) => {
+                sound.playAsync();
+                sound.setOnPlaybackStatusUpdate((status) => {
+                  if (status.didJustFinish) sound.unloadAsync();
+                });
+              });
+            } catch (err) {
+              console.error("Lỗi phát âm thanh thông báo:", err);
+            }
+          }
+        }
+      );
+
+      socketConnection.on(
+        "require-approval-toggled",
+        ({ groupId, requireApproval }) => {
+          // console.log("Nhận sự kiện require-approval-toggled:", {
+          //   groupId,
+          //   requireApproval,
+          // });
+          if (groupId === chat._id) {
+            setConversationDetails((prev) => ({
+              ...prev,
+              requireApproval,
+            }));
+            if (!isTogglingApproval) {
+              // Alert.alert(
+              //   "Cập nhật cài đặt",
+              //   `Yêu cầu duyệt thành viên đã được ${
+              //     requireApproval ? "bật" : "tắt"
+              //   }.`
+              // );
+              try {
+                Audio.Sound.createAsync(
+                  require("../assets/sounds/invite-group.mp3")
+                ).then(({ sound }) => {
+                  sound.playAsync();
+                  sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.didJustFinish) sound.unloadAsync();
+                  });
+                });
+              } catch (err) {
+                console.error("Lỗi phát âm thanh thông báo:", err);
+              }
+            }
+          }
+        }
+      );
+
       setSocket(socketConnection);
+
+      return () => {
+        socket.off("group:member-added-group");
+        socket.off("group:member-removed", handleMemberRemoved);
+        socket.off("new-group-invite", handleNewGroupInvite);
+        socket.off("require-approval-toggled");
+        socketConnection.disconnect();
+      };
     };
 
     setupSocket();
@@ -475,9 +711,11 @@ const ChatScreen = ({ navigation, route }) => {
         setMessages(formattedMessages);
       } catch (error) {
         console.error("Lỗi tải tin nhắn:", error);
-        Alert.alert("Lỗi", "Không thể tải tin nhắn. Hội thoại có thể không tồn tại.", [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]);
+        Alert.alert(
+          "Lỗi",
+          "Không thể tải tin nhắn. Hội thoại có thể không tồn tại.",
+          [{ text: "OK", onPress: () => navigation.goBack() }]
+        );
       } finally {
         setIsLoading(false);
       }
@@ -510,12 +748,22 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       await recallMessage(messageId);
       if (socket) {
-        socket.emit("message-recalled", { conversationId: chat._id, messageId });
+        socket.emit("message-recalled", {
+          conversationId: chat._id,
+          messageId,
+        });
       }
       setMessages((prev) =>
         prev.map((msg) =>
           msg._id === messageId
-            ? { ...msg, content: "Tin nhắn đã bị thu hồi", isRevoke: true, fileMeta: [], type: "text", forwardedMessage: null }
+            ? {
+                ...msg,
+                content: "Tin nhắn đã bị thu hồi",
+                isRevoke: true,
+                fileMeta: [],
+                type: "text",
+                forwardedMessage: null,
+              }
             : msg
         )
       );
@@ -538,14 +786,19 @@ const ChatScreen = ({ navigation, route }) => {
             try {
               await hideConversation(chat._id);
               if (socket) {
-                socket.emit("conversation-hidden", { conversationId: chat._id });
+                socket.emit("conversation-hidden", {
+                  conversationId: chat._id,
+                });
               }
               Alert.alert("Thành công", "Cuộc trò chuyện đã được ẩn.", [
                 { text: "OK", onPress: () => navigation.goBack() },
               ]);
             } catch (error) {
               console.error("Lỗi ẩn cuộc trò chuyện:", error);
-              Alert.alert("Lỗi", error.message || "Không thể ẩn cuộc trò chuyện.");
+              Alert.alert(
+                "Lỗi",
+                error.message || "Không thể ẩn cuộc trò chuyện."
+              );
             }
           },
         },
@@ -564,7 +817,10 @@ const ChatScreen = ({ navigation, route }) => {
 
   const handleForwardMessage = async () => {
     if (selectedConversations.length === 0) {
-      Alert.alert("Lỗi", "Vui lòng chọn ít nhất một cuộc trò chuyện để chuyển tiếp.");
+      Alert.alert(
+        "Lỗi",
+        "Vui lòng chọn ít nhất một cuộc trò chuyện để chuyển tiếp."
+      );
       return;
     }
 
@@ -653,12 +909,14 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      setSelectedFiles([{
-        uri,
-        name: `recording-${Date.now()}.mp3`,
-        type: "audio/mp3",
-        size: 0,
-      }]);
+      setSelectedFiles([
+        {
+          uri,
+          name: `recording-${Date.now()}.mp3`,
+          type: "audio/mp3",
+          size: 0,
+        },
+      ]);
 
       setSelectedMedia([]);
       setRecording(null);
@@ -693,7 +951,10 @@ const ChatScreen = ({ navigation, route }) => {
         playThroughEarpieceAndroid: false,
       });
 
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true }
+      );
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.didJustFinish) sound.unloadAsync();
       });
@@ -788,7 +1049,6 @@ const ChatScreen = ({ navigation, route }) => {
         type: file.type,
       });
 
-
       const response = await fetch(`${"https://be.haudev.io.vn/api"}/upload`, {
         method: "POST",
         headers: {
@@ -809,7 +1069,6 @@ const ChatScreen = ({ navigation, route }) => {
       throw error;
     }
   };
-
 
   const uploadMedia = async () => {
     if (isSendingMessage) {
@@ -838,7 +1097,9 @@ const ChatScreen = ({ navigation, route }) => {
         return;
       }
 
-      console.log("uploadMedia: Uploading files", { fileCount: allFiles.length });
+      console.log("uploadMedia: Uploading files", {
+        fileCount: allFiles.length,
+      });
       const fileMeta = await Promise.all(
         allFiles.map(async (file, index) => {
           console.log(`Uploading file ${index + 1}: ${file.name}`);
@@ -850,7 +1111,10 @@ const ChatScreen = ({ navigation, route }) => {
           return {
             name: file.name,
             size: file.size || 0,
-            mimeType: file.type || mime.getType(file.name) || "application/octet-stream",
+            mimeType:
+              file.type ||
+              mime.getType(file.name) ||
+              "application/octet-stream",
             duration: duration || undefined,
             url,
           };
@@ -913,7 +1177,9 @@ const ChatScreen = ({ navigation, route }) => {
 
       setMessages((prev) => {
         if (prev.some((m) => m._id === newMessage._id)) {
-          console.log(`Duplicate message skipped in uploadMedia: ${newMessage._id}`);
+          console.log(
+            `Duplicate message skipped in uploadMedia: ${newMessage._id}`
+          );
           return prev;
         }
         console.log(`Adding message in uploadMedia: ${newMessage._id}`);
@@ -930,7 +1196,11 @@ const ChatScreen = ({ navigation, route }) => {
           conversationId: chat._id,
           _id: responseData.data._id,
           content,
-          sender: { _id: user._id, fullName: user.fullName, avatar: user.avatar },
+          sender: {
+            _id: user._id,
+            fullName: user.fullName,
+            avatar: user.avatar,
+          },
           createdAt: new Date().toISOString(),
           type,
           fileMeta,
@@ -958,9 +1228,6 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
-
-
-
   const handleSend = async () => {
     if (isSendingMessage) {
       console.log("handleSend skipped: Already sending");
@@ -968,7 +1235,11 @@ const ChatScreen = ({ navigation, route }) => {
     }
 
     const trimmedMessage = message.trim();
-    if (!trimmedMessage && selectedMedia.length === 0 && selectedFiles.length === 0) {
+    if (
+      !trimmedMessage &&
+      selectedMedia.length === 0 &&
+      selectedFiles.length === 0
+    ) {
       console.log("handleSend skipped: No content to send");
       Alert.alert("Thông báo", "Vui lòng nhập nội dung hoặc chọn tệp để gửi.");
       return;
@@ -991,7 +1262,9 @@ const ChatScreen = ({ navigation, route }) => {
 
     setIsSendingMessage(true);
     setIsSending(true);
-    console.log("handleSend: Sending text message", { content: trimmedMessage });
+    console.log("handleSend: Sending text message", {
+      content: trimmedMessage,
+    });
 
     try {
       const payload = {
@@ -1024,7 +1297,9 @@ const ChatScreen = ({ navigation, route }) => {
 
       setMessages((prev) => {
         if (prev.some((m) => m._id === newMessage._id)) {
-          console.log(`Duplicate message skipped in handleSend: ${newMessage._id}`);
+          console.log(
+            `Duplicate message skipped in handleSend: ${newMessage._id}`
+          );
           return prev;
         }
         console.log(`Adding message in handleSend: ${newMessage._id}`);
@@ -1041,7 +1316,11 @@ const ChatScreen = ({ navigation, route }) => {
           conversationId: chat._id,
           _id: responseData.data._id,
           content: trimmedMessage,
-          sender: { _id: user._id, fullName: user.fullName, avatar: user.avatar },
+          sender: {
+            _id: user._id,
+            fullName: user.fullName,
+            avatar: user.avatar,
+          },
           createdAt: new Date().toISOString(),
           type: "text",
           replyTo: replyingTo?._id || null,
@@ -1071,7 +1350,12 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       await sendEmoji(messageId, emojiType);
       if (socket) {
-        socket.emit("emoji-updated", { conversationId: chat._id, messageId, emojiType, userId });
+        socket.emit("emoji-updated", {
+          conversationId: chat._id,
+          messageId,
+          emojiType,
+          userId,
+        });
       }
     } catch (error) {
       console.error("Lỗi khi gửi cảm xúc:", error);
@@ -1083,7 +1367,13 @@ const ChatScreen = ({ navigation, route }) => {
     try {
       await revokeEmoji(messageId, emojiType);
       if (socket) {
-        socket.emit("emoji-updated", { conversationId: chat._id, messageId, emojiType, userId, revoke: true });
+        socket.emit("emoji-updated", {
+          conversationId: chat._id,
+          messageId,
+          emojiType,
+          userId,
+          revoke: true,
+        });
       }
     } catch (error) {
       console.error("Lỗi khi gỡ cảm xúc:", error);
@@ -1109,11 +1399,17 @@ const ChatScreen = ({ navigation, route }) => {
             try {
               await leaveGroup(chat._id);
               if (socket) {
-                socket.emit("group:memberLeft", { groupId: chart._id, leftUserId: userId });
+                socket.emit("group:memberLeft", {
+                  groupId: chart._id,
+                  leftUserId: userId,
+                });
               }
             } catch (error) {
               console.error("Lỗi khi rời nhóm:", error);
-              Alert.alert("Lỗi", error.message || "Không thể rời nhóm. Vui lòng thử lại.");
+              Alert.alert(
+                "Lỗi",
+                error.message || "Không thể rời nhóm. Vui lòng thử lại."
+              );
             }
           },
         },
@@ -1180,7 +1476,11 @@ const ChatScreen = ({ navigation, route }) => {
         payload.avatar = url;
       }
 
-      const updatedGroup = await updateGroupInfo(chat._id, payload.name, payload.avatar);
+      const updatedGroup = await updateGroupInfo(
+        chat._id,
+        payload.name,
+        payload.avatar
+      );
       console.log("API updateGroupInfo response:", updatedGroup);
 
       setConversationDetails((prev) => {
@@ -1190,8 +1490,10 @@ const ChatScreen = ({ navigation, route }) => {
           avatar: updatedGroup.data.avatar || prev.avatar,
           user: {
             ...prev.user,
-            fullName: updatedGroup.data.name || newGroupName || prev.user.fullName,
-            avatar: updatedGroup.data.avatar || payload.avatar || prev.user.avatar,
+            fullName:
+              updatedGroup.data.name || newGroupName || prev.user.fullName,
+            avatar:
+              updatedGroup.data.avatar || payload.avatar || prev.user.avatar,
           },
         };
         console.log("Server update conversationDetails:", newDetails);
@@ -1220,14 +1522,25 @@ const ChatScreen = ({ navigation, route }) => {
     setReplyingTo(null);
   };
 
-  const handleAddMember = async (friendId) => {
+  const handleAddMember = async (userIds) => {
     try {
-      await addGroupMember(chat._id, friendId);
-      Alert.alert("Thành công", "Thêm thành viên thành công.");
+      await addGroupMember(chat._id, userIds);
+      Alert.alert(
+        "Thành công",
+        `Đã thêm ${userIds.length} thành viên vào nhóm.`
+      );
       await fetchMemberInGroupDetails();
+      await fetchAvailableFriends(); // Làm mới danh sách bạn bè
       setShowAddMemberModal(false);
       if (socket) {
-        socket.emit("group:member-added", { groupId: chat._id, addedUserId: friendId, addedBy: userId });
+        // Phát sự kiện cho từng thành viên được thêm
+        userIds.forEach((userId) => {
+          socket.emit("group:member-added-group", {
+            groupId: chat._id,
+            addedUserId: userId,
+            addedBy: user._id, // Giả sử user._id là ID của người thực hiện
+          });
+        });
       }
     } catch (error) {
       console.error("Lỗi thêm thành viên:", error);
@@ -1248,9 +1561,14 @@ const ChatScreen = ({ navigation, route }) => {
             try {
               await removeGroupMember(chat._id, memberId);
               Alert.alert("Thành công", "Xóa thành viên thành công.");
-              await fetchMemberInGroupDetails();
+              await fetchMemberInGroupDetails(); // Tải lại danh sách thành viên
+              await fetchAvailableFriends(); // Tải lại danh sách bạn bè
               if (socket) {
-                socket.emit("group:member-removed", { groupId: chat._id, removedUserId: memberId, removedBy: userId });
+                socket.emit("group:member-removed", {
+                  groupId: chat._id,
+                  removedUserId: memberId,
+                  removedBy: userId,
+                });
               }
             } catch (error) {
               console.error("Lỗi xóa thành viên:", error);
@@ -1269,7 +1587,11 @@ const ChatScreen = ({ navigation, route }) => {
       Alert.alert("Thành công", "Cập nhật quyền thành viên thành công.");
       await fetchMemberInGroupDetails();
       if (socket) {
-        socket.emit("group:memberRoleChanged", { groupId: chat._id, userId: memberId, newRole });
+        socket.emit("group:memberRoleChanged", {
+          groupId: chat._id,
+          userId: memberId,
+          newRole,
+        });
       }
     } catch (error) {
       console.error("Lỗi thay đổi quyền:", error);
@@ -1279,31 +1601,25 @@ const ChatScreen = ({ navigation, route }) => {
 
   const handleToggleRequireApproval = async () => {
     try {
-      setIsTogglingApproval(true);
-      setConversationDetails((prev) => ({
-        ...prev,
-        requireApproval: !prev.requireApproval,
-      }));
+      // Cập nhật giao diện ngay lập tức
+      // setConversationDetails((prev) => ({
+      //   ...prev,
+      //   requireApproval: !prev.requireApproval, // Toggle trước khi gọi API
+      // }));
       const result = await toggleRequireApproval(chat._id);
       console.log("toggleRequireApproval result:", result);
-      setConversationDetails((prev) => ({
-        ...prev,
-        requireApproval: result.requireApproval,
-      }));
-      Alert.alert(
-        "Thành công",
-        `Đã ${result.requireApproval ? "bật" : "tắt"} yêu cầu duyệt thành viên.`
-      );
-      if (socket) {
-        socket.emit("group:requireApprovalChanged", { groupId: chat._id, requireApproval: result.requireApproval });
-      }
+      // Cập nhật lại với dữ liệu từ server
+      // setConversationDetails((prev) => ({
+      //   ...prev,
+      //   requireApproval: result.requireApproval,
+      // }));
     } catch (error) {
       console.error("Lỗi bật/tắt yêu cầu duyệt:", error);
       setConversationDetails((prev) => ({
         ...prev,
         requireApproval: !prev.requireApproval,
       }));
-      Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
+      // Alert.alert("Lỗi", error.message || "Không thể thay đổi cài đặt duyệt.");
     } finally {
       setIsTogglingApproval(false);
     }
@@ -1357,7 +1673,9 @@ const ChatScreen = ({ navigation, route }) => {
       <Avatar.Image size={40} source={{ uri: item.avatar }} />
       <View style={styles.conversationInfo}>
         <Text style={styles.conversationName}>{item.name}</Text>
-        <Text style={styles.conversationType}>{item.type === "group" ? "Nhóm" : "Cá nhân"}</Text>
+        <Text style={styles.conversationType}>
+          {item.type === "group" ? "Nhóm" : "Cá nhân"}
+        </Text>
       </View>
       {selectedConversations.includes(item._id) && (
         <View style={styles.checkmark}>
@@ -1394,24 +1712,26 @@ const ChatScreen = ({ navigation, route }) => {
               <Text style={styles.loadingText}>Đang tải tin nhắn...</Text>
             </View>
           ) : (
-            [...new Map(messages.map((msg) => [msg._id, msg])).values()].map((msg) => (
-              <MessageItem
-                key={msg._id}
-                msg={msg}
-                user={user}
-                userId={userId}
-                onReply={handleReply}
-                onForward={handleForward}
-                onRecall={handleRecall}
-                onFocus={focusMessage}
-                viewRefs={viewRefs}
-                playAudio={playAudio}
-                focusedMessageId={focusedMessage}
-                onSendEmoji={handleSendEmoji}
-                onRevokeEmoji={handleRevokeEmoji}
-                friend={friend}
-              />
-            ))
+            [...new Map(messages.map((msg) => [msg._id, msg])).values()].map(
+              (msg) => (
+                <MessageItem
+                  key={msg._id}
+                  msg={msg}
+                  user={user}
+                  userId={userId}
+                  onReply={handleReply}
+                  onForward={handleForward}
+                  onRecall={handleRecall}
+                  onFocus={focusMessage}
+                  viewRefs={viewRefs}
+                  playAudio={playAudio}
+                  focusedMessageId={focusedMessage}
+                  onSendEmoji={handleSendEmoji}
+                  onRevokeEmoji={handleRevokeEmoji}
+                  friend={friend}
+                />
+              )
+            )
           )}
         </ScrollView>
         <ReplyPreview replyingTo={replyingTo} onCancel={cancelReply} />
@@ -1474,7 +1794,6 @@ const ChatScreen = ({ navigation, route }) => {
           onAddMember={handleAddMember}
           onRemoveMember={handleRemoveMember}
           onChangeMemberRole={handleChangeMemberRole}
-          onFetchAvailableFriends={fetchAvailableFriends}
           onHideChat={handleHideChat}
           onOpenImagePreview={(url) => {
             setPreviewImage(url);
@@ -1482,7 +1801,9 @@ const ChatScreen = ({ navigation, route }) => {
             setShowChatInfoModal(false);
             setShowImagePreview(true);
           }}
+          onRefreshMembers={fetchMemberInGroupDetails}
           isTogglingApproval={isTogglingApproval}
+          socket={socket}
         />
         <Modal
           visible={showForwardModal}
@@ -1496,22 +1817,27 @@ const ChatScreen = ({ navigation, route }) => {
         >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => {
-                setShowForwardModal(false);
-                setSearchQuery("");
-                setAdditionalContent("");
-                setFilteredConversations(conversations);
-              }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowForwardModal(false);
+                  setSearchQuery("");
+                  setAdditionalContent("");
+                  setFilteredConversations(conversations);
+                }}
+              >
                 <Text style={styles.cancelButton}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleForwardMessage}
                 disabled={isSending || selectedConversations.length === 0}
               >
-                <Text style={[
-                  styles.forwardButtonText,
-                  (isSending || selectedConversations.length === 0) && styles.disabledButtonText,
-                ]}>
+                <Text
+                  style={[
+                    styles.forwardButtonText,
+                    (isSending || selectedConversations.length === 0) &&
+                      styles.disabledButtonText,
+                  ]}
+                >
                   Chuyển tiếp
                 </Text>
               </TouchableOpacity>
@@ -1534,7 +1860,9 @@ const ChatScreen = ({ navigation, route }) => {
               />
             </View>
             {filteredConversations.length === 0 ? (
-              <Text style={styles.noResults}>Không tìm thấy cuộc trò chuyện nào.</Text>
+              <Text style={styles.noResults}>
+                Không tìm thấy cuộc trò chuyện nào.
+              </Text>
             ) : (
               <FlatList
                 data={filteredConversations}
@@ -1551,7 +1879,12 @@ const ChatScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5", paddingTop: 30, paddingBottom: 10 },
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    paddingTop: 30,
+    paddingBottom: 10,
+  },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -1586,40 +1919,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
   },
-  modalContainer: { flex: 1, backgroundColor: '#fff', paddingTop: 40 },
+  modalContainer: { flex: 1, backgroundColor: "#fff", paddingTop: 40 },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  cancelButton: { fontSize: 16, color: '#007AFF' },
-  forwardButtonText: { fontSize: 16, color: '#007AFF', fontWeight: 'bold' },
-  disabledButtonText: { color: '#aaa' },
+  modalTitle: { fontSize: 18, fontWeight: "bold" },
+  cancelButton: { fontSize: 16, color: "#007AFF" },
+  forwardButtonText: { fontSize: 16, color: "#007AFF", fontWeight: "bold" },
+  disabledButtonText: { color: "#aaa" },
   additionalContentContainer: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   additionalContentInput: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 8,
     fontSize: 16,
     minHeight: 60,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   searchContainer: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   searchInput: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -1627,26 +1960,26 @@ const styles = StyleSheet.create({
   },
   conversationList: { flex: 1 },
   conversationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
-  selectedConversation: { backgroundColor: '#e6f3ff' },
+  selectedConversation: { backgroundColor: "#e6f3ff" },
   conversationInfo: { marginLeft: 12, flex: 1 },
-  conversationName: { fontSize: 16, fontWeight: '500' },
-  conversationType: { fontSize: 14, color: '#666' },
+  conversationName: { fontSize: 16, fontWeight: "500" },
+  conversationType: { fontSize: 14, color: "#666" },
   checkmark: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#007AFF",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  checkmarkText: { color: '#fff', fontSize: 16 },
+  checkmarkText: { color: "#fff", fontSize: 16 },
   noResults: {
     textAlign: "center",
     marginTop: 20,

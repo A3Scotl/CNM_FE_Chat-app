@@ -21,7 +21,7 @@ import {
   Button,
 } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { io, Socket } from "socket.io-client";
 import ConversationList from "../components/ConversationList";
 import ProfileModal from "../components/Modal/ProfileModal";
@@ -40,7 +40,7 @@ import { getOrCreateConversationDetail } from "../apis/conversation.api";
 
 const HomeScreen = ({ navigation, route }) => {
   const theme = useTheme();
-  const colors = { ...theme.colors, primary: '#0098f9', accent: '#0098f9' };
+  const colors = { ...theme.colors, primary: "#0098f9", accent: "#0098f9" };
   const { sendRequest, fetchRequests, fetchSentRequests } = useFriendRequest();
   const [currentUser, setCurrentUser] = useState(null);
   const [visibleProfile, setVisibleProfile] = useState(false);
@@ -77,7 +77,9 @@ const HomeScreen = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem("token");
       const userId = await AsyncStorage.getItem("userId");
       if (!token || !userId) {
-        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        console.warn(
+          "Token hoặc userId không tồn tại, không thể kết nối socket"
+        );
         return;
       }
 
@@ -94,20 +96,18 @@ const HomeScreen = ({ navigation, route }) => {
       socketConnection.on("friend-request", (data) => {
         Alert.alert("Thông báo", data.message);
       });
-      socketConnection.on("friend-request-accepted", async ({ requestId, userId }) => {
-        Alert.alert("Thông báo", `Lời mời kết bạn của bạn đã được chấp nhận.`);
-        await Promise.all([fetchFriends(), fetchSentRequests(true)]);
-      });
+      socketConnection.on(
+        "friend-request-accepted",
+        async ({ requestId, userId }) => {
+          Alert.alert(
+            "Thông báo",
+            `Lời mời kết bạn của bạn đã được chấp nhận.`
+          );
+          await Promise.all([fetchFriends(), fetchSentRequests(true)]);
+        }
+      );
       socketConnection.on("friend-removed", (data) => {
         console.log("Thông báo", data.message);
-      });
-
-      socketConnection.on("group:member-added", (data) => {
-        console.log("Đã được thêm vào nhóm:", data);
-      });
-
-      socketConnection.on("new-group-invite", (data) => {
-        console.log("Nhận lời mời nhóm:", data);
       });
 
       socketConnection.on("disconnect", (reason) => {
@@ -122,7 +122,9 @@ const HomeScreen = ({ navigation, route }) => {
     connectSocket();
 
     return () => {
-      socketConnection.disconnect();
+      if (socketConnection) {
+        socketConnection.disconnect();
+      }
     };
   }, []);
 
@@ -204,7 +206,7 @@ const HomeScreen = ({ navigation, route }) => {
         if (query.length === 10 && formattedQuery.length === 10) {
           const userResults = await findUserByPhone(formattedQuery);
           if (userResults) {
-             combinedResults = combinedResults.concat(
+            combinedResults = combinedResults.concat(
               Array.isArray(userResults) ? userResults : [userResults]
             );
           }
@@ -247,7 +249,10 @@ const HomeScreen = ({ navigation, route }) => {
         console.log("Người dùng từ tìm kiếm nhóm:", userResults);
 
         // Kết hợp kết quả
-        combinedResults = combinedResults.concat(userResults, typedGroupResults);
+        combinedResults = combinedResults.concat(
+          userResults,
+          typedGroupResults
+        );
 
         setSearchResults(combinedResults);
       } catch (error) {
@@ -304,7 +309,10 @@ const HomeScreen = ({ navigation, route }) => {
       setSearchResults([]);
     } catch (error) {
       setTimeout(() => setMessage(""), 3000);
-      Alert.alert("Lỗi", error.message || "Lời mời kết bạn đã được gửi trước đó!");
+      Alert.alert(
+        "Lỗi",
+        error.message || "Lời mời kết bạn đã được gửi trước đó!"
+      );
     } finally {
       setIsSearching(false);
     }
@@ -460,7 +468,7 @@ const HomeScreen = ({ navigation, route }) => {
                         {item.name || item.fullName || "Nhóm không tên"}
                       </Text>
                       <Text style={styles.userPhone}>
-                        {(item.participants?.length || 0)} thành viên
+                        {item.participants?.length || 0} thành viên
                       </Text>
                     </View>
                     <MaterialCommunityIcons
@@ -472,7 +480,9 @@ const HomeScreen = ({ navigation, route }) => {
                 );
               } else {
                 const isCurrentUser = item._id === currentUser?._id;
-                const isFriend = friends.some((friend) => friend._id === item._id);
+                const isFriend = friends.some(
+                  (friend) => friend._id === item._id
+                );
                 return (
                   <TouchableOpacity
                     style={styles.userItem}
@@ -499,8 +509,8 @@ const HomeScreen = ({ navigation, route }) => {
                         {item.phoneNumber || ""}
                       </Text>
                     </View>
-                    {!isCurrentUser && (
-                      isFriend ? (
+                    {!isCurrentUser &&
+                      (isFriend ? (
                         <TouchableOpacity
                           style={styles.chatButton}
                           onPress={() => handleChat(item)}
@@ -522,8 +532,7 @@ const HomeScreen = ({ navigation, route }) => {
                             color={colors.primary}
                           />
                         </TouchableOpacity>
-                      )
-                    )}
+                      ))}
                   </TouchableOpacity>
                 );
               }
@@ -576,7 +585,11 @@ const HomeScreen = ({ navigation, route }) => {
               >
                 <Avatar.Image
                   size={40}
-                  source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
+                  source={{
+                    uri:
+                      item.avatar ||
+                      "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+                  }}
                 />
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>{item.fullName}</Text>
@@ -610,7 +623,11 @@ const HomeScreen = ({ navigation, route }) => {
                 <View style={styles.userItem}>
                   <Avatar.Image
                     size={40}
-                    source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" }}
+                    source={{
+                      uri:
+                        item.avatar ||
+                        "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+                    }}
                   />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{item.fullName}</Text>
@@ -628,7 +645,9 @@ const HomeScreen = ({ navigation, route }) => {
               style={styles.selectedMembersList}
             />
           ) : (
-            <Text style={styles.noResults}>Chưa có thành viên nào được chọn.</Text>
+            <Text style={styles.noResults}>
+              Chưa có thành viên nào được chọn.
+            </Text>
           )}
         </View>
 
@@ -644,7 +663,11 @@ const HomeScreen = ({ navigation, route }) => {
             >
               <Avatar.Image
                 size={40}
-                source={{ uri: item.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg" }}
+                source={{
+                  uri:
+                    item.avatar ||
+                    "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3d26467b06330c.jpg",
+                }}
               />
               <View style={styles.userInfo}>
                 <Text style={styles.userName}>{item.fullName}</Text>
@@ -750,7 +773,7 @@ const HomeScreen = ({ navigation, route }) => {
         style={[styles.container, { backgroundColor: colors.background }]}
       >
         {showAppbar && (
-          <View style={{ position: 'relative', zIndex: 3 }}>
+          <View style={{ position: "relative", zIndex: 3 }}>
             <Appbar.Header style={styles.appBar}>
               <SearchBar
                 searchQuery={searchQuery}
@@ -779,7 +802,9 @@ const HomeScreen = ({ navigation, route }) => {
                   <Avatar.Image
                     size={36}
                     source={{
-                      uri: currentUser?.avatar || 'https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg',
+                      uri:
+                        currentUser?.avatar ||
+                        "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
                     }}
                     style={styles.avatar}
                   />
@@ -813,10 +838,10 @@ const HomeScreen = ({ navigation, route }) => {
             sceneAnimationType="shifting"
             renderIcon={({ route, focused, color }) => {
               let iconName;
-              if (route.key === 'messages') {
-                iconName = focused ? 'message-text' : 'message-text-outline';
-              } else if (route.key === 'contacts') {
-                iconName = focused ? 'account-box' : 'account-box-outline';
+              if (route.key === "messages") {
+                iconName = focused ? "message-text" : "message-text-outline";
+              } else if (route.key === "contacts") {
+                iconName = focused ? "account-box" : "account-box-outline";
               }
               return (
                 <View style={[styles.iconContainer]}>
@@ -907,12 +932,10 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
     marginLeft: 15,
-
   },
   userName: {
     fontSize: 16,
     fontWeight: "500",
-
   },
   userPhone: {
     fontSize: 14,

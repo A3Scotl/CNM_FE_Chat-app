@@ -15,8 +15,12 @@ const ConversationList = ({ currentUser }) => {
 
   const sortConversations = (convoList) => {
     return convoList.sort((a, b) => {
-      const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
-      const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      const aTime = a.lastMessage?.createdAt
+        ? new Date(a.lastMessage.createdAt).getTime()
+        : 0;
+      const bTime = b.lastMessage?.createdAt
+        ? new Date(b.lastMessage.createdAt).getTime()
+        : 0;
       return bTime - aTime;
     });
   };
@@ -33,7 +37,12 @@ const ConversationList = ({ currentUser }) => {
         if (convo.type === "group") {
           return {
             _id: convo._id,
-            user: { fullName: convo.name, avatar: convo.avatar || "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" },
+            user: {
+              fullName: convo.name,
+              avatar:
+                convo.avatar ||
+                "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+            },
             lastMessage: convo.lastMessage || null,
             type: "group",
             unreadCount: convo.unreadCount || 0,
@@ -43,7 +52,11 @@ const ConversationList = ({ currentUser }) => {
         } else {
           const otherParticipant = convo.participants?.find(
             (p) => p._id !== currentUser._id
-          ) || { fullName: "Unknown", avatar: "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg" };
+          ) || {
+            fullName: "Unknown",
+            avatar:
+              "https://i.pinimg.com/736x/2f/15/f2/2f15f2e8c688b3120d3d26467b06330c.jpg",
+          };
           return {
             _id: convo._id,
             user: otherParticipant,
@@ -66,7 +79,9 @@ const ConversationList = ({ currentUser }) => {
 
   const handleDeleteConversationLocally = useCallback((conversationId) => {
     setConversations((prev) => {
-      const updatedConvos = prev.filter((convo) => convo._id !== conversationId);
+      const updatedConvos = prev.filter(
+        (convo) => convo._id !== conversationId
+      );
       return sortConversations(updatedConvos);
     });
   }, []);
@@ -78,7 +93,9 @@ const ConversationList = ({ currentUser }) => {
       const token = await AsyncStorage.getItem("token");
       const userId = await AsyncStorage.getItem("userId");
       if (!token || !userId) {
-        console.warn("Token hoặc userId không tồn tại, không thể kết nối socket");
+        console.warn(
+          "Token hoặc userId không tồn tại, không thể kết nối socket"
+        );
         return;
       }
 
@@ -94,10 +111,16 @@ const ConversationList = ({ currentUser }) => {
         socketConnection.emit("register", userId);
       });
 
-      socketConnection.on("newConversation", ({ conversationId, participants }) => {
-        console.log("Nhận sự kiện newConversation:", { conversationId, participants });
-        fetchConversations();
-      });
+      socketConnection.on(
+        "newConversation",
+        ({ conversationId, participants }) => {
+          console.log("Nhận sự kiện newConversation:", {
+            conversationId,
+            participants,
+          });
+          fetchConversations();
+        }
+      );
 
       socketConnection.on("groupCreated", ({ group, message }) => {
         // try {
@@ -115,7 +138,9 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("new-message", (msg) => {
         setConversations((prev) => {
-          const conversationExists = prev.some((convo) => convo._id === msg.conversationId);
+          const conversationExists = prev.some(
+            (convo) => convo._id === msg.conversationId
+          );
 
           if (conversationExists) {
             const updatedConversations = prev.map((convo) => {
@@ -130,8 +155,8 @@ const ConversationList = ({ currentUser }) => {
                       (msg.type === "image"
                         ? "Hình ảnh"
                         : msg.type === "audio"
-                          ? "Tin nhắn âm thanh"
-                          : "Tệp"),
+                        ? "Tin nhắn âm thanh"
+                        : "Tệp"),
                     sender: msg.sender,
                     createdAt: msg.createdAt,
                     type: msg.type,
@@ -139,62 +164,77 @@ const ConversationList = ({ currentUser }) => {
                     replyTo: msg.replyTo,
                     isRevoke: msg.isRevoke || false,
                   },
-                  unreadCount: isCurrentUser ? convo.unreadCount : (convo.unreadCount || 0) + 1,
+                  unreadCount: isCurrentUser
+                    ? convo.unreadCount
+                    : (convo.unreadCount || 0) + 1,
                 };
               }
               return convo;
             });
             return sortConversations([...updatedConversations]);
           } else {
-           fetchConversations();
+            fetchConversations();
           }
         });
       });
 
-      socketConnection.on("message-recalled", ({ conversationId, messageId, updatedMessage }) => {
-        console.log(`Socket 'message-recalled' received for convo: ${conversationId}, msg: ${messageId}`);
-       
-        fetchConversations();
-      });
+      socketConnection.on(
+        "message-recalled",
+        ({ conversationId, messageId, updatedMessage }) => {
+          console.log(
+            `Socket 'message-recalled' received for convo: ${conversationId}, msg: ${messageId}`
+          );
+
+          fetchConversations();
+        }
+      );
 
       socketConnection.on("conversation-hidden", ({ conversationId }) => {
         setConversations((prev) => {
-          const updatedConversations = prev.filter((convo) => convo._id !== conversationId);
+          const updatedConversations = prev.filter(
+            (convo) => convo._id !== conversationId
+          );
           return sortConversations([...updatedConversations]);
         });
       });
 
-      socketConnection.on("group:member-added", ({ groupId, addedUserId, addedBy }) => {
-        fetchConversations();
-        // if (addedBy !== userId) {
-        //   try {
-        //     const sound = new Audio.Sound();
-        //     sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-        //       sound.playAsync().then(() => {
-        //         sound.unloadAsync();
-        //       });
-        //     });
-        //   } catch (err) {
-        //     console.error("Lỗi phát âm thanh thông báo:", err);
-        //   }
-        // }
-      });
-
-      socketConnection.on("group:member-removed", ({ groupId, removedUserId, removedBy }) => {
-        fetchConversations();
-        if (removedBy !== userId && removedUserId !== userId) {
-          // try {
-          //   const sound = new Audio.Sound();
-          //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-          //     sound.playAsync().then(() => {
-          //       sound.unloadAsync();
+      socketConnection.on(
+        "group:member-added",
+        ({ groupId, addedUserId, addedBy }) => {
+          fetchConversations();
+          // if (addedBy !== userId) {
+          //   try {
+          //     const sound = new Audio.Sound();
+          //     sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+          //       sound.playAsync().then(() => {
+          //         sound.unloadAsync();
+          //       });
           //     });
-          //   });
-          // } catch (err) {
-          //   // console.error("Lỗi phát âm thanh thông báo:", err);
+          //   } catch (err) {
+          //     console.error("Lỗi phát âm thanh thông báo:", err);
+          //   }
           // }
         }
-      });
+      );
+
+      socketConnection.on(
+        "group:member-removed",
+        ({ groupId, removedUserId, removedBy }) => {
+          fetchConversations();
+          if (removedBy !== userId && removedUserId !== userId) {
+            // try {
+            //   const sound = new Audio.Sound();
+            //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+            //     sound.playAsync().then(() => {
+            //       sound.unloadAsync();
+            //     });
+            //   });
+            // } catch (err) {
+            //   // console.error("Lỗi phát âm thanh thông báo:", err);
+            // }
+          }
+        }
+      );
 
       socketConnection.on("group:memberLeft", ({ groupId, leftUserId }) => {
         fetchConversations();
@@ -215,7 +255,9 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("group:deleted", ({ groupId }) => {
         setConversations((prev) => {
-          const updatedConversations = prev.filter((convo) => convo._id !== groupId);
+          const updatedConversations = prev.filter(
+            (convo) => convo._id !== groupId
+          );
           return sortConversations([...updatedConversations]);
         });
         // try {
@@ -249,39 +291,54 @@ const ConversationList = ({ currentUser }) => {
         });
       });
 
-      socketConnection.on("group:memberRoleChanged", ({ groupId, userId: affectedUserId, newRole }) => {
-        fetchConversations();
-        if (affectedUserId !== userId) {
-          const roleText = newRole === "owner" ? "chủ nhóm" : newRole === "admin" ? "quản trị viên" : "thành viên";
-
+      socketConnection.on(
+        "group:memberRoleChanged",
+        ({ groupId, userId: affectedUserId, newRole }) => {
+          fetchConversations();
+          if (affectedUserId !== userId) {
+            const roleText =
+              newRole === "owner"
+                ? "Trưởng nhóm"
+                : newRole === "admin"
+                ? "Phó nhóm"
+                : "Thành viên";
+          }
         }
-      });
+      );
 
-      socketConnection.on("group:requireApprovalChanged", ({ groupId, requireApproval }) => {
-        setConversations((prev) => {
-          const updatedConversations = prev.map((convo) => {
-            if (convo._id === groupId) {
-              return {
-                ...convo,
-                requireApproval,
-              };
-            }
-            return convo;
+      socketConnection.on(
+        "group:requireApprovalChanged",
+        ({ groupId, requireApproval }) => {
+          setConversations((prev) => {
+            const updatedConversations = prev.map((convo) => {
+              if (convo._id === groupId) {
+                return {
+                  ...convo,
+                  requireApproval,
+                };
+              }
+              return convo;
+            });
+            return sortConversations([...updatedConversations]);
           });
-          return sortConversations([...updatedConversations]);
-        });
-        // try {
-        //   const sound = new Audio.Sound();
-        //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
-        //     sound.playAsync().then(() => {
-        //       sound.unloadAsync();
-        //     });
-        //   });
-        Alert.alert("Cập nhật nhóm", `Yêu cầu duyệt thành viên đã được ${requireApproval ? "bật" : "tắt"}.`);
-        // } catch (err) {
-        //   console.error("Lỗi phát âm thanh thông báo:", err);
-        // }
-      });
+          // try {
+          //   const sound = new Audio.Sound();
+          //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+          //     sound.playAsync().then(() => {
+          //       sound.unloadAsync();
+          //     });
+          //   });
+          Alert.alert(
+            "Cập nhật nhóm",
+            `Yêu cầu duyệt thành viên đã được ${
+              requireApproval ? "bật" : "tắt"
+            }.`
+          );
+          // } catch (err) {
+          //   console.error("Lỗi phát âm thanh thông báo:", err);
+          // }
+        }
+      );
 
       socketConnection.on("disconnect", (reason) => {
         // console.log("Ngắt kết nối Socket.IO trong ConversationList. Lý do:", reason);
@@ -304,9 +361,7 @@ const ConversationList = ({ currentUser }) => {
   const handleChatSelect = (chat) => {
     setConversations((prev) =>
       sortConversations(
-        prev.map((c) =>
-          c._id === chat._id ? { ...c, unreadCount: 0 } : c
-        )
+        prev.map((c) => (c._id === chat._id ? { ...c, unreadCount: 0 } : c))
       )
     );
     navigation.navigate("Chat", {

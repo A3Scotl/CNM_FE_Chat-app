@@ -6,7 +6,13 @@ import { SOCKET_URL } from "@env";
 
 export const useSocket = (
   userId,
-  { onFriendRequest, onFriendRequestAccepted, onNewMessage, onTyping, onStopTyping } = {}
+  {
+    onFriendRequest,
+    onFriendRequestAccepted,
+    onNewMessage,
+    onTyping,
+    onStopTyping,
+  } = {}
 ) => {
   const socketRef = useRef(null);
 
@@ -40,13 +46,16 @@ export const useSocket = (
           socketRef.current.emit("register", userId);
         });
 
-        socketRef.current.on("friend-request", ({ message, from, requestId }) => {
-          console.log("Nhận yêu cầu kết bạn:", { message, from, requestId });
-          // Alert.alert("Yêu cầu kết bạn mới", `${message} từ ${from.fullName}`);
-          // if (onFriendRequest) {
-          //   onFriendRequest({ message, from, requestId });
-          // }
-        });
+        socketRef.current.on(
+          "friend-request",
+          ({ message, from, requestId }) => {
+            console.log("Nhận yêu cầu kết bạn:", { message, from, requestId });
+            // Alert.alert("Yêu cầu kết bạn mới", `${message} từ ${from.fullName}`);
+            // if (onFriendRequest) {
+            //   onFriendRequest({ message, from, requestId });
+            // }
+          }
+        );
 
         socketRef.current.on("friend-request-accepted", ({ message, user }) => {
           console.log("Yêu cầu kết bạn đã được chấp nhận:", { message, user });
@@ -66,17 +75,35 @@ export const useSocket = (
           }
         });
 
-        socketRef.current.on("typing", ({ conversationId, userId: typingUserId, fullName }) => {
-          if (onTyping && conversationId && typingUserId && fullName) {
-            onTyping({ conversationId, userId: typingUserId, fullName });
+        socketRef.current.on(
+          "require-approval-toggled",
+          ({ groupId, requireApproval }) => {
+            if (groupId === chatId) {
+              setConversationDetails((prev) => ({
+                ...prev,
+                requireApproval,
+              }));
+            }
           }
-        });
+        );
 
-        socketRef.current.on("stop-typing", ({ conversationId, userId: typingUserId }) => {
-          if (onStopTyping && conversationId && typingUserId) {
-            onStopTyping({ conversationId, userId: typingUserId });
+        socketRef.current.on(
+          "typing",
+          ({ conversationId, userId: typingUserId, fullName }) => {
+            if (onTyping && conversationId && typingUserId && fullName) {
+              onTyping({ conversationId, userId: typingUserId, fullName });
+            }
           }
-        });
+        );
+
+        socketRef.current.on(
+          "stop-typing",
+          ({ conversationId, userId: typingUserId }) => {
+            if (onStopTyping && conversationId && typingUserId) {
+              onStopTyping({ conversationId, userId: typingUserId });
+            }
+          }
+        );
 
         socketRef.current.on("disconnect", (reason) => {
           // console.log("Ngắt kết nối", `Lý do: ${reason}`);
@@ -98,7 +125,14 @@ export const useSocket = (
         socketRef.current = null;
       }
     };
-  }, [userId, onFriendRequest, onFriendRequestAccepted, onNewMessage, onTyping, onStopTyping]);
+  }, [
+    userId,
+    onFriendRequest,
+    onFriendRequestAccepted,
+    onNewMessage,
+    onTyping,
+    onStopTyping,
+  ]);
 
   const joinRoom = (conversationId) => {
     if (socketRef.current && conversationId) {
