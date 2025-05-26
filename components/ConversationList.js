@@ -118,7 +118,7 @@ const ConversationList = ({ currentUser }) => {
             conversationId,
             participants,
           });
-          fetchConversations(); // Gọi lại fetch để cập nhật danh sách
+          fetchConversations();
         }
       );
 
@@ -138,47 +138,53 @@ const ConversationList = ({ currentUser }) => {
 
       socketConnection.on("new-message", (msg) => {
         setConversations((prev) => {
-          const updatedConversations = prev.map((convo) => {
-            if (convo._id === msg.conversationId) {
-              const isCurrentUser = String(msg.sender._id) === String(userId);
-              return {
-                ...convo,
-                lastMessage: {
-                  _id: msg._id,
-                  content:
-                    msg.content ||
-                    (msg.type === "image"
-                      ? "Hình ảnh"
-                      : msg.type === "audio"
-                      ? "Tin nhắn âm thanh"
-                      : "Tệp"),
-                  sender: msg.sender,
-                  createdAt: msg.createdAt,
-                  type: msg.type,
-                  fileMeta: msg.fileMeta || [],
-                  replyTo: msg.replyTo,
-                  isRevoke: msg.isRevoke || false,
-                },
-                unreadCount: isCurrentUser
-                  ? convo.unreadCount
-                  : (convo.unreadCount || 0) + 1,
-              };
-            }
-            return convo;
-          });
-          return sortConversations([...updatedConversations]);
+          const conversationExists = prev.some(
+            (convo) => convo._id === msg.conversationId
+          );
+
+          if (conversationExists) {
+            const updatedConversations = prev.map((convo) => {
+              if (convo._id === msg.conversationId) {
+                const isCurrentUser = String(msg.sender._id) === String(userId);
+                return {
+                  ...convo,
+                  lastMessage: {
+                    _id: msg._id,
+                    content:
+                      msg.content ||
+                      (msg.type === "image"
+                        ? "Hình ảnh"
+                        : msg.type === "audio"
+                        ? "Tin nhắn âm thanh"
+                        : "Tệp"),
+                    sender: msg.sender,
+                    createdAt: msg.createdAt,
+                    type: msg.type,
+                    fileMeta: msg.fileMeta || [],
+                    replyTo: msg.replyTo,
+                    isRevoke: msg.isRevoke || false,
+                  },
+                  unreadCount: isCurrentUser
+                    ? convo.unreadCount
+                    : (convo.unreadCount || 0) + 1,
+                };
+              }
+              return convo;
+            });
+            return sortConversations([...updatedConversations]);
+          } else {
+            fetchConversations();
+          }
         });
       });
 
-      // CẬP NHẬT QUAN TRỌNG TẠI ĐÂY
       socketConnection.on(
         "message-recalled",
         ({ conversationId, messageId, updatedMessage }) => {
           console.log(
             `Socket 'message-recalled' received for convo: ${conversationId}, msg: ${messageId}`
           );
-          // Kích hoạt lại fetchConversations để đảm bảo dữ liệu luôn đồng bộ với backend
-          // Vì backend đã cập nhật lastMessage đúng khi reload trang.
+
           fetchConversations();
         }
       );
@@ -292,11 +298,45 @@ const ConversationList = ({ currentUser }) => {
           if (affectedUserId !== userId) {
             const roleText =
               newRole === "owner"
-                ? "chủ nhóm"
+                ? "Trưởng nhóm"
                 : newRole === "admin"
-                ? "quản trị viên"
-                : "thành viên";
+                ? "Phó nhóm"
+                : "";
           }
+        }
+      );
+
+      socketConnection.on(
+        "group:requireApprovalChanged",
+        ({ groupId, requireApproval }) => {
+          setConversations((prev) => {
+            const updatedConversations = prev.map((convo) => {
+              if (convo._id === groupId) {
+                return {
+                  ...convo,
+                  requireApproval,
+                };
+              }
+              return convo;
+            });
+            return sortConversations([...updatedConversations]);
+          });
+          // try {
+          //   const sound = new Audio.Sound();
+          //   sound.loadAsync(require("../assets/sounds/invite-group.mp3")).then(() => {
+          //     sound.playAsync().then(() => {
+          //       sound.unloadAsync();
+          //     });
+          //   });
+          Alert.alert(
+            "Cập nhật nhóm",
+            `Yêu cầu duyệt thành viên đã được ${
+              requireApproval ? "bật" : "tắt"
+            }.`
+          );
+          // } catch (err) {
+          //   console.error("Lỗi phát âm thanh thông báo:", err);
+          // }
         }
       );
 
